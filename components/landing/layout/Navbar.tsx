@@ -56,8 +56,8 @@ export function Navbar() {
 
   return (
     <header className="fixed top-0 inset-x-0 z-50 transition-all duration-300">
-      <div className="bg-brand text-white text-center py-2.5 px-4 text-[13px] md:text-[14px] font-medium">
-        To ensure the best possible experience, we are finalizing a few updates. The dashboard will be fully live this evening!
+      <div className="bg-brand text-white text-center py-2.5 px-4 text-[13px] md:text-[14px] font-medium tracking-wide shadow-sm">
+        To ensure a seamless and fully functional experience, we are applying final optimizations. The dashboard will be live this evening.
       </div>
       <div className="mt-2 md:mt-4 px-4 md:px-6">
         <div className="w-full max-w-[1200px] mx-auto bg-white/70 backdrop-blur-xl border border-black/[0.05] shadow-[0_8px_30px_rgba(94,169,32,0.08),0_1px_3px_rgba(0,0,0,0.02)] rounded-[20px] md:rounded-full">
