@@ -44,3 +44,7 @@ ads/
 logs.txt
 test-*.ts
 test-*.js
+
+# agent instruction files
+CLAUDE.md
+AGENTS.md
