@@ -22,8 +22,8 @@ const steps = [
     title: 'Review',
     desc: 'See the full creative context.',
     body: 'Inspect the ad, advertiser, platforms and available signals before deciding what matters.',
-    image: '/images/how-it-works/review-new.png',
-    imageClass: 'object-cover object-center scale-[1.02]'
+    image: '/images/how-it-works/review-v2.png',
+    imageClass: 'object-cover object-left-top w-full h-full'
   },
   {
     id: '03',
