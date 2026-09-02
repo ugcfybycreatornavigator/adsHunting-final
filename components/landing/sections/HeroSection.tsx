@@ -138,7 +138,7 @@ export function HeroSection() {
                 <br className="hidden sm:block" />
                 <span
                   style={{
-                    background: 'linear-gradient(90deg, #4d8a1a, #5ea920, #a3e635)',
+                    background: 'linear-gradient(90deg, #2e7d32, #5ea920, #85d940)',
                     WebkitBackgroundClip: 'text',
                     WebkitTextFillColor: 'transparent',
                     backgroundClip: 'text',

@@ -110,11 +110,11 @@ export function Footer() {
         </div>
 
         {/* Bottom Bar */}
-        <div className="mt-12 pt-8 border-t border-border flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div className="mt-12 pt-8 border-t border-border flex flex-col md:flex-row justify-between items-center md:items-center gap-4 text-center">
           <p className="text-[13px] text-text-muted">
             © {new Date().getFullYear()} AdsHunting. All rights reserved.
           </p>
-          <div className="flex flex-wrap gap-4">
+          <div className="flex flex-wrap justify-center gap-4">
             {navigationConfig.legal.map(item => (
               <Link
                 key={item.name}
