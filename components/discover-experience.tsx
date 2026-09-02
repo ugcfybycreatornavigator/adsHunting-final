@@ -13,6 +13,9 @@ import { AdvancedFilters } from "@/components/filters/advanced-filters";
 import { SavedFiltersPopover } from "@/components/filters/saved-filters";
 import { SearchAutocomplete } from "@/components/search/search-autocomplete";
 import { useUrlFilters } from "@/lib/hooks/use-url-filters";
+import { useAdImpressionTracker } from "@/lib/hooks/use-ad-impression-tracker";
+import { useCredits } from "@/components/billing/CreditsContext";
+import { useRouter } from "next/navigation";
 import type { AdSearchFilters, AdSearchResult, NormalizedAd } from "@/lib/types";
 import type { BrandSummary } from "@/lib/brand-data";
 import { normalizeDiscoverFilters } from "@/lib/filter-utils";
@@ -22,6 +25,7 @@ const countries = [["ALL","All countries"],["IN","India"],["US","United States"]
 const defaults: AdSearchFilters = { query: "", status: "all", country: "ALL", platforms: [], mediaType: "all", cta: "", duration: "", startDate: "", endDate: "" };
 
 export function DiscoverExperience({ brandId, hideHeader = false }: { brandId?: string, hideHeader?: boolean }) {
+  const { reportUsage, state: creditState } = useCredits();
   const defaultFilters = useMemo(() => ({ ...defaults, brand: brandId }), [brandId]);
   const { filters, updateFilters: setFilters, clearFilters } = useUrlFilters(defaultFilters);
   const [ads, setAds] = useState<NormalizedAd[]>([]);
@@ -44,8 +48,17 @@ export function DiscoverExperience({ brandId, hideHeader = false }: { brandId?: 
   const [adCollectionIds, setAdCollectionIds] = useState<Record<string, string[]>>({});
   const [toast, setToast] = useState<{ message: string; tone?: "success" | "error" } | null>(null);
   const [deepLinkedAdId, setDeepLinkedAdId] = useState<string | null>(null);
+  const [searchSessionId, setSearchSessionId] = useState<string | null>(null);
   const first = useRef(true);
   const requestController = useRef<AbortController | null>(null);
+  const router = useRouter();
+
+  const observerRef = useAdImpressionTracker(searchSessionId, filters.view !== "brands" && !loading);
+  const adRef = useCallback((node: HTMLDivElement | null) => {
+    if (node && observerRef.current) {
+      observerRef.current.observe(node);
+    }
+  }, [observerRef]);
 
   useEffect(() => {
     try { setHistory(JSON.parse(localStorage.getItem("signal-search-history") || "[]")); } catch {}
@@ -127,6 +140,10 @@ export function DiscoverExperience({ brandId, hideHeader = false }: { brandId?: 
       });
       setCursor(result.nextCursor);
       setTotal(result.total);
+      
+      if (!append && result.requestId) {
+        setSearchSessionId(result.requestId);
+      }
 
       if (nextFilters.query?.trim() || result.resolvedIntent?.type === "advertiser") {
         const queryToSave = result.resolvedIntent?.type === "advertiser" ? result.resolvedIntent.advertiserName : nextFilters.query!.trim();
@@ -280,19 +297,19 @@ export function DiscoverExperience({ brandId, hideHeader = false }: { brandId?: 
 
   function removeChip(key: string, value: string) {
     if (key === "platforms") {
-      setFilters({ platforms: (filters.platforms || []).filter(item => item !== value) });
+      setFilters({ platforms: (filters.platforms || []).filter((item: string) => item !== value) });
     } else if (key === "formats") {
-      setFilters({ formats: (filters.formats || []).filter(item => item !== value) });
+      setFilters({ formats: (filters.formats || []).filter((item: string) => item !== value) });
     } else if (key === "statuses") {
-      setFilters({ statuses: (filters.statuses || []).filter(item => item !== value) });
+      setFilters({ statuses: (filters.statuses || []).filter((item: string) => item !== value) });
     } else if (key === "markets") {
-      setFilters({ markets: (filters.markets || []).filter(item => item !== value) });
+      setFilters({ markets: (filters.markets || []).filter((item: string) => item !== value) });
     } else if (key === "languages") {
-      setFilters({ languages: (filters.languages || []).filter(item => item !== value) });
+      setFilters({ languages: (filters.languages || []).filter((item: string) => item !== value) });
     } else if (key === "niches") {
-      setFilters({ niches: (filters.niches || []).filter(item => item !== value) });
+      setFilters({ niches: (filters.niches || []).filter((item: string) => item !== value) });
     } else if (key === "contentStyles") {
-      setFilters({ contentStyles: (filters.contentStyles || []).filter(item => item !== value) });
+      setFilters({ contentStyles: (filters.contentStyles || []).filter((item: string) => item !== value) });
     } else if (key === "runtime") {
       setFilters({ runtime: undefined });
     } else if (key === "videoLength") {
@@ -485,12 +502,18 @@ export function DiscoverExperience({ brandId, hideHeader = false }: { brandId?: 
           ) : error ? (
             <EmptyState
               icon={<Filter className="text-signal" />}
-              title={error.code === "NOT_CONFIGURED" ? "No Ads Provider Configured" : "Search Temporarily Unavailable"}
-              body={error.message}
+              title={error.code === "NOT_CONFIGURED" ? "No Ads Provider Configured" : error.code === "INSUFFICIENT_CREDITS" ? "Out of Credits" : "Search Temporarily Unavailable"}
+              body={error.code === "INSUFFICIENT_CREDITS" ? "You have exhausted your credit allowance for this billing cycle. Please wait for your cycle to reset or upgrade your plan." : error.message}
               action={
-                <Button variant="secondary" onClick={() => search(filters)}>
-                  <RefreshCw size={15} /> Retry search
-                </Button>
+                error.code === "INSUFFICIENT_CREDITS" ? (
+                  <Button variant="secondary" onClick={() => router.push('/settings/billing')}>
+                    Upgrade plan
+                  </Button>
+                ) : (
+                  <Button variant="secondary" onClick={() => search(filters)}>
+                    <RefreshCw size={15} /> Retry search
+                  </Button>
+                )
               }
             />
           ) : ads.length === 0 && !loading ? (
@@ -505,17 +528,27 @@ export function DiscoverExperience({ brandId, hideHeader = false }: { brandId?: 
           ) : (
             <div className={cn(gridClass(), loading && !loadingMore && "opacity-60 transition-opacity")}>
               {displayedAds.map(ad => (
-                <AdCard
-                  key={ad.id}
-                  ad={ad}
-                  saved={savedAdIds.has((ad.externalId || ad.id))}
-                  swipeFileCount={adCollectionIds[(ad.externalId || ad.id)]?.length ?? 0}
-                  initialCollectionIds={adCollectionIds[(ad.externalId || ad.id)] ?? []}
-                  onOpen={() => setDetails(ad)}
-                  onSave={() => saveAd(ad)}
-                  onSwipeFileAdded={(result) => handleSwipeFileAdded(ad, result)}
-                  onShare={() => shareAd(ad)}
-                />
+                <div ref={adRef} data-ad-id={ad.externalId || ad.id} key={ad.id} className="relative">
+                  <AdCard
+                    ad={ad}
+                    saved={savedAdIds.has((ad.externalId || ad.id))}
+                    swipeFileCount={adCollectionIds[(ad.externalId || ad.id)]?.length ?? 0}
+                    initialCollectionIds={adCollectionIds[(ad.externalId || ad.id)] ?? []}
+                    onOpen={() => {
+                      if (creditState?.isExhausted) {
+                        setToast({ message: "You have used all your credits.", tone: "error" });
+                        return;
+                      }
+                      setDetails(ad);
+                      if (searchSessionId) {
+                        reportUsage(searchSessionId, "ad_open", [ad.externalId || ad.id]);
+                      }
+                    }}
+                    onSave={() => saveAd(ad)}
+                    onSwipeFileAdded={(result) => handleSwipeFileAdded(ad, result)}
+                    onShare={() => shareAd(ad)}
+                  />
+                </div>
               ))}
             </div>
           )

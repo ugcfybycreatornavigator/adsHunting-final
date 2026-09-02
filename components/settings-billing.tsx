@@ -3,15 +3,17 @@
 import { Card, Button } from "@/components/ui";
 import { type WorkspaceEntitlement } from "@/lib/billing/subscription-state";
 import { type PlanConfig } from "@/lib/billing/billing-config";
+import { type WorkspaceCreditBalance } from "@/lib/billing/usage";
 import { useState } from "react";
 import { cancelSubscription } from "@/app/(workspace)/settings/billing/actions";
 
 interface SettingsBillingProps {
   entitlement: WorkspaceEntitlement;
   planConfig: PlanConfig | null;
+  creditBalance: WorkspaceCreditBalance | null;
 }
 
-export function SettingsBilling({ entitlement, planConfig }: SettingsBillingProps) {
+export function SettingsBilling({ entitlement, planConfig, creditBalance }: SettingsBillingProps) {
   const [cancelling, setCancelling] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -37,6 +39,10 @@ export function SettingsBilling({ entitlement, planConfig }: SettingsBillingProp
       window.location.reload();
     }
   };
+
+  const pct = creditBalance 
+    ? Math.max(0, Math.min(100, (creditBalance.creditsUsed / creditBalance.creditsAllocated) * 100)) 
+    : 0;
 
   return (
     <div className="space-y-6 max-w-[760px]">
@@ -71,6 +77,41 @@ export function SettingsBilling({ entitlement, planConfig }: SettingsBillingProp
           </div>
         </div>
       </Card>
+
+      {creditBalance && (
+        <Card className="p-6 shadow-sm border border-[#E1E1E1] rounded-[12px]">
+          <h3 className="text-[15px] font-semibold text-[#18181B]">Usage</h3>
+          
+          <div className="mt-4 border border-[#E1E1E1] rounded-[10px] p-5">
+            <div className="flex justify-between items-end mb-3">
+              <div>
+                <p className="text-[14px] font-semibold text-[#18181B]">Credits Used</p>
+                <p className="text-[13px] text-[#71717A] mt-1">
+                  Resets on {creditBalance.cycleEnd ? new Date(creditBalance.cycleEnd).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : "next cycle"}
+                </p>
+              </div>
+              <div className="text-right">
+                <p className="text-[15px] font-semibold text-[#18181B]">
+                  {creditBalance.creditsUsed.toLocaleString()} <span className="text-[#71717A] font-medium">/ {creditBalance.creditsAllocated.toLocaleString()}</span>
+                </p>
+              </div>
+            </div>
+            
+            <div className="h-2.5 w-full bg-[#ECEDEF] rounded-full overflow-hidden">
+              <div 
+                className={`h-full transition-all duration-500 ease-out ${pct > 90 ? 'bg-red-500' : 'bg-gradient-to-r from-[#68B32F] to-[#569b24]'}`}
+                style={{ width: `${pct}%` }}
+              />
+            </div>
+            
+            {creditBalance.creditsRemaining <= 0 && (
+              <p className="text-[13px] text-red-600 font-medium mt-3">
+                You have run out of credits for this billing cycle. Wait until it resets to continue searching.
+              </p>
+            )}
+          </div>
+        </Card>
+      )}
 
 
 

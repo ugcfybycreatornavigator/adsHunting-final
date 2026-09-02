@@ -85,6 +85,32 @@ serve(async (req: Request) => {
       .update(updates)
       .eq('id', localSub.id);
 
+    // Idempotently allocate credits for the current billing cycle
+    const cycleStart = updates.current_period_start || localSub.current_period_start;
+    const cycleEnd = updates.current_period_end || localSub.current_period_end;
+    
+    if (cycleStart && cycleEnd && (updates.status === 'active' || updates.status === 'trialing')) {
+      const { error: balanceError } = await supabaseAdmin
+        .from('workspace_credit_balances')
+        .upsert({
+          workspace_id: userId,
+          subscription_id: localSub.id,
+          cycle_start: cycleStart,
+          cycle_end: cycleEnd,
+          credits_allocated: 10000,
+          credits_used: 0
+        }, {
+          onConflict: 'workspace_id, cycle_start, cycle_end',
+          ignoreDuplicates: true
+        });
+        
+      if (balanceError) {
+        console.error("[Billing] Failed to allocate credits:", balanceError);
+      } else {
+        console.log(`[Billing] Allocated credits for ${userId} cycle ${cycleStart} to ${cycleEnd}`);
+      }
+    }
+
     return new Response(JSON.stringify({ status: updates.status }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 200,

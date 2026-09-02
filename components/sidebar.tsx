@@ -8,6 +8,7 @@ import { BrandMark } from "@/components/brand-mark";
 import { cn } from "@/lib/utils";
 import { useClerk, useUser } from "@clerk/nextjs";
 import { useSupport } from "@/components/support/support-context";
+import { useCredits } from "@/components/billing/CreditsContext";
 import { navigationConfig } from "@/lib/navigation";
 import { SidebarSwipeFiles } from "@/components/sidebar-swipe-files";
 
@@ -51,6 +52,7 @@ export function MobileHeader() {
             
             <div className="mt-4 shrink-0 border-t border-[#E1E1E1] pt-4 flex flex-col gap-[2px]">
               <SupportNavigation onNavigate={() => setOpen(false)} />
+              <SidebarCredits />
               <SidebarProfile />
             </div>
           </div>
@@ -73,6 +75,7 @@ export function Sidebar() {
       
       <div className="mt-4 shrink-0 border-t border-[#E1E1E1] pt-4 flex flex-col gap-[2px]">
         <SupportNavigation />
+        <SidebarCredits />
         <SidebarProfile />
       </div>
     </aside>
@@ -280,5 +283,29 @@ function SidebarProfile() {
         </div>
       )}
     </div>
+  );
+}
+
+function SidebarCredits() {
+  const { state } = useCredits();
+  if (!state) return null;
+
+  const pct = Math.max(0, Math.min(100, (state.creditsRemaining / state.creditsAllocated) * 100));
+
+  return (
+    <Link href="/settings/billing" className="group flex flex-col gap-1.5 px-3 py-2 mb-2 rounded-[12px] hover:bg-[#F7F7F8] transition-colors outline-none focus-visible:ring-2 focus-visible:ring-signal">
+      <div className="flex items-center justify-between">
+        <span className="text-[12px] font-semibold text-[#18181B]">Credits</span>
+        <span className="text-[11px] font-medium text-[#71717A] tabular-nums group-hover:text-[#18181B] transition-colors">
+          {state.creditsRemaining >= 1000 ? (state.creditsRemaining / 1000).toFixed(1) + 'K' : state.creditsRemaining} / {state.creditsAllocated >= 1000 ? (state.creditsAllocated / 1000).toFixed(0) + 'K' : state.creditsAllocated}
+        </span>
+      </div>
+      <div className="h-1.5 w-full bg-[#ECEDEF] rounded-full overflow-hidden">
+        <div 
+          className="h-full bg-gradient-to-r from-[#68B32F] to-[#569b24] transition-all duration-500 ease-out"
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+    </Link>
   );
 }

@@ -5,6 +5,7 @@ import { rateLimit } from "@/lib/rate-limit";
 import { dbAdToNormalized } from "@/lib/catalog";
 import { requireUser } from "@/lib/auth";
 import { requirePaidWorkspaceAccess } from "@/lib/billing/entitlement";
+import { getWorkspaceCreditBalance } from "@/lib/billing/usage";
 import { ProviderError } from "@/lib/providers/errors";
 import { adsForClient, persistNormalizedAds, archiveAdsInBackground } from "@/lib/ads-persistence";
 import { isPreviewMode } from "@/lib/preview";
@@ -61,14 +62,22 @@ export async function POST(request: NextRequest) {
   if (accessError) return accessError;
 
   let catalogClient: Awaited<ReturnType<typeof requireUser>>["supabase"] = null;
+  const authRes = await requireUser();
+  if (authRes.error) return authRes.error;
+  catalogClient = authRes.supabase;
+
+  const balance = await getWorkspaceCreditBalance(authRes.user.id);
+  if (balance && balance.creditsRemaining <= 0) {
+    return NextResponse.json(
+      { error: "INSUFFICIENT_CREDITS", reason: "out_of_credits", creditsRemaining: 0, code: "INSUFFICIENT_CREDITS" },
+      { status: 402 }
+    );
+  }
+
   if (isSupabaseConfigured && !isPreviewMode) {
-    const auth = await requireUser();
-    if (auth.error) return auth.error;
-    catalogClient = auth.supabase;
+    // Already authenticated above
   } else if (isSupabaseConfigured && isPreviewMode) {
-    const auth = await requireUser();
-    if (auth.error) return auth.error;
-    catalogClient = auth.supabase;
+    // Already authenticated above
   }
   const ip = request.headers.get("x-forwarded-for")?.split(",")[0] || "local";
   const limit = rateLimit(`search:${ip}`, 40);

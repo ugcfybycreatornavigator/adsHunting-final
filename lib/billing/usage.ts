@@ -46,3 +46,40 @@ export async function getWorkspaceUsage(workspaceId: string): Promise<WorkspaceU
     teamMembers,
   };
 }
+
+export interface WorkspaceCreditBalance {
+  creditsAllocated: number;
+  creditsUsed: number;
+  creditsRemaining: number;
+  cycleStart: string | null;
+  cycleEnd: string | null;
+}
+
+export async function getWorkspaceCreditBalance(workspaceId: string): Promise<WorkspaceCreditBalance | null> {
+  const admin = createAdminClient();
+  const now = new Date().toISOString();
+
+  const { data, error } = await admin
+    .from("workspace_credit_balances")
+    .select("*")
+    .eq("workspace_id", workspaceId)
+    .gt("cycle_end", now)
+    .order("cycle_end", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error || !data) {
+    return null;
+  }
+
+  const creditsRemaining = Math.max(0, Number(data.credits_allocated) - Number(data.credits_used));
+
+  return {
+    creditsAllocated: Number(data.credits_allocated),
+    creditsUsed: Number(data.credits_used),
+    creditsRemaining,
+    cycleStart: data.cycle_start,
+    cycleEnd: data.cycle_end,
+  };
+}
+
