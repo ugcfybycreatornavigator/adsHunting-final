@@ -39,10 +39,15 @@ export default {
         "auth-float": {
           "0%, 100%": { transform: "translateY(0) scale(1)" },
           "50%": { transform: "translateY(-6px) scale(1.02)" },
+        },
+        marquee: {
+          '0%': { transform: 'translateX(100vw)' },
+          '100%': { transform: 'translateX(-100%)' },
         }
       },
       animation: {
         "auth-float": "auth-float 12s ease-in-out infinite",
+        marquee: "marquee 20s linear infinite",
       }
     },
   },
