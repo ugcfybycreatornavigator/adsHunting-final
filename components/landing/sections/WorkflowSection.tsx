@@ -14,8 +14,8 @@ const steps = [
     title: 'Discover',
     desc: 'Find ads worth studying.',
     body: 'Search across brands and creatives, then narrow results with filters built for competitive research.',
-    image: '/images/how-it-works/discover.jpg',
-    imageClass: 'object-cover object-left-top'
+    image: '/images/how-it-works/discover-new.png',
+    imageClass: 'object-cover object-left-top w-full h-full'
   },
   {
     id: '02',
@@ -115,10 +115,10 @@ export function WorkflowSection() {
           </div>
 
           {/* Right Column (Sticky Image Frame) */}
-          <div className="w-[65%] sticky top-32 h-[75vh] min-h-[500px] max-h-[800px] bg-white rounded-2xl border border-border shadow-sm overflow-hidden flex flex-col">
+          <div className="w-[65%] sticky top-32 bg-white rounded-2xl border border-border shadow-sm overflow-hidden flex flex-col">
             
             {/* Subtle Browser Chrome */}
-            <div className="h-10 border-b border-border bg-slate-50 flex items-center px-4 gap-2">
+            <div className="h-10 border-b border-border bg-slate-50 flex items-center px-4 gap-2 shrink-0">
               <div className="flex gap-1.5">
                 <div className="w-2.5 h-2.5 rounded-full bg-slate-300"></div>
                 <div className="w-2.5 h-2.5 rounded-full bg-slate-300"></div>
@@ -128,7 +128,7 @@ export function WorkflowSection() {
             </div>
 
             {/* Image Container */}
-            <div className="flex-1 relative bg-slate-100 overflow-hidden">
+            <div className="relative bg-slate-100 overflow-hidden w-full aspect-video">
               <AnimatePresence mode="wait">
                 <motion.div
                   key={activeStep}
@@ -144,6 +144,7 @@ export function WorkflowSection() {
                       alt={`AdsHunting ${steps[activeStep].title} interface`}
                       fill
                       sizes="(max-width: 1024px) 100vw, 65vw"
+                      quality={100}
                       priority={activeStep === 0}
                       className={steps[activeStep].imageClass}
                     />
@@ -171,19 +172,20 @@ export function WorkflowSection() {
                 <p className="text-text-secondary text-[15px] leading-relaxed">{step.body}</p>
               </div>
               
-              <div className="w-full aspect-[4/3] sm:aspect-[16/10] bg-white rounded-xl border border-border shadow-sm overflow-hidden flex flex-col">
-                 <div className="h-8 border-b border-border bg-slate-50 flex items-center px-3 gap-1.5">
+              <div className="w-full bg-white rounded-xl border border-border shadow-sm overflow-hidden flex flex-col">
+                 <div className="h-8 border-b border-border bg-slate-50 flex items-center px-3 gap-1.5 shrink-0">
                    <div className="w-2 h-2 rounded-full bg-slate-300"></div>
                    <div className="w-2 h-2 rounded-full bg-slate-300"></div>
                    <div className="w-2 h-2 rounded-full bg-slate-300"></div>
                  </div>
-                 <div className="flex-1 relative bg-slate-100">
+                 <div className="relative bg-slate-100 w-full aspect-video">
                     {step.image ? (
                       <Image 
                         src={step.image}
                         alt={`AdsHunting ${step.title} interface`}
                         fill
                         sizes="100vw"
+                        quality={100}
                         className={step.imageClass}
                       />
                     ) : (
