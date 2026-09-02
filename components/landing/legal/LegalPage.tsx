@@ -13,9 +13,9 @@ export function LegalPage({
   children: React.ReactNode;
 }) {
   return (
-    <div className="bg-[#fcfcfa]">
+    <div className="bg-[#fcfcfa] pt-24 md:pt-32">
       <LandingContainer>
-        <main className="mx-auto max-w-[820px] py-14 md:py-20">
+        <main className="mx-auto max-w-[820px] pb-14 md:pb-20">
           <nav aria-label="Breadcrumb" className="mb-8">
             <ol className="flex items-center gap-2 text-sm text-text-muted">
               <li>

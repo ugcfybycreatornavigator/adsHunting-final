@@ -22,9 +22,9 @@ export async function isPaymentReviewer(workspaceId: string): Promise<boolean> {
     (e) => e.id === user.primaryEmailAddressId
   )?.emailAddress;
 
-  const reviewerEmail = process.env.PAYMENT_REVIEWER_EMAIL;
+  const reviewerEmails = process.env.PAYMENT_REVIEWER_EMAIL?.split(',').map(e => e.trim()) || [];
 
-  if (reviewerEmail && primaryEmail === reviewerEmail) {
+  if (primaryEmail && reviewerEmails.includes(primaryEmail)) {
     console.log("[Auth] payment_reviewer_authenticated via bypass for user:", primaryEmail);
     return true;
   }

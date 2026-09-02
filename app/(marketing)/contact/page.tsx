@@ -14,7 +14,7 @@ export const metadata: Metadata = createMetadata({
 
 export default function ContactPage() {
   return (
-    <div className="bg-[#fcfcfa] min-h-[calc(100vh-60px)]">
+    <div className="bg-[#fcfcfa] min-h-[calc(100vh-60px)] pt-24 md:pt-32">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
@@ -28,7 +28,7 @@ export default function ContactPage() {
       />
       <LandingContainer>
         {/* Page Header / Hero */}
-        <div className="pt-[48px] md:pt-[64px] lg:pt-[80px] pb-[44px] md:pb-[56px] text-left max-w-[1180px] mx-auto">
+        <div className="pb-[44px] md:pb-[56px] text-left max-w-[1180px] mx-auto">
           {/* Breadcrumb */}
           <div className="flex items-center gap-2 text-[13px] font-medium text-text-muted mb-6">
             <Link href="/" className="hover:text-text-primary transition-colors">Home</Link>

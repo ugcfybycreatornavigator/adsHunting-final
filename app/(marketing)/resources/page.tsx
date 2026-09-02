@@ -40,7 +40,7 @@ const resources = [
 
 export default function ResourcesPage() {
   return (
-    <div className="bg-[#fcfcfa]">
+    <div className="bg-[#fcfcfa] pt-24 md:pt-32">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
@@ -53,7 +53,7 @@ export default function ResourcesPage() {
         }}
       />
       <LandingContainer>
-        <section className="py-16 md:py-24">
+        <section className="pb-16 md:pb-24">
           <div className="max-w-[820px]">
             <span className="text-brand font-bold text-[12px] md:text-[13px] tracking-widest uppercase mb-4 block">
               RESOURCES

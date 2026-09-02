@@ -143,6 +143,7 @@ export function WorkflowSection() {
                       src={steps[activeStep].image!}
                       alt={`AdsHunting ${steps[activeStep].title} interface`}
                       fill
+                      sizes="(max-width: 1024px) 100vw, 65vw"
                       priority={activeStep === 0}
                       className={steps[activeStep].imageClass}
                     />
@@ -182,6 +183,7 @@ export function WorkflowSection() {
                         src={step.image}
                         alt={`AdsHunting ${step.title} interface`}
                         fill
+                        sizes="100vw"
                         className={step.imageClass}
                       />
                     ) : (

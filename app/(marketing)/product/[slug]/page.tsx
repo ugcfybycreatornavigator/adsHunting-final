@@ -45,7 +45,7 @@ export default async function ProductSeoPage({ params }: Props) {
   ];
 
   return (
-    <div className="bg-[#fcfcfa]">
+    <div className="bg-[#fcfcfa] pt-24 md:pt-32">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
@@ -71,13 +71,13 @@ export default async function ProductSeoPage({ params }: Props) {
       />
 
       <LandingContainer>
-        <div className="pt-[48px] md:pt-[70px] pb-14 md:pb-20">
+        <div className="pb-14 md:pb-20">
           <nav aria-label="Breadcrumb" className="mb-8">
             <ol className="flex flex-wrap items-center gap-2 text-sm text-text-muted">
               {breadcrumb.map((item, index) => {
                 const isCurrent = index === breadcrumb.length - 1;
                 return (
-                  <li key={item.path} className="flex items-center gap-2">
+                  <li key={`${item.path}-${index}`} className="flex items-center gap-2">
                     {index > 0 && <ChevronRight size={14} aria-hidden="true" />}
                     {isCurrent ? (
                       <span className="font-medium text-text-primary" aria-current="page">
