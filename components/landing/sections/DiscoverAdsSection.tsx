@@ -14,9 +14,9 @@ export function DiscoverAdsSection() {
       />
       <LandingContainer className="text-center flex flex-col items-center relative z-10">
 
-        <div className="max-w-[800px] mb-12 md:mb-16">
-          <h2 className="text-[36px] md:text-[48px] lg:text-[56px] leading-[1.05] font-bold tracking-tight text-text-primary text-balance mb-6">
-            Search the market, not ten different tabs.
+        <div className="w-full max-w-[1200px] mx-auto mb-12 md:mb-16 px-4">
+          <h2 className="text-[32px] md:text-[44px] lg:text-[54px] xl:text-[60px] leading-[1.1] font-bold tracking-tight text-text-primary mb-6 lg:whitespace-nowrap">
+            Search the Market, not ten different tabs.
           </h2>
           <p className="text-[18px] md:text-[20px] text-text-secondary max-w-[600px] mx-auto leading-relaxed">
             Instantly discover relevant creatives using advanced filters like brand, format, category, and active status.
@@ -24,7 +24,7 @@ export function DiscoverAdsSection() {
         </div>
 
         <div className="w-full max-w-[1100px] rounded-2xl overflow-hidden mb-12 border border-border shadow-[0_20px_60px_rgba(0,0,0,0.06)]">
-          <img src="/images/how-it-works/discover.jpg" alt="Discover Ads" className="w-full h-auto" />
+          <img src="/images/how-it-works/discover-new.png" alt="Discover Ads" className="w-full h-auto" />
         </div>
 
         <CTAButton href={authLinks.signUp} size="lg" className="h-12 md:h-14 px-8">
