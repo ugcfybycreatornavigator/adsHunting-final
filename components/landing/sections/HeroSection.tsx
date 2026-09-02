@@ -113,7 +113,7 @@ export function HeroSection() {
       </motion.div>
 
       {/* ── Hero content ── */}
-      <div className="relative z-20 pt-28 pb-20 md:pt-40 md:pb-32">
+      <div className="relative z-20 pt-40 pb-20 md:pt-48 md:pb-32">
         <LandingContainer className="flex flex-col items-center text-center">
           <div className="max-w-[1000px] mx-auto">
             {/* Headline */}
