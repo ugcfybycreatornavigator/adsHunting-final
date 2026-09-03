@@ -18,8 +18,8 @@ export async function POST(request: NextRequest) {
 
   // 1. Authenticate user
   const auth = await requireUser();
-  if (auth.error) {
-    return auth.error;
+  if (auth.error || !auth.user || !auth.supabase) {
+    return auth.error || NextResponse.json({ error: "Authentication required." }, { status: 401 });
   }
   const { user, supabase } = auth;
   const workspaceId = user.id; // workspace is tied 1:1 to user ID in this architecture

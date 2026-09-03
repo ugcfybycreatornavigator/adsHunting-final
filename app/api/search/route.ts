@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
 
   let catalogClient: Awaited<ReturnType<typeof requireUser>>["supabase"] = null;
   const authRes = await requireUser();
-  if (authRes.error) return authRes.error;
+  if (authRes.error || !authRes.user) return authRes.error || NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   catalogClient = authRes.supabase;
 
   const balance = await getWorkspaceCreditBalance(authRes.user.id);
