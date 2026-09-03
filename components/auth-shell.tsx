@@ -2,7 +2,6 @@
 
 import type { ReactNode } from "react";
 import { BrandMark } from "@/components/brand-mark";
-import { BRAND } from "@/lib/brand";
 import { AnimatedProductCanvas } from "@/components/auth/animated-product-canvas";
 
 export function AuthShell({ children, mode }: { children: ReactNode; mode: "sign-in" | "sign-up" }) {

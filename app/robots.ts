@@ -15,7 +15,6 @@ export default function robots(): MetadataRoute.Robots {
         "/contact",
         "/privacy",
         "/terms",
-        "/icon.svg",
         "/icon.png",
         "/logo.png",
         "/opengraph-image",

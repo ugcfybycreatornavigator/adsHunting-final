@@ -4,7 +4,6 @@ import { SharedAdsViewer } from "./shared-ads-viewer";
 import { EmptyState, Badge } from "@/components/ui";
 import { FolderHeart, Lock, ShieldCheck } from "lucide-react";
 import { CopyLinkButton } from "@/components/copy-link-button";
-import { BRAND } from "@/lib/brand";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { BrandMark } from "@/components/brand-mark";
 import { Metadata } from "next";
@@ -171,9 +170,11 @@ export default async function SharedAdPage({ params }: { params: Promise<{ token
       </main>
 
       <footer className="mt-auto border-t border-line bg-white py-6 text-center">
-        <p className="flex items-center justify-center gap-1.5 text-xs font-medium text-muted">
-          <ShieldCheck size={14} /> Shared via {BRAND.name}
-        </p>
+        <div className="flex items-center justify-center gap-2 text-xs font-medium text-muted">
+          <ShieldCheck size={14} />
+          <span>Shared via</span>
+          <BrandMark compact href="/" />
+        </div>
       </footer>
     </div>
   );

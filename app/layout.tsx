@@ -29,10 +29,9 @@ export const metadata: Metadata = {
   category: "Ad Intelligence Software",
   icons: {
     icon: [
-      { url: "/icon.svg", type: "image/svg+xml" },
-      { url: "/icon.png", sizes: "32x32", type: "image/png" },
+      { url: "/icon.png", sizes: "1254x1254", type: "image/png" },
     ],
-    shortcut: "/icon.svg",
+    shortcut: "/icon.png",
     apple: "/icon.png",
   },
   manifest: "/manifest.webmanifest",

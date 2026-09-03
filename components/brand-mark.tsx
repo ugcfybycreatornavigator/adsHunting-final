@@ -24,9 +24,9 @@ export function BrandMark({
       aria-label={`${BRAND.name} Home`}
     >
       <AdsHuntingLogo 
-        variant={compact ? "mark" : "full"} 
+        variant="full"
         surface={inverted ? "dark" : "light"} 
-        size="md" 
+        size={compact ? "sm" : "md"}
       />
     </Link>
   );

@@ -1,6 +1,6 @@
-import React, { SVGProps } from "react";
+import React, { HTMLAttributes } from "react";
 
-export interface AdsHuntingLogoProps extends Omit<SVGProps<SVGSVGElement>, "width" | "height"> {
+export interface AdsHuntingLogoProps extends HTMLAttributes<HTMLDivElement> {
   variant?: "full" | "mark";
   surface?: "dark" | "light" | "auto";
   size?: "xs" | "sm" | "md" | "lg" | "xl";
@@ -11,26 +11,29 @@ export function AdsHuntingLogo({
   surface = "auto",
   size = "md",
   className = "",
+  ...props
 }: AdsHuntingLogoProps) {
-  const isMark = variant === "mark";
-  const isDarkSurface = surface === "dark";
+  void variant;
+  void surface;
 
-  // Use the cropped logo images we generated
-  const src = isMark ? "/logo-mark.png" : "/logo-full.png";
-
-  const height = "50px";
-  const width = isMark ? "50px" : "150px";
+  const sizeClass = {
+    xs: "h-12 w-24",
+    sm: "h-14 w-28",
+    md: "h-16 w-32",
+    lg: "h-20 w-40",
+    xl: "h-24 w-48",
+  }[size];
 
   return (
     <div
-      className={`group inline-flex items-center gap-[10px] whitespace-nowrap overflow-visible ${className}`.trim()}
+      className={`group inline-flex ${sizeClass} shrink-0 items-center justify-center overflow-hidden ${className}`.trim()}
       aria-label="AdsHunting"
+      {...props}
     >
       <img
-        src={src}
+        src="/logo.png"
         alt="AdsHunting Logo"
-        className="flex-none transition-transform duration-200 group-hover:scale-[1.02] object-contain"
-        style={{ height, width, filter: isDarkSurface ? "brightness(0) invert(1)" : "none" }}
+        className="h-full w-full object-contain transition-transform duration-200 group-hover:scale-[1.02]"
       />
     </div>
   );

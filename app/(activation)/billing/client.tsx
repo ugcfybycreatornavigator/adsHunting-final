@@ -6,6 +6,7 @@ import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useUser, useAuth } from "@clerk/nextjs";
 import { useSupabaseClient } from "@/lib/supabase/clerk-client";
+import { AdsHuntingLogo } from "@/components/brand/AdsHuntingLogo";
 
 type BillingStep =
   | "idle"
@@ -138,6 +139,7 @@ export function BillingGateClient({ config }: { config: PlanConfig }) {
         subscription_id: data.subscriptionId,
         name: "AdsHunting",
         description: checkoutType === "trial" ? "AdsHunting 7-Day Trial" : "AdsHunting Subscription",
+        image: `${window.location.origin}/logo.png`,
         prefill: {
           name: user?.fullName || undefined,
           email: user?.primaryEmailAddress?.emailAddress || undefined,
@@ -206,7 +208,9 @@ export function BillingGateClient({ config }: { config: PlanConfig }) {
   return (
     <div className="max-w-4xl w-full space-y-8">
       <div className="text-center space-y-2">
-        <h1 className="text-3xl font-bold tracking-tight">AdsHunting</h1>
+        <div className="flex justify-center">
+          <AdsHuntingLogo size="lg" />
+        </div>
         <h2 className="text-xl text-muted font-medium">Start finding winning ads</h2>
         <p className="text-muted text-sm">Choose how you&apos;d like to get started.</p>
       </div>
