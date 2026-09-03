@@ -1,0 +1,1 @@
+{"_tag":"Error","error":{"code":"ShowHelp","message":"Unknown subcommand \"get-logs\" for \"supabase functions\"\n\nUnrecognized flag: --project-ref in command supabase functions\n\n  Hint: --project-ref is available on `supabase functions list`, `supabase functions delete`, `supabase functions download`, and `supabase functions deploy`. Pass it after the subcommand."}}

@@ -1,0 +1,128 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 900" width="100%" height="100%">
+  <defs>
+    <!-- Background Gradient -->
+    <linearGradient id="bg-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#090B10" />
+      <stop offset="100%" stop-color="#12151C" />
+    </linearGradient>
+
+    <!-- Grid Pattern -->
+    <pattern id="grid" width="60" height="60" patternUnits="userSpaceOnUse">
+      <path d="M 60 0 L 0 0 0 60" fill="none" stroke="rgba(255,255,255,0.03)" stroke-width="1"/>
+    </pattern>
+
+    <!-- Floating Cards Filter -->
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="15" stdDeviation="25" flood-color="#000" flood-opacity="0.4"/>
+    </filter>
+
+    <linearGradient id="card-grad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#1A1D25" />
+      <stop offset="100%" stop-color="#12151C" />
+    </linearGradient>
+
+    <linearGradient id="card-grad-light" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#232631" />
+      <stop offset="100%" stop-color="#161922" />
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="100%" height="100%" fill="url(#bg-grad)" />
+  <rect width="100%" height="100%" fill="url(#grid)" />
+
+  <!-- Abstract Radial Glow -->
+  <circle cx="600" cy="450" r="400" fill="#68B32F" opacity="0.03" filter="blur(80px)" />
+  <circle cx="900" cy="200" r="300" fill="#FFFFFF" opacity="0.02" filter="blur(60px)" />
+
+  <!-- LAYER 1: Background small cards -->
+  <g opacity="0.4">
+    <!-- Top left card -->
+    <g transform="translate(150, 150) rotate(-4) scale(0.8)">
+      <rect width="240" height="320" rx="16" fill="url(#card-grad)" stroke="rgba(255,255,255,0.05)" stroke-width="1" />
+      <rect x="20" y="20" width="200" height="140" rx="8" fill="#1C1F28" />
+      <rect x="20" y="180" width="140" height="12" rx="6" fill="#2A2D38" />
+      <rect x="20" y="205" width="90" height="12" rx="6" fill="#2A2D38" />
+      <circle cx="200" cy="190" r="16" fill="#68B32F" opacity="0.5" />
+    </g>
+
+    <!-- Bottom right card -->
+    <g transform="translate(850, 600) rotate(8) scale(0.85)">
+      <rect width="240" height="320" rx="16" fill="url(#card-grad)" stroke="rgba(255,255,255,0.05)" stroke-width="1" />
+      <rect x="20" y="20" width="200" height="140" rx="8" fill="#1C1F28" />
+      <rect x="20" y="180" width="160" height="12" rx="6" fill="#2A2D38" />
+      <rect x="20" y="205" width="110" height="12" rx="6" fill="#2A2D38" />
+      <rect x="20" y="280" width="200" height="20" rx="4" fill="rgba(37,99,235,0.1)" />
+    </g>
+  </g>
+
+  <!-- LAYER 2: Middle cards -->
+  <g opacity="0.7">
+    <!-- Right side card -->
+    <g transform="translate(750, 220) rotate(3) scale(0.95)" filter="url(#shadow)">
+      <rect width="260" height="360" rx="18" fill="url(#card-grad-light)" stroke="rgba(255,255,255,0.08)" stroke-width="1.5" />
+      <rect x="24" y="24" width="212" height="160" rx="10" fill="#1C1F28" />
+      <!-- Content mock -->
+      <rect x="24" y="208" width="150" height="14" rx="7" fill="#323642" />
+      <rect x="24" y="238" width="100" height="12" rx="6" fill="#252834" />
+      <rect x="24" y="260" width="80" height="12" rx="6" fill="#252834" />
+      
+      <!-- Signal Indicator -->
+      <rect x="24" y="310" width="212" height="26" rx="6" fill="rgba(255,255,255,0.03)" />
+      <circle cx="40" cy="323" r="5" fill="#10B981" />
+      <rect x="55" y="319" width="120" height="8" rx="4" fill="#323642" />
+    </g>
+
+    <!-- Bottom left card -->
+    <g transform="translate(250, 520) rotate(-6) scale(0.9)" filter="url(#shadow)">
+      <rect width="260" height="340" rx="18" fill="url(#card-grad-light)" stroke="rgba(255,255,255,0.08)" stroke-width="1.5" />
+      <rect x="24" y="24" width="212" height="150" rx="10" fill="#1C1F28" />
+      <!-- Data bars -->
+      <rect x="24" y="200" width="212" height="8" rx="4" fill="#252834" />
+      <rect x="24" y="200" width="140" height="8" rx="4" fill="#68B32F" />
+
+      <rect x="24" y="225" width="212" height="8" rx="4" fill="#252834" />
+      <rect x="24" y="225" width="80" height="8" rx="4" fill="#3B82F6" />
+
+      <rect x="24" y="250" width="212" height="8" rx="4" fill="#252834" />
+      <rect x="24" y="250" width="180" height="8" rx="4" fill="#8B5CF6" />
+    </g>
+  </g>
+
+  <!-- LAYER 3: Hero Card (Center/Left) -->
+  <g transform="translate(380, 250) rotate(-1)" filter="url(#shadow)">
+    <rect width="320" height="420" rx="20" fill="#171A22" stroke="rgba(255,255,255,0.12)" stroke-width="1.5" />
+    
+    <!-- Header -->
+    <circle cx="40" cy="40" r="14" fill="#68B32F" />
+    <path d="M 33 40 L 47 40 M 40 33 L 40 47" stroke="#FFF" stroke-width="2" stroke-linecap="round" />
+    <rect x="68" y="32" width="120" height="16" rx="8" fill="#F7F7F8" />
+    <rect x="260" y="32" width="30" height="16" rx="8" fill="rgba(255,255,255,0.05)" />
+
+    <!-- Main Image Area -->
+    <rect x="24" y="76" width="272" height="180" rx="12" fill="#212530" />
+    
+    <!-- UI Elements -->
+    <circle cx="160" cy="166" r="24" fill="rgba(255,255,255,0.1)" />
+    <path d="M 154 156 L 170 166 L 154 176 Z" fill="#FFF" />
+
+    <!-- Metadata mock -->
+    <rect x="24" y="280" width="200" height="16" rx="8" fill="#D4D7DE" />
+    <rect x="24" y="308" width="272" height="12" rx="6" fill="#3F4452" />
+    <rect x="24" y="330" width="180" height="12" rx="6" fill="#3F4452" />
+
+    <!-- Action Bar -->
+    <rect x="24" y="366" width="272" height="34" rx="8" fill="rgba(37,99,235,0.08)" stroke="rgba(37,99,235,0.2)" stroke-width="1" />
+    <rect x="40" y="379" width="80" height="8" rx="4" fill="#68B32F" />
+  </g>
+
+  <!-- Accent Particles -->
+  <circle cx="300" cy="200" r="3" fill="#68B32F" />
+  <circle cx="850" cy="400" r="2" fill="#FFFFFF" opacity="0.6" />
+  <circle cx="450" cy="750" r="4" fill="#68B32F" opacity="0.8" />
+  <circle cx="800" cy="700" r="2" fill="#FFFFFF" opacity="0.4" />
+
+  <!-- Connecting Lines (Subtle) -->
+  <path d="M 380 300 Q 250 300 250 400" fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="1.5" stroke-dasharray="4 4" />
+  <path d="M 700 450 Q 800 450 800 350" fill="none" stroke="rgba(37,99,235,0.15)" stroke-width="1.5" stroke-dasharray="4 4" />
+</svg>
