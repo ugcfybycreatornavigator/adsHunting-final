@@ -188,12 +188,20 @@ export function AdCard({
           const videoEl = e.currentTarget.querySelector("video");
           if (videoEl) {
             e.stopPropagation();
+            interface WebkitVideoElement extends HTMLVideoElement {
+              webkitRequestFullscreen?: () => Promise<void> | void;
+              webkitEnterFullscreen?: () => void;
+            }
+            const webkitVideo = videoEl as WebkitVideoElement;
+
             if (document.fullscreenElement) {
               document.exitFullscreen?.().catch(() => {});
             } else if (videoEl.requestFullscreen) {
               videoEl.requestFullscreen().catch(() => {});
-            } else if ((videoEl as any).webkitRequestFullscreen) {
-              (videoEl as any).webkitRequestFullscreen();
+            } else if (typeof webkitVideo.webkitRequestFullscreen === "function") {
+              webkitVideo.webkitRequestFullscreen();
+            } else if (typeof webkitVideo.webkitEnterFullscreen === "function") {
+              webkitVideo.webkitEnterFullscreen();
             }
           }
         }}
