@@ -24,14 +24,14 @@ export function IntelligenceSharingSection() {
         const elapsed = currentTime - startTime;
         const progress = Math.min(elapsed / duration, 1);
         const easeOut = 1 - Math.pow(1 - progress, 3);
-        
+
         setHookScore(Math.floor(easeOut * end));
 
         if (progress < 1) {
           requestAnimationFrame(animateScore);
         }
       };
-      
+
       requestAnimationFrame(animateScore);
     }
   }, [isInView]);
@@ -42,19 +42,19 @@ export function IntelligenceSharingSection() {
   };
 
   return (
-    <section 
+    <section
       ref={sectionRef}
       className="py-[64px] md:py-[80px] lg:py-[96px] relative overflow-hidden bg-slate-50 border-t border-border"
     >
-      <div 
+      <div
         className="absolute inset-0 pointer-events-none"
         style={{
           background: 'radial-gradient(circle at 30% 45%, rgba(94,169,32,0.05), transparent 34%)'
         }}
       />
-      
+
       <LandingContainer className="relative z-10">
-        
+
         {/* Editorial Header */}
         <div className="flex flex-col md:flex-row md:items-end justify-between mb-8 md:mb-11 gap-6">
           <div className="max-w-[560px]">
@@ -65,7 +65,7 @@ export function IntelligenceSharingSection() {
               </span>
             </div>
             <h2 className="text-[34px] md:text-[44px] lg:text-[48px] leading-[1.05] font-[600] tracking-[-0.035em] text-text-primary text-balance mb-4">
-              Find the signal.<br className="hidden md:block"/> Share the intelligence.
+              Find the signal.<br className="hidden md:block" /> Share the intelligence.
             </h2>
             <p className="text-[16px] md:text-[17px] leading-relaxed text-text-secondary">
               Prioritize high-signal creative and control exactly how your research gets shared.
@@ -80,7 +80,7 @@ export function IntelligenceSharingSection() {
         </div>
 
         {/* Unified Premium Surface */}
-        <motion.div 
+        <motion.div
           className="w-full max-w-[1240px] mx-auto bg-[rgba(255,255,255,0.92)] backdrop-blur-md rounded-[24px] md:rounded-[28px] overflow-hidden flex flex-col md:flex-row relative"
           style={{
             border: '1px solid rgba(20,30,20,0.08)',
@@ -95,50 +95,50 @@ export function IntelligenceSharingSection() {
 
           {/* Left Panel: Winner Score */}
           <div className="w-full md:w-[50%] p-8 md:p-10 flex flex-col justify-center">
-            
+
             <div className="mb-8">
-               <span className="inline-block text-[11px] font-semibold tracking-widest text-text-muted uppercase mb-2">Winner Score</span>
-               <h3 className="text-[22px] md:text-[24px] font-[600] text-text-primary tracking-tight">Know what deserves attention first.</h3>
+              <span className="inline-block text-[11px] font-semibold tracking-widest text-text-muted uppercase mb-2">Winner Score</span>
+              <h3 className="text-[22px] md:text-[24px] font-[600] text-text-primary tracking-tight">Know what deserves attention first.</h3>
             </div>
 
             {/* Editorial Score UI */}
             <div className="flex items-center gap-6">
-               <motion.div 
-                 className="w-[70px] h-[90px] md:w-[80px] md:h-[105px] rounded-[14px] overflow-hidden flex-shrink-0 shadow-sm relative"
-                 initial={{ opacity: 0, scale: 0.95 }}
-                 animate={isInView ? { opacity: 1, scale: 1 } : { opacity: 0, scale: 0.95 }}
-                 transition={{ delay: 0.1, duration: 0.4 }}
-               >
-                 <img src="/brand/creatives/creative_fashion_01.jpg" alt="Creative" className="w-full h-full object-cover" />
-                 <div className="absolute inset-0 border border-black/5 rounded-[14px] pointer-events-none" style={{ boxShadow: 'inset 0 1px 4px rgba(0,0,0,0.08)' }} />
-               </motion.div>
+              <motion.div
+                className="w-[70px] h-[90px] md:w-[80px] md:h-[105px] rounded-[14px] overflow-hidden flex-shrink-0 shadow-sm relative"
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={isInView ? { opacity: 1, scale: 1 } : { opacity: 0, scale: 0.95 }}
+                transition={{ delay: 0.1, duration: 0.4 }}
+              >
+                <img src="/brand/creatives/creative_fashion_01.jpg" alt="Creative" className="w-full h-full object-cover" />
+                <div className="absolute inset-0 border border-black/5 rounded-[14px] pointer-events-none" style={{ boxShadow: 'inset 0 1px 4px rgba(0,0,0,0.08)' }} />
+              </motion.div>
 
-               <div className="flex-1 max-w-[200px]">
-                 <div className="flex items-end justify-between mb-2">
-                   <span className="text-[13px] font-medium text-text-secondary">Winner Score</span>
-                   <span className="text-[32px] md:text-[40px] font-semibold text-[#1A1A1A] leading-none tracking-tight">
-                     {hookScore} <span className="text-[14px] font-medium text-text-muted">/100</span>
-                   </span>
-                 </div>
-                 
-                 <div className="w-full h-[6px] bg-line rounded-full overflow-hidden mb-3">
-                   <motion.div 
-                     className="h-full bg-brand rounded-full"
-                     initial={{ width: '0%' }}
-                     animate={isInView ? { width: '84%' } : { width: '0%' }}
-                     transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
-                   />
-                 </div>
+              <div className="flex-1 max-w-[200px]">
+                <div className="flex items-end justify-between mb-2">
+                  <span className="text-[13px] font-medium text-text-secondary">Winner Score</span>
+                  <span className="text-[32px] md:text-[40px] font-semibold text-[#1A1A1A] leading-none tracking-tight">
+                    {hookScore} <span className="text-[14px] font-medium text-text-muted">/100</span>
+                  </span>
+                </div>
 
-                 <motion.div 
-                   className="inline-flex items-center px-2 py-0.5 rounded-full bg-surface-blue border border-brand/20 text-brand-strong text-[11px] font-semibold tracking-wide"
-                   initial={{ opacity: 0, y: 5 }}
-                   animate={isInView && hookScore > 60 ? { opacity: 1, y: 0 } : { opacity: 0, y: 5 }}
-                   transition={{ delay: 0.8, duration: 0.3 }}
-                 >
-                   High Signal
-                 </motion.div>
-               </div>
+                <div className="w-full h-[6px] bg-line rounded-full overflow-hidden mb-3">
+                  <motion.div
+                    className="h-full bg-brand rounded-full"
+                    initial={{ width: '0%' }}
+                    animate={isInView ? { width: '84%' } : { width: '0%' }}
+                    transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
+                  />
+                </div>
+
+                <motion.div
+                  className="inline-flex items-center px-2 py-0.5 rounded-full bg-surface-blue border border-brand/20 text-brand-strong text-[11px] font-semibold tracking-wide"
+                  initial={{ opacity: 0, y: 5 }}
+                  animate={isInView && hookScore > 60 ? { opacity: 1, y: 0 } : { opacity: 0, y: 5 }}
+                  transition={{ delay: 0.8, duration: 0.3 }}
+                >
+                  High Signal
+                </motion.div>
+              </div>
             </div>
 
           </div>
@@ -154,31 +154,31 @@ export function IntelligenceSharingSection() {
 
           {/* Right Panel: Smart Sharing */}
           <div className="w-full md:w-[50%] p-8 md:p-10 flex flex-col justify-center bg-[#FAFAFC]">
-            
+
             <div className="mb-8">
-               <span className="inline-block text-[11px] font-semibold tracking-widest text-text-muted uppercase mb-2">Smart Sharing</span>
-               <h3 className="text-[22px] md:text-[24px] font-[600] text-text-primary tracking-tight">Share on your terms.</h3>
+              <span className="inline-block text-[11px] font-semibold tracking-widest text-text-muted uppercase mb-2">Smart Sharing</span>
+              <h3 className="text-[22px] md:text-[24px] font-[600] text-text-primary tracking-tight">Share on your terms.</h3>
             </div>
 
             {/* Segmented Control */}
             <div className="max-w-[340px]">
               <span className="block text-[12px] font-semibold text-text-muted uppercase tracking-wider mb-2">Visibility</span>
-              
+
               <div className="flex p-[3px] bg-slate-100 border border-line rounded-[10px] mb-3">
-                <button 
+                <button
                   onClick={() => setShareMode('public')}
                   className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 text-[13px] font-medium rounded-[7px] transition-all duration-200 ${shareMode === 'public' ? 'bg-white text-text-primary shadow-sm border border-border/50' : 'text-text-muted hover:text-text-primary border border-transparent'}`}
                 >
                   <Globe size={14} className={shareMode === 'public' ? 'text-brand' : ''} /> Public
                 </button>
-                <button 
+                <button
                   onClick={() => setShareMode('private')}
                   className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 text-[13px] font-medium rounded-[7px] transition-all duration-200 ${shareMode === 'private' ? 'bg-white text-text-primary shadow-sm border border-border/50' : 'text-text-muted hover:text-text-primary border border-transparent'}`}
                 >
                   <Lock size={14} className={shareMode === 'private' ? 'text-brand' : ''} /> Private
                 </button>
               </div>
-              
+
               <p className="text-[13px] text-text-secondary mb-5 h-[20px] transition-opacity duration-200">
                 {shareMode === 'public' ? 'Anyone with the link can view.' : 'Access follows your current private-sharing rules.'}
               </p>
@@ -188,11 +188,11 @@ export function IntelligenceSharingSection() {
                 <div className="flex-1 bg-[#FAFAFA] border border-line rounded-[12px] px-3 py-2.5 text-[13px] text-text-secondary font-mono truncate" style={{ boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.02)' }}>
                   adshunting.../share/8F2...
                 </div>
-                <button 
+                <button
                   onClick={handleCopy}
                   className={`flex-shrink-0 flex items-center justify-center gap-1.5 h-[40px] px-3.5 rounded-[12px] border shadow-sm text-[13px] font-medium transition-colors w-[85px] ${isCopied ? 'bg-surface-blue border-brand/30 text-brand' : 'bg-white border-border text-text-primary hover:bg-surface'}`}
                 >
-                  {isCopied ? <><Check size={14} /> Copied</> : <><Copy size={13} className="text-text-muted"/> Copy</>}
+                  {isCopied ? <><Check size={14} /> Copied</> : <><Copy size={13} className="text-text-muted" /> Copy</>}
                 </button>
               </div>
             </div>

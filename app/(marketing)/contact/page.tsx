@@ -14,7 +14,7 @@ export const metadata: Metadata = createMetadata({
 
 export default function ContactPage() {
   return (
-    <div className="bg-[#fcfcfa] min-h-[calc(100vh-60px)] pt-24 md:pt-32">
+    <div className="bg-[#fcfcfa] min-h-[calc(100vh-60px)] pt-[140px] md:pt-[160px]">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{

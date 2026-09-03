@@ -6,7 +6,7 @@ import { navigationConfig } from '@/data/landing/config';
 
 export function Footer() {
   return (
-    <footer className="border-t border-border bg-surface-subtle pt-10 pb-8 md:pt-16 md:pb-12 overflow-hidden flex flex-col">
+    <footer className="border-t border-border bg-surface-subtle pt-16 pb-12 md:pt-24 md:pb-16 overflow-hidden flex flex-col">
       <LandingContainer>
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-[1.5fr_1fr_1fr_1fr_1fr] gap-x-6 gap-y-10 md:gap-8 lg:gap-12">
 

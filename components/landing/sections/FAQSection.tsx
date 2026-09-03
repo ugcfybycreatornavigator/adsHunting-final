@@ -29,8 +29,8 @@ export function FAQSection() {
         <div className="flex flex-col md:flex-row gap-[72px] md:gap-[96px]">
           
           {/* Left Column: Context & Conversion */}
-          <div className="w-full md:w-[38%]">
-            <div className="flex items-center gap-3 mb-6">
+          <div className="w-full md:w-[38%] flex flex-col items-center md:items-start text-center md:text-left">
+            <div className="flex items-center justify-center md:justify-start gap-3 mb-6">
               <span className="w-2 h-2 rounded-full bg-brand"></span>
               <span className="text-[14px] font-bold tracking-widest uppercase text-text-primary">
                 FAQ
@@ -41,11 +41,11 @@ export function FAQSection() {
               Everything you need to know.
             </h2>
             
-            <p className="text-[16px] md:text-[17px] text-text-secondary leading-relaxed mb-10 max-w-[360px]">
+            <p className="text-[16px] md:text-[17px] text-text-secondary leading-relaxed mb-10 max-w-[360px] mx-auto md:mx-0">
               Quick answers about AdsHunting, creative research, saving, sharing and billing.
             </p>
 
-            <div className="bg-white p-6 rounded-2xl border border-border/60 shadow-sm">
+            <div className="bg-white p-6 rounded-2xl border border-border/60 shadow-sm w-full text-left">
               <h3 className="font-bold text-[16px] text-text-primary mb-2">Still have questions?</h3>
               <p className="text-[14px] text-text-muted mb-5">Start experiencing the platform for yourself with full access.</p>
               <CTAButton href={authLinks.signUp} size="md" className="w-full justify-center">

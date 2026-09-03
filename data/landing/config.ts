@@ -129,6 +129,7 @@ export const navigationConfig = {
     }
   ],
   main: [
+    { name: 'About Us', href: '/about' },
     { name: 'Pricing', href: '/pricing' },
     { name: 'FAQ', href: '/resources/help' },
   ],
