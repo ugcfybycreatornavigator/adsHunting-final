@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import {
   ChevronRight,
   Loader2,
@@ -20,7 +20,6 @@ import {
 import { Button, EmptyState } from "@/components/ui";
 import { CompetitorIntelligence } from "@/lib/brand-data";
 import { safeExternalUrl } from "@/lib/utils";
-import type { NormalizedAd } from "@/lib/types";
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -140,6 +139,7 @@ export function CompetitorDashboard({ initialBrands }: { initialBrands: Competit
 
       {adding && (
         <AddCompetitorModal
+          trackedIds={new Set(brands.map(b => b.advertiserId))}
           onClose={() => setAdding(false)}
           onAdded={() => {
             setAdding(false);
@@ -383,51 +383,40 @@ function CompetitorCard({ brand, onRefresh, onPauseResume, onRemove }: CardProps
 
 type Candidate = { id: string; name: string; avatar: string | null; activeAds: number };
 
-function AddCompetitorModal({ onClose, onAdded }: { onClose: () => void; onAdded: () => void }) {
+function AddCompetitorModal({ 
+  onClose, 
+  onAdded,
+  trackedIds 
+}: { 
+  onClose: () => void; 
+  onAdded: () => void;
+  trackedIds: Set<string>;
+}) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<Candidate[]>([]);
   const [busy, setBusy] = useState(false);
+  const [searched, setSearched] = useState(false);
   const [error, setError] = useState("");
-  const [trackedIds, setTrackedIds] = useState<Set<string>>(new Set());
   const [tracking, setTracking] = useState<string | null>(null);
+  const [failedLogos, setFailedLogos] = useState<Set<string>>(new Set());
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
-  useEffect(() => {
-    fetch("/api/competitors")
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.competitors) {
-          setTrackedIds(new Set(data.competitors.map((c: { advertiser_id: string }) => c.advertiser_id)));
-        }
-      });
-  }, []);
-
-  // Debounced search
-  useEffect(() => {
-    if (!query.trim() || query.trim().length < 2) {
-      setResults([]);
-      return;
-    }
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => doSearch(query.trim()), 350);
-    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query]);
-
-  async function doSearch(q: string) {
+  const doSearch = useCallback(async (q: string) => {
     if (abortRef.current) abortRef.current.abort();
     const controller = new AbortController();
     abortRef.current = controller;
 
     setBusy(true);
+    setSearched(false);
     setError("");
+    setFailedLogos(new Set());
 
     try {
-      const response = await fetch("/api/ads/search", {
+      const response = await fetch("/api/brands/search", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query: q, status: "all" }),
+        body: JSON.stringify({ query: q }),
         signal: controller.signal,
       });
 
@@ -439,15 +428,15 @@ function AddCompetitorModal({ onClose, onAdded }: { onClose: () => void; onAdded
       }
 
       const map = new Map<string, Candidate>();
-      (data.ads as NormalizedAd[]).forEach((ad) => {
-        const advertiserId = ad.advertiser?.id || ad.id;
-        const current = map.get(advertiserId);
-        map.set(advertiserId, {
-          id: advertiserId,
-          name: ad.advertiser?.name || "Unknown",
-          avatar: ad.advertiser?.logoUrl || null,
-          activeAds: (current?.activeAds || 0) + (ad.delivery?.status === "active" ? 1 : 0),
-        });
+      (data.brands || []).forEach((brand: { id: string; name?: string; avatar?: string | null; activeUnique?: number }) => {
+        if (!map.has(brand.id)) {
+          map.set(brand.id, {
+            id: brand.id,
+            name: brand.name || "Unknown",
+            avatar: brand.avatar || null,
+            activeAds: brand.activeUnique || 0,
+          });
+        }
       });
 
       // Sort: exact name matches first, then by active ads
@@ -464,13 +453,28 @@ function AddCompetitorModal({ onClose, onAdded }: { onClose: () => void; onAdded
       });
 
       setResults(candidates.slice(0, 6));
+      setSearched(true);
     } catch (err) {
       if ((err as Error).name === "AbortError") return;
       setError((err as Error).message || "Search failed.");
+      setSearched(true);
     } finally {
       setBusy(false);
     }
-  }
+  }, []);
+
+  // Debounced search
+  useEffect(() => {
+    if (!query.trim() || query.trim().length < 2) {
+      setResults([]);
+      setSearched(false);
+      return;
+    }
+    setBusy(true); // show loading state immediately while debouncing
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => doSearch(query.trim()), 350);
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  }, [query, doSearch]);
 
   async function track(candidate: Candidate) {
     if (trackedIds.has(candidate.id)) return;
@@ -495,10 +499,7 @@ function AddCompetitorModal({ onClose, onAdded }: { onClose: () => void; onAdded
         return;
       }
 
-      setTrackedIds(prev => new Set([...prev, candidate.id]));
-
-      // Brief delay to show success state before reload
-      setTimeout(() => onAdded(), 600);
+      onAdded();
     } catch (err) {
       setError((err as Error).message || "An error occurred.");
     } finally {
@@ -532,16 +533,26 @@ function AddCompetitorModal({ onClose, onAdded }: { onClose: () => void; onAdded
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Nike, Gymshark, Glossier…"
-            className="h-11 w-full rounded-lg border border-line pl-9 pr-3 text-sm outline-none focus:border-brand shadow-sm transition"
+            className="h-11 w-full rounded-lg border border-line pl-9 pr-10 text-sm outline-none focus:border-brand shadow-sm transition"
           />
           {busy && (
-            <Loader2 size={15} className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-muted" />
+            <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center justify-center">
+              <Loader2 size={16} className="animate-spin text-muted" />
+            </div>
           )}
         </div>
 
         {error && <p className="mt-4 rounded-lg bg-red-50 p-3 text-xs text-red-600 font-medium">{error}</p>}
 
-        <div className="mt-5 max-h-[60vh] space-y-2 overflow-y-auto">
+        <div className="mt-5 min-h-[160px] max-h-[60vh] overflow-y-auto">
+          {busy && results.length === 0 && !error && (
+            <div className="flex flex-col items-center justify-center h-[160px] text-muted space-y-3">
+              <Loader2 size={24} className="animate-spin" />
+              <p className="text-sm font-medium">Searching advertisers...</p>
+            </div>
+          )}
+
+          <div className="space-y-2">
           {results.map((candidate) => {
             const isTracked = trackedIds.has(candidate.id);
             const isTracking = tracking === candidate.id;
@@ -550,14 +561,15 @@ function AddCompetitorModal({ onClose, onAdded }: { onClose: () => void; onAdded
                 key={candidate.id}
                 className="flex w-full items-center gap-3 rounded-xl border border-line p-3 hover:border-brand/30 hover:bg-brand-soft transition"
               >
-                {candidate.avatar ? (
+                {candidate.avatar && !failedLogos.has(candidate.id) ? (
                   <img
                     src={candidate.avatar}
                     alt=""
-                    className="size-10 rounded-full border border-line/50 object-cover"
+                    onError={() => setFailedLogos(prev => new Set(prev).add(candidate.id))}
+                    className="size-10 flex-shrink-0 rounded-full border border-line/50 object-cover bg-zinc-50"
                   />
                 ) : (
-                  <span className="grid size-10 place-items-center rounded-full bg-zinc-800 text-xs font-bold text-white">
+                  <span className="grid size-10 flex-shrink-0 place-items-center rounded-full bg-zinc-800 text-xs font-bold text-white">
                     {candidate.name[0]?.toUpperCase() || "B"}
                   </span>
                 )}
@@ -592,15 +604,17 @@ function AddCompetitorModal({ onClose, onAdded }: { onClose: () => void; onAdded
             );
           })}
 
-          {!busy && query.trim().length >= 2 && results.length === 0 && (
-            <div className="text-center py-8 text-sm text-muted">
+          </div>
+
+          {!busy && searched && query.trim().length >= 2 && results.length === 0 && !error && (
+            <div className="flex h-[160px] items-center justify-center text-center text-sm text-muted">
               No advertisers found for &ldquo;{query.trim()}&rdquo;
             </div>
           )}
 
-          {!busy && query.trim().length < 2 && results.length === 0 && (
-            <div className="text-center py-8 text-sm text-muted">
-              Type at least 2 characters to search advertisers.
+          {!busy && !searched && query.trim().length < 2 && results.length === 0 && (
+            <div className="flex h-[160px] items-center justify-center text-center text-sm text-muted">
+              Search brands or advertisers to start tracking.
             </div>
           )}
         </div>

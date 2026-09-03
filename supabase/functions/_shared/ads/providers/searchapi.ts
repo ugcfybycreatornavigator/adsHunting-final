@@ -442,7 +442,10 @@ export class SearchApiProvider implements AdProvider {
   }
 
   async searchAds(filters: AdSearchFilters): Promise<AdSearchResult> {
-    const searchQuery = filters.query?.trim();
+    let searchQuery = filters.query?.trim();
+    if (!searchQuery && filters.brand) {
+      searchQuery = " ";
+    }
     if (!searchQuery && !filters.brand) {
       throw new ProviderError("MISSING_QUERY", "A search keyword or brand is required for ad discovery.", 400);
     }

@@ -132,7 +132,7 @@ export interface AdSearchFilters {
   cursor?: string;
   cta?: string;
   view?: "ads" | "brands";
-  
+  source?: "competitor";
   
   // Legacy singular properties (preserved for backward compatibility)
   status?: "all" | AdStatus;

@@ -56,6 +56,7 @@ export interface WorkspaceCreditBalance {
 }
 
 import { isPlatformOwner } from "@/lib/platform-owner";
+import { getWorkspaceEntitlement } from "@/lib/billing/entitlement";
 
 export async function getWorkspaceCreditBalance(workspaceId: string): Promise<WorkspaceCreditBalance | null> {
   const isOwner = await isPlatformOwner(workspaceId);
@@ -82,6 +83,36 @@ export async function getWorkspaceCreditBalance(workspaceId: string): Promise<Wo
     .maybeSingle();
 
   if (error || !data) {
+    // Attempt lazy reconciliation if they have an active entitlement but no balance row.
+    const entitlement = await getWorkspaceEntitlement(workspaceId);
+    if (entitlement.hasAccess) {
+      const cycleStart = now;
+      const cycleEnd = entitlement.currentPeriodEnd 
+        ? entitlement.currentPeriodEnd 
+        : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+        
+      const { data: newRow, error: insertError } = await admin
+        .from("workspace_credit_balances")
+        .insert({
+          workspace_id: workspaceId,
+          cycle_start: cycleStart,
+          cycle_end: cycleEnd,
+          credits_allocated: 10000,
+          credits_used: 0,
+        })
+        .select("*")
+        .single();
+        
+      if (!insertError && newRow) {
+        return {
+          creditsAllocated: Number(newRow.credits_allocated),
+          creditsUsed: Number(newRow.credits_used),
+          creditsRemaining: Math.max(0, Number(newRow.credits_allocated) - Number(newRow.credits_used)),
+          cycleStart: newRow.cycle_start,
+          cycleEnd: newRow.cycle_end,
+        };
+      }
+    }
     return null;
   }
 

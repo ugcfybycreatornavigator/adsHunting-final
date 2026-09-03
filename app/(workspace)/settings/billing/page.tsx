@@ -46,17 +46,7 @@ export default async function BillingSettingsPage() {
     ? BILLING_CONFIG[planKey]
     : BILLING_CONFIG.scout;
 
-  let creditBalance = await getWorkspaceCreditBalance(userId);
-
-  if (!creditBalance && entitlement.hasAccess) {
-    creditBalance = {
-      creditsAllocated: 10000,
-      creditsUsed: 0,
-      creditsRemaining: 10000,
-      cycleStart: null,
-      cycleEnd: entitlement.currentPeriodEnd ?? null,
-    };
-  }
+  const creditBalance = await getWorkspaceCreditBalance(userId);
 
   return (
     <SettingsBilling 

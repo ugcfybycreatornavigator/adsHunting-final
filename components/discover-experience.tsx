@@ -24,9 +24,9 @@ import { cn } from "@/lib/utils";
 const countries = [["ALL","All countries"],["IN","India"],["US","United States"],["GB","United Kingdom"],["CA","Canada"],["AU","Australia"],["DE","Germany"],["FR","France"],["BR","Brazil"]];
 const defaults: AdSearchFilters = { query: "", status: "all", country: "ALL", platforms: [], mediaType: "all", cta: "", duration: "", startDate: "", endDate: "" };
 
-export function DiscoverExperience({ brandId, hideHeader = false }: { brandId?: string, hideHeader?: boolean }) {
+export function DiscoverExperience({ brandId, source, hideHeader = false }: { brandId?: string, source?: "competitor", hideHeader?: boolean }) {
   const { reportUsage, state: creditState } = useCredits();
-  const defaultFilters = useMemo(() => ({ ...defaults, brand: brandId }), [brandId]);
+  const defaultFilters = useMemo(() => ({ ...defaults, brand: brandId, source }), [brandId, source]);
   const { filters, updateFilters: setFilters, clearFilters } = useUrlFilters(defaultFilters);
   const [ads, setAds] = useState<NormalizedAd[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
@@ -536,7 +536,10 @@ export function DiscoverExperience({ brandId, hideHeader = false }: { brandId?: 
                     initialCollectionIds={adCollectionIds[(ad.externalId || ad.id)] ?? []}
                     onOpen={() => {
                       if (creditState?.isExhausted) {
-                        setToast({ message: "You have used all your credits.", tone: "error" });
+                        setToast({ 
+                          message: `Credit limit reached. You've used ${creditState.creditsAllocated.toLocaleString()} of ${creditState.creditsAllocated.toLocaleString()} credits.`, 
+                          tone: "error" 
+                        });
                         return;
                       }
                       setDetails(ad);

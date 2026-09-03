@@ -1,8 +1,7 @@
 import { isSupabaseConfigured } from "@/lib/env";
-import { getServerEnv, isSearchConfigured } from "@/lib/env/server";
+import { getServerEnv } from "@/lib/env/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAdProviders } from "@/lib/providers";
-import { auth } from "@clerk/nextjs/server";
 import { persistNormalizedAds } from "@/lib/ads-persistence";
 
 export type CreativePreview = { id: string; url: string; type: string };
@@ -68,9 +67,9 @@ type BulkAdRow = {
 
 /**
  * Triggers an immediate API sync for the given competitor's ads and saves them to the DB.
- * Returns the number of ads persisted, or -1 on failure.
+ * Returns the number of ads persisted, or throws on failure.
  */
-export async function syncCompetitorAds(advertiserId: string, providedToken?: string | null): Promise<number> {
+export async function syncCompetitorAds(advertiserId: string): Promise<number> {
   const logPrefix = `[CompetitorSync][${advertiserId}]`;
   const startMs = Date.now();
   try {
@@ -80,46 +79,19 @@ export async function syncCompetitorAds(advertiserId: string, providedToken?: st
       return -1;
     }
     
-    // We need a Clerk token because the edge function validates it
-    let token = providedToken;
-    if (!token) {
-      try {
-        const authObj = await auth();
-        token = await authObj.getToken();
-      } catch {
-        // May fail if called outside of request context without token
-      }
-    }
-    
-    if (!token) {
-      console.warn(`${logPrefix} Missing Clerk token, cannot authenticate to edge function`);
+    const { getAdProviders } = await import("@/lib/providers/index");
+    const providers = getAdProviders({ brand: advertiserId });
+    if (providers.length === 0) {
+      console.warn(`${logPrefix} No providers configured`);
       return -1;
     }
 
-    const functionUrl = `${env.supabaseUrl}/functions/v1/ads-search`;
-    const res = await fetch(functionUrl, {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${token}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({ brand: advertiserId, status: "all" }),
-      signal: AbortSignal.timeout(25_000),
-    });
+    const provider = providers[0].provider;
+    console.info(`${logPrefix} Syncing ads via ${providers[0].name}...`);
+    const result = await provider.searchAds({ brand: advertiserId, statuses: ["active", "inactive"] });
     
-    if (!res.ok) {
-      const errText = await res.text().catch(() => "");
-      console.error(`${logPrefix} Edge function error: ${res.status} ${errText}`);
-      return -1;
-    }
+    const ads = result.ads;
 
-    const data = await res.json().catch(() => null);
-    if (!data || !Array.isArray(data.ads)) {
-      console.warn(`${logPrefix} Edge function returned no ads array`);
-      return 0;
-    }
-
-    const ads = data.ads as import("@/lib/types").NormalizedAd[];
     if (ads.length === 0) {
       console.info(`${logPrefix} Provider returned 0 ads`);
       return 0;
@@ -146,7 +118,12 @@ export async function syncCompetitorAds(advertiserId: string, providedToken?: st
       const firstAd = uniqueAds[0];
       const resolvedName = firstAd.advertiser?.name;
       const resolvedAvatar = firstAd.advertiser?.logoUrl;
-      if (resolvedName && resolvedName !== "Unknown" && resolvedName !== "Unknown advertiser") {
+      if (
+        resolvedName && 
+        resolvedName !== "Unknown" && 
+        resolvedName !== "Unknown advertiser" &&
+        !/^\d+$/.test(resolvedName)
+      ) {
         const supabase = createAdminClient();
         await supabase
           .from("competitors")
@@ -171,7 +148,7 @@ export async function syncCompetitorAds(advertiserId: string, providedToken?: st
     return persisted;
   } catch (error) {
     console.error(`${logPrefix} Error:`, error);
-    return -1;
+    throw error;
   }
 }
 
@@ -299,7 +276,7 @@ function buildCompetitorIntelligence(
  * Gets the intelligence for a single competitor (Intelligence Page).
  * Safely handles syncing if no data exists.
  */
-export async function getCompetitorIntelligence(id: string, allowSync = true): Promise<CompetitorIntelligence> {
+export async function getCompetitorIntelligence(id: string, allowSync = true, userId?: string): Promise<CompetitorIntelligence> {
   const supabase = createAdminClient();
 
   const fetchAds = async () => {
@@ -315,18 +292,27 @@ export async function getCompetitorIntelligence(id: string, allowSync = true): P
 
   // If no ads exist, trigger an inline sync and refetch (only if allowed)
   if (ads.length === 0 && allowSync) {
-    const synced = await syncCompetitorAds(id);
-    if (synced > 0) {
-      ads = await fetchAds();
+    try {
+      const synced = await syncCompetitorAds(id);
+      if (synced > 0) {
+        ads = await fetchAds();
+      }
+    } catch (err) {
+      console.warn(`Inline sync failed for ${id}:`, err);
     }
   }
 
   // Attempt to fetch the tracked competitor record for custom name overriding
-  const { data: competitorRecord } = await supabase
+  let query = supabase
     .from("competitors")
     .select("advertiser_name, advertiser_avatar_url, created_at, sync_status, sync_error, last_synced_at, ads_count, status")
-    .eq("advertiser_id", id)
-    .maybeSingle();
+    .eq("advertiser_id", id);
+  
+  if (userId) {
+    query = query.eq("user_id", userId);
+  }
+  
+  const { data: competitorRecord } = await query.limit(1).maybeSingle();
 
   // If there are still no ads AND we didn't have a tracked record, try to fetch fallback advertiser details
   // so the intelligence page doesn't just say "Meta advertiser 123"

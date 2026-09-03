@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getWorkspaceEntitlement } from "@/lib/billing/entitlement";
+
 import { auth } from "@clerk/nextjs/server";
 import { isPreviewMode } from "@/lib/preview";
 import { getWorkspaceCreditBalance } from "@/lib/billing/usage";
@@ -11,7 +11,7 @@ export default async function PaidRoutesLayout({ children }: { children: React.R
   const { userId } = await auth();
   if (!userId) redirect("/sign-in");
 
-  const entitlement = await getWorkspaceEntitlement(userId);
+
   
   // Bypass billing redirect
   // if (!entitlement.hasAccess) {
@@ -19,8 +19,6 @@ export default async function PaidRoutesLayout({ children }: { children: React.R
   // }
 
   const balance = await getWorkspaceCreditBalance(userId);
-  const nowStr = new Date().toISOString();
-  const futureStr = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
   
   const initialState: CreditsState | null = balance ? {
     creditsAllocated: balance.creditsAllocated,
@@ -29,14 +27,7 @@ export default async function PaidRoutesLayout({ children }: { children: React.R
     cycleStart: balance.cycleStart,
     cycleEnd: balance.cycleEnd,
     isExhausted: balance.creditsRemaining <= 0
-  } : (entitlement.hasAccess ? {
-    creditsAllocated: 10000,
-    creditsUsed: 0,
-    creditsRemaining: 10000,
-    cycleStart: nowStr,
-    cycleEnd: entitlement.currentPeriodEnd || futureStr,
-    isExhausted: false
-  } : null);
+  } : null;
 
   return (
     <CreditsProvider initialState={initialState}>

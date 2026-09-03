@@ -148,12 +148,6 @@ function PricingSection() {
           </div>
 
         </div>
-
-        <div className="mt-16 md:mt-24 text-center">
-          <p className="text-[15px] text-text-muted">
-            Have questions about AdsHunting or billing? <br className="md:hidden" /> Scroll down for our FAQ.
-          </p>
-        </div>
       </LandingContainer>
     </section>
   );

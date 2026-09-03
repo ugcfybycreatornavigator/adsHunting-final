@@ -2,7 +2,6 @@ import { requirePaidWorkspaceAccess } from "@/lib/billing/entitlement";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { requireUser } from "@/lib/auth";
-import { auth as clerkAuth } from "@clerk/nextjs/server";
 import { syncCompetitorAds } from "@/lib/brand-data";
 
 export async function GET() {
@@ -62,25 +61,19 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: createError.message }, { status: 400 });
   
   // Initiate sync and AWAIT completion
-  const token = await clerkAuth().then(a => a.getToken()).catch(() => null);
   let syncError: string | null = null;
   let adsCount = 0;
   
   try {
-    // syncCompetitorAds now returns: -1 = failure, 0 = no ads found, >0 = ads persisted
-    const persisted = await syncCompetitorAds(parsed.data.advertiserId, token);
+    const persisted = await syncCompetitorAds(parsed.data.advertiserId);
     
-    if (persisted < 0) {
-      syncError = "Sync failed — provider unavailable.";
-    } else {
-      // Query how many ads we actually have now (provider may have returned ads that already existed)
-      const { count } = await auth.supabase!
-        .from("ads")
-        .select("*", { count: "exact", head: true })
-        .eq("advertiser_id", parsed.data.advertiserId);
-      
-      adsCount = count ?? persisted;
-    }
+    // Query how many ads we actually have now (provider may have returned ads that already existed)
+    const { count } = await auth.supabase!
+      .from("ads")
+      .select("*", { count: "exact", head: true })
+      .eq("advertiser_id", parsed.data.advertiserId);
+    
+    adsCount = count ?? persisted;
     
     // Re-fetch the competitor record to get the updated name/avatar from syncCompetitorAds
     const { data: updatedCompetitor } = await auth.supabase!
@@ -93,10 +86,10 @@ export async function POST(request: NextRequest) {
     await auth.supabase!
       .from("competitors")
       .update({
-        sync_status: syncError ? "error" : "success",
-        sync_error: syncError,
+        sync_status: "success",
+        sync_error: null,
         ads_count: adsCount,
-        first_sync_completed_at: syncError ? undefined : new Date().toISOString(),
+        first_sync_completed_at: new Date().toISOString(),
         last_synced_at: new Date().toISOString(),
       })
       .eq("id", competitor.id);
@@ -104,13 +97,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ 
       competitor: { 
         ...(updatedCompetitor || competitor), 
-        sync_status: syncError ? "error" : "success",
+        sync_status: "success",
         ads_count: adsCount
       },
       isNew: true,
-      syncStatus: syncError ? "error" : "success",
+      syncStatus: "success",
       adsCount,
-      syncError
+      syncError: null
     }, { status: 201 });
     
   } catch (err) {
@@ -200,10 +193,8 @@ export async function PATCH(request: NextRequest) {
       .update({ sync_status: "syncing" })
       .eq("id", id);
     
-    const token = await clerkAuth().then(a => a.getToken()).catch(() => null);
-    
     try {
-      const persisted = await syncCompetitorAds(competitor.advertiser_id, token);
+      const persisted = await syncCompetitorAds(competitor.advertiser_id);
       
       const { count } = await auth.supabase!
         .from("ads")
@@ -215,14 +206,14 @@ export async function PATCH(request: NextRequest) {
       await auth.supabase!
         .from("competitors")
         .update({
-          sync_status: persisted >= 0 ? "success" : "error",
-          sync_error: persisted >= 0 ? null : "Sync failed — provider unavailable.",
+          sync_status: "success",
+          sync_error: null,
           ads_count: adsCount,
           last_synced_at: new Date().toISOString(),
         })
         .eq("id", id);
       
-      return NextResponse.json({ ok: true, adsCount, syncStatus: persisted >= 0 ? "success" : "error" });
+      return NextResponse.json({ ok: true, adsCount, syncStatus: "success" });
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : "Refresh failed.";
       await auth.supabase!

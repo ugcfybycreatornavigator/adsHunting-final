@@ -6,8 +6,8 @@ import { ArrowLeft } from "lucide-react";
 
 export default async function CompetitorPage({params}:{params:Promise<{id:string}>}){
   const { id } = await params;
-  const data = await getCompetitorIntelligence(id);
   const auth = await requireUser();
+  const data = await getCompetitorIntelligence(id, true, auth.user?.id);
   let tracking = false;
   
   if (auth.user && auth.supabase) {

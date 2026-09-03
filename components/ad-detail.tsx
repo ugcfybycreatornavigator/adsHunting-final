@@ -307,8 +307,13 @@ export function AdDetailDrawer({
                 </div>
               }
             >
-              <button className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] text-[12px] font-[650] bg-brand text-brand border border-brand hover:bg-brand transition-colors">
-                <span className="size-1.5 rounded-full bg-brand" /> {ad.delivery.status === "active" ? "Active" : "Inactive"}
+              <button className={cn(
+                "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] text-[12px] font-[650] border transition-colors",
+                ad.delivery.status === "active"
+                  ? "bg-brand/10 text-brand border-brand/20 hover:bg-brand/20"
+                  : "bg-zinc-100 text-muted border-zinc-200 hover:bg-zinc-200 text-zinc-600"
+              )}>
+                <span className={cn("size-1.5 rounded-full", ad.delivery.status === "active" ? "bg-brand" : "bg-zinc-400")} /> {ad.delivery.status === "active" ? "Active" : "Inactive"}
               </button>
             </MetadataPopover>
 

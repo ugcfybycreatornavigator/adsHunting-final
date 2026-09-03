@@ -21,6 +21,7 @@ const schema = z.object({
   sort: z.string().max(32).optional(),
   cursor: z.string().max(16_000).optional(),
   cta: z.string().max(40).optional(),
+  source: z.literal("competitor").optional(),
 
   // Legacy singular
   status: z.enum(["all", "active", "inactive"]).default("all"),
@@ -133,7 +134,8 @@ export async function POST(request: NextRequest) {
     let payload: AdSearchResult | null = null;
 
     // 1. Check Supabase preload/cache first if query is empty or requesting discovery feed
-    if (isSupabaseConfigured && (!filters.query || !filters.query.trim()) && !filters.brand) {
+    // For competitors, ALWAYS use the DB because their ads are synced manually.
+    if (isSupabaseConfigured && (!filters.query || !filters.query.trim()) && (!filters.brand || filters.source === "competitor")) {
       try {
         let query = catalogClient!.from("ads").select("*", { count: "exact" });
         
@@ -220,6 +222,9 @@ export async function POST(request: NextRequest) {
             total: deduplicatedRanked.length, 
             source: "catalog" 
           };
+        } else if (filters.source === "competitor") {
+          // Force empty payload if competitor has no ads, bypassing provider fallback
+          payload = { ads: [], nextCursor: null, total: 0, source: "catalog" };
         }
       } catch (err) {
         console.error("[DiscoverAds] Supabase error:", err);
@@ -227,7 +232,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 2. Call provider if not satisfied by preloaded cache (e.g. we have a search query)
-    if (!payload && isSupabaseConfigured) {
+    if (!payload && isSupabaseConfigured && filters.source !== "competitor") {
       const { getToken } = await auth();
       const token = await getToken();
       
