@@ -14,16 +14,28 @@ export function DiscoverAdsSection() {
       />
       <LandingContainer className="text-center flex flex-col items-center relative z-10">
 
-        <div className="w-full max-w-[1200px] mx-auto mb-12 md:mb-16 px-4">
-          <h2 className="text-[32px] md:text-[44px] lg:text-[54px] xl:text-[60px] leading-[1.1] font-bold tracking-tight text-text-primary mb-6 lg:whitespace-nowrap">
-            Search the Market, not ten different tabs.
+        <div className="w-full max-w-[1100px] mx-auto mb-12 md:mb-16 px-4 flex flex-col items-center">
+          {/* Eyebrow Pill Badge */}
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-brand/10 border border-brand/20 mb-5 shadow-sm">
+            <span className="w-1.5 h-1.5 rounded-full bg-brand animate-pulse" />
+            <span className="text-brand font-bold text-[11px] sm:text-xs tracking-[0.16em] uppercase">
+              Cross-Platform Ad Discovery
+            </span>
+          </div>
+
+          {/* Headline strictly in one line on desktop */}
+          <h2 className="text-[28px] sm:text-[38px] md:text-[46px] lg:text-[50px] xl:text-[54px] font-extrabold tracking-[-0.03em] text-[#0A0A0A] leading-tight lg:whitespace-nowrap mb-5">
+            Search the Market, not <span className="text-brand">ten different tabs</span>.
           </h2>
-          <p className="text-[18px] md:text-[20px] text-text-secondary max-w-[600px] mx-auto leading-relaxed">
+
+          {/* Subtitle Balanced to Headline */}
+          <p className="text-[17px] sm:text-[19px] md:text-[21px] text-[#525852] font-normal leading-[1.6] max-w-[760px] text-balance">
             Instantly discover relevant creatives using advanced filters like brand, format, category, and active status.
           </p>
         </div>
 
-        <div className="w-full max-w-[1100px] rounded-2xl overflow-hidden mb-12 border border-border shadow-[0_20px_60px_rgba(0,0,0,0.06)]">
+        {/* Full Width Visual Mockup */}
+        <div className="w-full max-w-[1240px] rounded-2xl overflow-hidden mb-12 border border-border shadow-[0_20px_60px_rgba(0,0,0,0.06)] bg-slate-50">
           <img src="/images/how-it-works/discover-new.png" alt="Discover Ads" className="w-full h-auto" />
         </div>
 
