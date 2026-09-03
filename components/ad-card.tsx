@@ -180,9 +180,25 @@ export function AdCard({
         </div>
       </div>
 
-      {/* Media 4:5 */}
-      <div className="relative z-10 pointer-events-none aspect-[4/5] w-full bg-[#F5F5F5] overflow-hidden border-y border-line group-hover:border-zinc-300 transition-colors">
-        <div className="absolute inset-0 pointer-events-auto">
+      {/* Media 4:5 - clicking video requests full screen or plays directly, clicking card overview opens ad details */}
+      <div 
+        className="relative z-10 aspect-[4/5] w-full bg-[#F5F5F5] overflow-hidden border-y border-line group-hover:border-zinc-300 transition-colors cursor-pointer"
+        onClick={(e) => {
+          // If video element is clicked, trigger native fullscreen or play
+          const videoEl = e.currentTarget.querySelector("video");
+          if (videoEl) {
+            e.stopPropagation();
+            if (document.fullscreenElement) {
+              document.exitFullscreen?.().catch(() => {});
+            } else if (videoEl.requestFullscreen) {
+              videoEl.requestFullscreen().catch(() => {});
+            } else if ((videoEl as any).webkitRequestFullscreen) {
+              (videoEl as any).webkitRequestFullscreen();
+            }
+          }
+        }}
+      >
+        <div className="absolute inset-0">
           <AdMedia ad={ad} variant="card" />
         </div>
       </div>

@@ -52,6 +52,18 @@ export async function POST(request: NextRequest) {
   const uniqueAdIds = Array.from(new Set(adIds));
   const costPerEvent = event === "ad_open" ? 2 : 1;
 
+  // Platform owner bypass: never block or deduct
+  const { isPlatformOwner } = await import("@/lib/platform-owner");
+  if (await isPlatformOwner(user.id)) {
+    return NextResponse.json({
+      success: true,
+      creditsCharged: 0,
+      creditsRemaining: 999999999,
+      acceptedAdIds: uniqueAdIds,
+      rejectedAdIds: [],
+    });
+  }
+
   // 4. Call RPC securely
   try {
     const { data, error } = await supabase.rpc("report_credit_usage_batch", {

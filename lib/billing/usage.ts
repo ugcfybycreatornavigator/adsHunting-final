@@ -55,7 +55,20 @@ export interface WorkspaceCreditBalance {
   cycleEnd: string | null;
 }
 
+import { isPlatformOwner } from "@/lib/platform-owner";
+
 export async function getWorkspaceCreditBalance(workspaceId: string): Promise<WorkspaceCreditBalance | null> {
+  const isOwner = await isPlatformOwner(workspaceId);
+  if (isOwner) {
+    return {
+      creditsAllocated: 999999999,
+      creditsUsed: 0,
+      creditsRemaining: 999999999,
+      cycleStart: null,
+      cycleEnd: null,
+    };
+  }
+
   const admin = createAdminClient();
   const now = new Date().toISOString();
 

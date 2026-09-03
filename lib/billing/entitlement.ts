@@ -5,8 +5,23 @@ import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { isPreviewMode } from "@/lib/preview";
 import { isPaymentReviewer } from "./reviewer";
+import { isPlatformOwner } from "@/lib/platform-owner";
 
 export async function getWorkspaceEntitlement(workspaceId: string): Promise<WorkspaceEntitlement> {
+  const ownerAccess = await isPlatformOwner(workspaceId);
+  if (ownerAccess) {
+    return {
+      hasAccess: true,
+      accessSource: "subscription",
+      billingStatus: "active",
+      trialEndsAt: null,
+      currentPeriodEnd: null,
+      nextChargeAt: null,
+      legacyGraceEndsAt: null,
+      reason: "active_subscription",
+    };
+  }
+
   const reviewerAccess = await isPaymentReviewer(workspaceId);
   if (reviewerAccess) {
     return {
