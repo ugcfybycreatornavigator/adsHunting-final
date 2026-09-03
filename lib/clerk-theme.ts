@@ -1,46 +1,65 @@
 export const authAppearance = {
+  variables: {
+    colorPrimary: "#5EA920",
+    colorBackground: "#FEFFFD",
+    colorForeground: "#0E1228",
+    colorInputBackground: "#FFFFFF",
+    colorInputText: "#111827",
+    colorText: "#0E1228",
+    colorTextSecondary: "#65735F",
+    colorDanger: "#E11D48",
+    borderRadius: "0.5rem",
+  },
+  options: {
+    animations: true,
+    logoImageUrl: "/logo.png",
+    logoLinkUrl: "/",
+    socialButtonsPlacement: "bottom" as const,
+    socialButtonsVariant: "blockButton" as const,
+  },
   elements: {
     rootBox: "w-full",
-    cardBox: "w-full shadow-none p-0 bg-transparent",
-    card: "w-full shadow-none p-0 bg-transparent border-none",
+    cardBox: "w-full bg-transparent p-0 shadow-none",
+    card: "w-full border-none bg-transparent p-0 shadow-none",
     header: "hidden",
 
-    // Social Buttons (Google)
     socialButtonsBlockButton:
-      "h-[48px] w-full border border-[#E4E4E7] bg-white hover:bg-[#FAFAFA] text-[#18181B] font-semibold text-[14px] rounded-[10px] transition-colors shadow-none",
-    socialButtonsBlockButtonText: "font-semibold text-[#18181B] text-[14px]",
+      "h-[46px] min-h-[46px] w-full overflow-visible rounded-lg border border-[#DDE8D6] bg-white px-4 text-[13px] font-semibold text-[#111827] shadow-[0_1px_1px_rgba(43,83,27,0.04)] transition-all hover:border-[#BDD6B0] hover:bg-[#FAFDF7] focus:ring-2 focus:ring-[#5EA920]/20",
+    socialButtonsBlockButtonText: "text-[13px] font-semibold text-[#111827]",
 
-    // Divider
-    dividerRow: "my-6 flex items-center gap-3",
-    dividerLine: "h-px bg-[#E4E4E7] flex-1",
-    dividerText: "text-[11px] font-medium text-[#A1A1AA] uppercase tracking-[.1em]",
+    dividerRow: "my-5 flex items-center gap-3",
+    dividerLine: "h-px flex-1 bg-[#E3EDDD]",
+    dividerText: "text-[10px] font-bold uppercase text-[#91A287]",
 
-    // Forms
-    form: "space-y-[20px]",
-    formField: "space-y-2",
-    formFieldLabel: "text-[13px] font-semibold text-[#18181B]",
+    form: "space-y-4",
+    formField: "space-y-1.5",
+    formFieldLabel: "text-[12px] font-semibold text-[#273149]",
     formFieldInput:
-      "h-[48px] w-full rounded-[10px] border border-[#E4E4E7] bg-white px-4 text-[14px] text-[#18181B] shadow-none outline-none transition-all focus:border-[#68B32F] focus:ring-[3px] focus:ring-[#68B32F]/10",
+      "h-[46px] min-h-[46px] w-full rounded-lg border border-[#DDE8D6] bg-white px-4 text-[13px] font-medium leading-[46px] text-[#111827] shadow-[0_1px_2px_rgba(43,83,27,0.04)] outline-none transition-all placeholder:text-[#A6B49E] hover:border-[#C5DAB9] focus:border-[#5EA920] focus:ring-2 focus:ring-[#5EA920]/20",
 
-    // Primary Button (Electric Blue)
     formButtonPrimary:
-      "h-[48px] mt-2 w-full rounded-[10px] bg-[#68B32F] text-[14px] font-semibold text-white shadow-none transition-colors hover:bg-[#4F9223]",
+      "mt-1 h-11 w-full rounded-lg bg-[#5EA920] text-[13px] font-bold text-white shadow-[0_12px_24px_rgba(94,169,32,0.22)] transition-all hover:bg-[#4D8A1A] hover:shadow-[0_14px_28px_rgba(94,169,32,0.28)] focus:ring-2 focus:ring-[#5EA920]/25 active:translate-y-px",
     formButtonPrimaryIcon: "hidden",
 
-    // Footer / Links
-    footer: "mt-6 pt-4 text-center",
-    footerActionText: "text-[14px] text-[#71717A]",
-    footerActionLink: "ml-1.5 text-[14px] font-semibold text-[#68B32F] hover:text-[#4F9223] transition-colors",
+    formFieldAction:
+      "text-[12px] font-semibold text-[#4D8A1A] transition-colors hover:text-[#3D7213]",
+    formResendCodeLink:
+      "text-[12px] font-semibold text-[#4D8A1A] transition-colors hover:text-[#3D7213]",
 
-    // Errors
-    formFieldErrorText: "mt-1.5 text-[13px] font-medium text-[#EF4444]",
-    alertText: "text-[#EF4444] text-[14px] font-medium",
-    alert: "bg-red-50/50 border border-red-100 rounded-[10px] p-3",
+    footer: "mt-7 pt-2 text-center",
+    footerActionText: "text-[12px] text-[#7F8F78]",
+    footerActionLink:
+      "ml-1 text-[12px] font-bold text-[#4D8A1A] transition-colors hover:text-[#3D7213]",
 
-    // OTP
-    otpCodeFieldInput: "h-[50px] w-12 rounded-[10px] border border-[#E4E4E7] text-center text-[20px] font-bold text-[#18181B] transition-all focus:border-[#68B32F] focus:ring-[3px] focus:ring-[#68B32F]/10",
+    formFieldErrorText: "mt-1 text-[12px] font-semibold text-[#E11D48]",
+    alert: "rounded-lg border border-[#FECACA] bg-[#FFF1F2] p-3",
+    alertText: "text-[13px] font-semibold text-[#BE123C]",
 
-    identityPreviewText: "text-[14px] font-medium text-[#18181B]",
-    identityPreviewEditButton: "ml-2 text-[14px] font-semibold text-[#68B32F] hover:text-[#4F9223] transition-colors",
+    otpCodeFieldInput:
+      "h-12 w-11 rounded-lg border border-[#DDE8D6] bg-white text-center text-[18px] font-bold text-[#0E1228] transition-all focus:border-[#5EA920] focus:ring-2 focus:ring-[#5EA920]/20",
+
+    identityPreviewText: "text-[13px] font-semibold text-[#0E1228]",
+    identityPreviewEditButton:
+      "ml-2 text-[12px] font-bold text-[#4D8A1A] transition-colors hover:text-[#3D7213]",
   },
 };

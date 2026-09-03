@@ -7,12 +7,12 @@ export const homepageFaqs = [
   {
     question: "What information does AdsHunting provide?",
     answer:
-      "AdsHunting focuses on observable advertising and creative research information available through supported sources, including ad status, format, runtime, and basic destination data.",
+      "AdsHunting focuses on observable advertising and creative research information available through supported sources, including ad status, format, runtime, and advance performance metrics.",
   },
   {
     question: "Does AdsHunting provide ROAS, CTR, CPC, sales or revenue data?",
     answer:
-      "No. Those are private advertiser metrics and are not provided by Meta's public advertising data sources. AdsHunting focuses on observable advertising and creative research information available through supported sources.",
+      "No, we don’t access private advertiser metrics. Instead, AdsHunting uses advanced AI models to analyze publicly available advertising data, creative patterns, engagement signals, and other observable factors to generate AI-powered performance scores with up to 95% predictive accuracy—helping you identify ads and creatives most likely to perform.",
   },
   {
     question: "Can I save ads?",

@@ -10,43 +10,43 @@ import { TrendingUp, Layers, Bookmark, CheckCircle2 } from "lucide-react";
 const CREATIVE_ASSETS = [
   {
     id: "hero",
-    image: "/brand/creatives/creative_tech_01.jpg",
-    brand: "Advertiser", // Neutral placeholder
+    image: "/brand/creatives/apple_airpods_max.jpg",
+    brand: "Apple",
     format: "Video",
-    aspect: "9/16",
-    filename: "campaign_hero.mp4"
+    aspect: "3/4",
+    filename: "airpods_max_launch.mp4"
   },
   {
     id: "secondary_1",
-    image: "/brand/creatives/creative_fashion_01.jpg",
-    brand: "Advertiser",
-    format: "Image",
-    aspect: "4/5",
-    filename: "competitor-feed.png"
+    image: "/brand/creatives/nike_running.jpg",
+    brand: "Nike",
+    format: "Video",
+    aspect: "9/16",
+    filename: "nike_fast_forward.mp4"
   },
   {
     id: "secondary_2",
-    image: "/brand/creatives/creative_fitness_01.jpg",
-    brand: "Advertiser",
+    image: "/brand/creatives/gymshark_fitness.jpg",
+    brand: "Gymshark",
     format: "Image",
     aspect: "4/5",
-    filename: "saved-ad-17.png"
+    filename: "gymshark_conditioning.jpg"
   },
   {
     id: "secondary_3",
-    image: "/brand/creatives/creative_food_01.jpg",
-    brand: "Advertiser",
+    image: "/brand/creatives/starbucks_coffee.jpg",
+    brand: "Starbucks",
     format: "Image",
     aspect: "1/1",
-    filename: "research-03.jpg"
+    filename: "starbucks_reserve_coldbrew.jpg"
   },
   {
     id: "secondary_4",
-    image: "/brand/creatives/creative_beauty_01.jpg",
-    brand: "Advertiser",
+    image: "/brand/creatives/glossier_skincare.jpg",
+    brand: "Glossier",
     format: "Image",
     aspect: "4/5",
-    filename: "static_ad.jpg"
+    filename: "radiance_glow_campaign.jpg"
   }
 ];
 
@@ -259,7 +259,7 @@ export function CreativeIntelligenceAnimation() {
               }}
               className="absolute bg-white rounded-[14px] overflow-hidden border border-[#E4E4E7]"
               style={{
-                width: asset.aspect === "9/16" ? 170 : asset.aspect === "4/5" ? 180 : 160,
+                width: asset.aspect === "9/16" ? 170 : asset.aspect === "3/4" ? 190 : asset.aspect === "4/5" ? 180 : 160,
                 aspectRatio: asset.aspect,
                 boxShadow: (isRecognition && isHero)
                   ? "0 0 0 1.5px #68B32F, 0 15px 35px -5px rgba(94,169,32,0.2)"

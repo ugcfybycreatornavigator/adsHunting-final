@@ -5,8 +5,8 @@ import { CreativeIntelligenceAnimation } from '../animations/CreativeIntelligenc
 export function CoreValueSection() {
   return (
     <section className="py-24 md:py-32 bg-white relative overflow-hidden">
-      <div 
-        className="absolute inset-0 pointer-events-none" 
+      <div
+        className="absolute inset-0 pointer-events-none"
         style={{
           background: 'radial-gradient(circle at 50% 50%, rgba(94,169,32,0.03), transparent 60%)'
         }}
@@ -14,7 +14,7 @@ export function CoreValueSection() {
       <LandingContainer className="relative z-10">
         <div className="grid grid-cols-1 lg:grid-cols-[4fr_6fr] gap-12 lg:gap-8 items-center max-w-[1200px] mx-auto">
           {/* 40% Text Side */}
-          <div className="max-w-[600px]">
+          <div className="max-w-[600px] text-center lg:text-left mx-auto lg:mx-0">
             <h2 className="text-[36px] sm:text-[44px] md:text-[54px] leading-[1.05] font-bold tracking-tight text-text-primary text-balance">
               Stop collecting screenshots. <br className="hidden md:block" />
               <span className="text-brand">Start building creative intelligence.</span>

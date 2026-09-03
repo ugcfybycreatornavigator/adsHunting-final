@@ -2,65 +2,55 @@
 
 import type { ReactNode } from "react";
 import { BrandMark } from "@/components/brand-mark";
-import { AnimatedProductCanvas } from "@/components/auth/animated-product-canvas";
 
 export function AuthShell({ children, mode }: { children: ReactNode; mode: "sign-in" | "sign-up" }) {
-  const title = mode === "sign-in" ? "Welcome back" : "Create your AdsHunting account";
+  const title = mode === "sign-in" ? "Welcome to AdsHunting" : "Create your AdsHunting account";
   const body =
     mode === "sign-in"
-      ? "Continue exploring winning ads, competitors, and creative signals."
-      : "Start building your creative intelligence library.";
+      ? "Log in to continue tracking competitors, saving creative signals, and building sharper ad research."
+      : "Start your creative intelligence workspace and build a cleaner way to research ads.";
 
   return (
-    <main className="min-h-screen bg-white text-ink lg:grid lg:grid-cols-[minmax(0,3fr)_minmax(420px,2fr)]">
-      {/* 60% Visual Side (Desktop/Tablet) */}
-      <section className="relative hidden flex-col justify-between overflow-hidden bg-[#080B12] px-12 pb-12 pt-14 lg:flex border-r border-line">
-        
-        {/* Animated Product Canvas */}
-        <AnimatedProductCanvas />
-
-        {/* Header Logo */}
-        <div className="relative z-20">
-          <BrandMark inverted compact href="/" />
+    <main className="flex min-h-[100dvh] flex-col overflow-hidden bg-white text-ink lg:flex-row">
+      <section className="auth-visual-panel relative flex min-h-[300px] flex-col justify-between overflow-hidden bg-[#2F8F32] px-7 py-7 text-white sm:min-h-[360px] sm:px-10 sm:py-10 lg:min-h-[100dvh] lg:w-[60%] lg:px-14 lg:py-14 xl:px-16">
+        <div className="auth-diagonal-stack absolute inset-0" aria-hidden="true">
+          <div className="auth-diagonal auth-diagonal-one" />
+          <div className="auth-diagonal auth-diagonal-two" />
+          <div className="auth-diagonal auth-diagonal-three" />
+          <div className="auth-neon-line auth-neon-line-one" />
+          <div className="auth-neon-line auth-neon-line-two" />
+          <div className="auth-dot-field auth-dot-field-one" />
+          <div className="auth-dot-field auth-dot-field-two" />
         </div>
 
-        {/* Product Messaging */}
-        <div className="relative z-20 max-w-xl motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-4 motion-safe:duration-1000 motion-safe:delay-500 fill-mode-backwards">
-          <h1 className="text-3xl font-bold leading-snug tracking-tight text-white mb-4">
-            Find the ads worth studying.
-          </h1>
-          <p className="text-[16px] leading-relaxed text-white/60 max-w-md font-medium">
-            Discover competitor creatives, understand the signals behind them, and save ideas that deserve a second look.
+        <div className="relative z-10 max-w-md motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-left-4 motion-safe:duration-700">
+          <p className="mb-4 inline-flex rounded-full border border-white/25 bg-white/15 px-3 py-1 text-[11px] font-bold uppercase text-lime-50 backdrop-blur-md">
+            Creative Intelligence
           </p>
-          <div className="mt-8 flex items-center gap-3 text-[12px] font-bold uppercase tracking-[.15em] text-white/40">
-            <span className="text-white/80">Discover</span>
-            <span className="text-brand">·</span>
-            <span className="text-white/80">Analyze</span>
-            <span className="text-brand">·</span>
-            <span className="text-white/80">Save</span>
-            <span className="text-brand">·</span>
-            <span className="text-white/80">Research</span>
-          </div>
+          <h1 className="text-[32px] font-black leading-[1.08] text-white sm:text-[44px] lg:text-[52px]">
+            Empowering the ad research revolution
+          </h1>
         </div>
-        
-        {/* Subtle noise/gradient overlay */}
-        <div className="absolute inset-x-0 bottom-0 h-64 bg-gradient-to-t from-[#080B12] via-[#080B12]/80 to-transparent pointer-events-none z-10" />
+
+        <div className="relative z-10 mt-12 max-w-md motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-4 motion-safe:delay-200 motion-safe:duration-700">
+          <p className="text-[14px] font-semibold leading-relaxed text-white">
+            &quot;A focused swipe file turns scattered inspiration into decisions your team can trust.&quot;
+          </p>
+          <p className="mt-3 text-[12px] font-bold uppercase text-lime-50/85">AdsHunting</p>
+        </div>
       </section>
 
-      {/* 40% Form Side */}
-      <section className="flex min-h-screen flex-col items-center justify-center px-6 py-8 lg:px-10">
-        <div className="w-full max-w-[420px]">
-          {/* Mobile Logo */}
-          <div className="mb-10 flex lg:hidden">
+      <section className="flex flex-1 items-center justify-center bg-[#FEFFFD] px-5 py-10 sm:px-8 sm:py-12 lg:min-h-[100dvh] lg:w-[40%] lg:px-10 xl:px-14">
+        <div className="w-full max-w-[420px] motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-right-4 motion-safe:duration-700">
+          <div className="mb-8 flex justify-center">
             <BrandMark compact href="/" />
           </div>
 
-          <div className="mb-8">
-            <h2 className="text-[32px] font-bold tracking-tight text-[#111217]">{title}</h2>
-            <p className="mt-2 text-[15px] text-[#6F7380]">{body}</p>
+          <div className="mb-7 text-center">
+            <h2 className="text-[28px] font-extrabold leading-tight text-[#0E1228] sm:text-[32px]">{title}</h2>
+            <p className="mx-auto mt-3 max-w-sm text-[14px] leading-relaxed text-[#69718A]">{body}</p>
           </div>
 
-          {/* Clerk Form Injection */}
           <div className="w-full">{children}</div>
         </div>
       </section>

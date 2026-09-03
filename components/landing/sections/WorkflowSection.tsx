@@ -38,7 +38,7 @@ const steps = [
     title: 'Save',
     desc: 'Turn inspiration into a system.',
     body: 'Save ads and organize them into Swipe Files for campaigns, hooks, formats or competitors.',
-    image: '/images/how-it-works/save-new.png',
+    image: '/images/how-it-works/save-swipe-files.png',
     imageClass: 'object-contain object-center w-full h-full'
   },
   {
@@ -58,7 +58,7 @@ export function WorkflowSection() {
   // We set up Intersection Observers for the text items to update the active step
   useEffect(() => {
     const stepElements = document.querySelectorAll('.workflow-step');
-    
+
     const observer = new IntersectionObserver((entries) => {
       entries.forEach(entry => {
         if (entry.isIntersecting) {
@@ -79,28 +79,31 @@ export function WorkflowSection() {
   return (
     <section id="workflow" className="py-24 md:py-32 bg-slate-50 border-y border-border relative">
       <LandingContainer>
-        
+
         {/* Section Header */}
-        <div className="max-w-[800px] mb-16 mx-auto text-center flex flex-col items-center">
-          <span className="text-brand font-bold text-sm tracking-widest uppercase mb-4 block">
-            How AdsHunting Works
-          </span>
-          <h2 className="text-[32px] md:text-[40px] font-bold text-text-primary mb-6 leading-[1.1]">
-            From discovery to a reusable creative library.
+        <div className="max-w-[760px] mb-16 md:mb-20 mx-auto text-center flex flex-col items-center">
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-brand/10 border border-brand/20 mb-5">
+            <span className="w-1.5 h-1.5 rounded-full bg-brand animate-pulse" />
+            <span className="text-brand font-semibold text-xs tracking-[0.18em] uppercase">
+              How AdsHunting Works
+            </span>
+          </div>
+          <h2 className="text-[34px] sm:text-[42px] md:text-[50px] font-extrabold tracking-[-0.035em] text-[#0A0A0A] mb-5 leading-[1.08] text-balance">
+            From discovery to a <span className="text-brand">reusable creative library</span>.
           </h2>
-          <p className="text-[18px] text-text-secondary leading-relaxed max-w-[600px]">
-            Find the right ads, understand what matters, organize your research, and share it with your team.
+          <p className="text-[17px] sm:text-[19px] text-[#525852] font-normal leading-[1.6] max-w-[580px] text-balance">
+            Find the right ads, understand what matters, organize your research, and share it seamlessly with your team.
           </p>
         </div>
 
         {/* Desktop Sticky Layout */}
         <div ref={containerRef} className="hidden lg:flex items-start gap-12 xl:gap-16 relative w-full">
-          
+
           {/* Left Column (Text Steps) */}
           <div className="w-[35%] xl:w-[30%] py-[30vh] flex flex-col gap-[50vh] shrink-0">
             {steps.map((step, idx) => (
-              <div 
-                key={step.id} 
+              <div
+                key={step.id}
                 data-index={idx}
                 onClick={() => setActiveStep(idx)}
                 className={cn(
@@ -108,9 +111,15 @@ export function WorkflowSection() {
                   activeStep === idx ? "opacity-100 translate-x-0" : "opacity-30 blur-[1px] -translate-x-4 hover:opacity-60"
                 )}
               >
-                <div className="text-brand font-bold text-sm mb-3 tracking-wide">{step.id} {step.title}</div>
-                <h3 className="text-[32px] font-bold text-text-primary mb-4 leading-tight">{step.desc}</h3>
-                <p className="text-text-secondary text-[18px] leading-relaxed">{step.body}</p>
+                <div className="inline-block text-brand font-bold text-xs tracking-wider uppercase mb-3 bg-brand/10 px-2.5 py-1 rounded-full">
+                  {step.id} · {step.title}
+                </div>
+                <h3 className="text-[30px] xl:text-[34px] font-extrabold tracking-tight text-[#0A0A0A] mb-4 leading-[1.2]">
+                  {step.desc}
+                </h3>
+                <p className="text-[#525852] text-[17px] leading-[1.65]">
+                  {step.body}
+                </p>
               </div>
             ))}
           </div>
@@ -118,7 +127,7 @@ export function WorkflowSection() {
           {/* Right Column (Sticky Image Frame) */}
           <div className="w-[70%] xl:w-[75%] sticky top-0 h-screen flex items-center justify-center shrink-0 -mr-[6vw] xl:-mr-[10vw] pt-12 lg:pt-16">
             <div className="w-full aspect-[16/10] bg-white rounded-2xl border border-border/60 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.1)] overflow-hidden flex flex-col transition-all duration-700 hover:shadow-[0_30px_80px_-20px_rgba(0,0,0,0.15)]">
-              
+
               {/* Subtle Browser Chrome */}
               <div className="h-12 border-b border-border bg-slate-50/80 backdrop-blur flex items-center px-5 gap-2.5 shrink-0 z-10">
                 <div className="flex gap-2">
@@ -141,7 +150,7 @@ export function WorkflowSection() {
                     className="absolute inset-2 flex items-center justify-center bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden"
                   >
                     {steps[activeStep].image ? (
-                      <Image 
+                      <Image
                         src={steps[activeStep].image!}
                         alt={`AdsHunting ${steps[activeStep].title} interface`}
                         fill
@@ -169,34 +178,40 @@ export function WorkflowSection() {
         <div className="flex flex-col gap-16 lg:hidden">
           {steps.map((step) => (
             <div key={step.id} className="flex flex-col">
-              <div className="mb-6">
-                <div className="text-brand font-bold text-sm mb-2">{step.id} {step.title}</div>
-                <h3 className="text-[22px] font-bold text-text-primary mb-3 leading-snug">{step.desc}</h3>
-                <p className="text-text-secondary text-[15px] leading-relaxed">{step.body}</p>
+              <div className="mb-6 text-center sm:text-left">
+                <div className="inline-block text-brand font-bold text-xs tracking-wider uppercase mb-2.5 bg-brand/10 px-2.5 py-1 rounded-full">
+                  {step.id} · {step.title}
+                </div>
+                <h3 className="text-[24px] sm:text-[26px] font-extrabold tracking-tight text-[#0A0A0A] mb-3 leading-[1.25]">
+                  {step.desc}
+                </h3>
+                <p className="text-[#525852] text-[15px] sm:text-[16px] leading-[1.65]">
+                  {step.body}
+                </p>
               </div>
-              
+
               <div className="w-full bg-white rounded-xl border border-border shadow-sm overflow-hidden flex flex-col">
-                 <div className="h-8 border-b border-border bg-slate-50 flex items-center px-3 gap-1.5 shrink-0">
-                   <div className="w-2 h-2 rounded-full bg-slate-300"></div>
-                   <div className="w-2 h-2 rounded-full bg-slate-300"></div>
-                   <div className="w-2 h-2 rounded-full bg-slate-300"></div>
-                 </div>
-                 <div className="relative bg-slate-100 w-full aspect-video">
-                    {step.image ? (
-                      <Image 
-                        src={step.image}
-                        alt={`AdsHunting ${step.title} interface`}
-                        fill
-                        sizes="100vw"
-                        quality={100}
-                        className={step.imageClass}
-                      />
-                    ) : (
-                      <div className="absolute inset-0 flex items-center justify-center text-slate-400">
-                        <p className="text-[13px] font-medium">Screenshot coming soon</p>
-                      </div>
-                    )}
-                 </div>
+                <div className="h-8 border-b border-border bg-slate-50 flex items-center px-3 gap-1.5 shrink-0">
+                  <div className="w-2 h-2 rounded-full bg-slate-300"></div>
+                  <div className="w-2 h-2 rounded-full bg-slate-300"></div>
+                  <div className="w-2 h-2 rounded-full bg-slate-300"></div>
+                </div>
+                <div className="relative bg-slate-100 w-full aspect-video">
+                  {step.image ? (
+                    <Image
+                      src={step.image}
+                      alt={`AdsHunting ${step.title} interface`}
+                      fill
+                      sizes="100vw"
+                      quality={100}
+                      className={step.imageClass}
+                    />
+                  ) : (
+                    <div className="absolute inset-0 flex items-center justify-center text-slate-400">
+                      <p className="text-[13px] font-medium">Screenshot coming soon</p>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           ))}

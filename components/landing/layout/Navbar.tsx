@@ -55,7 +55,7 @@ export function Navbar() {
   };
 
   return (
-    <header className="fixed top-0 inset-x-0 z-50 transition-all duration-300">
+    <header className="landing-navbar fixed top-0 inset-x-0 z-50 transition-all duration-300">
       <div className="bg-brand text-white overflow-hidden flex items-center h-10 shadow-sm">
         <div className="whitespace-nowrap animate-marquee md:animate-none md:transform-none inline-block px-4 text-[13px] md:text-[14px] font-medium tracking-wide w-full md:text-center">
           To ensure a seamless and fully functional experience, we are applying final optimizations. The dashboard will be live this evening.

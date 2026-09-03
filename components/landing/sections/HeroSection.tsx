@@ -1,12 +1,13 @@
 'use client';
 
 import React, { useRef, useEffect, useCallback, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, useScroll, useTransform, useMotionValue, useSpring, AnimatePresence } from 'framer-motion';
 import { LandingContainer } from '../layout/LandingContainer';
 import { HeroOpticalBackground } from './HeroOpticalBackground';
 import { HeroProductPreview } from './HeroProductPreview';
 import { authLinks } from '@/data/landing/config';
-import { ArrowRight, PlayCircle, X } from 'lucide-react';
+import { ArrowRight, PlayCircle, X, Play, Pause, Volume2, VolumeX, Maximize, Minimize } from 'lucide-react';
 import Link from 'next/link';
 
 /* ─────────────────────────────────────────────────────────────────────
@@ -28,12 +29,35 @@ const fadeUpVariant = {
   }),
 };
 
+const demoVideoSources = [
+  {
+    src: 'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4',
+    label: 'Creative research walkthrough',
+  },
+  {
+    src: 'https://www.w3schools.com/html/mov_bbb.mp4',
+    label: 'Ad workflow demo',
+  },
+  {
+    src: 'https://media.w3.org/2010/05/sintel/trailer.mp4',
+    label: 'Campaign review preview',
+  },
+] as const;
+
 /* ─────────────────────────────────────────────────────────────────────
    HERO SECTION
    ───────────────────────────────────────────────────────────────────── */
 
 export function HeroSection() {
   const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
+  const [activeVideo, setActiveVideo] = useState<(typeof demoVideoSources)[number]>(demoVideoSources[0]);
+  const [isPlaying, setIsPlaying] = useState(true);
+  const [isMuted, setIsMuted] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
+
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const videoContainerRef = useRef<HTMLDivElement>(null);
   const sectionRef = useRef<HTMLElement>(null);
   const bgRef = useRef<HTMLDivElement>(null);
 
@@ -87,6 +111,78 @@ export function HeroSection() {
     rawMouseX.set(0);
     rawMouseY.set(0);
   }, [rawMouseX, rawMouseY]);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  const openVideoModal = useCallback(() => {
+    const nextVideo = demoVideoSources[Math.floor(Math.random() * demoVideoSources.length)];
+    setActiveVideo(nextVideo);
+    setIsPlaying(true);
+    setIsMuted(false);
+    setIsVideoModalOpen(true);
+  }, []);
+
+  const closeVideoModal = useCallback(() => {
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(() => {});
+    }
+    setIsVideoModalOpen(false);
+  }, []);
+
+  const togglePlayPause = useCallback(() => {
+    if (!videoRef.current) return;
+    if (videoRef.current.paused) {
+      videoRef.current.play();
+      setIsPlaying(true);
+    } else {
+      videoRef.current.pause();
+      setIsPlaying(false);
+    }
+  }, []);
+
+  const toggleMute = useCallback(() => {
+    if (!videoRef.current) return;
+    videoRef.current.muted = !videoRef.current.muted;
+    setIsMuted(videoRef.current.muted);
+  }, []);
+
+  const toggleFullscreen = useCallback(async () => {
+    try {
+      if (!document.fullscreenElement) {
+        if (videoContainerRef.current) {
+          await videoContainerRef.current.requestFullscreen();
+          setIsFullscreen(true);
+        }
+      } else {
+        await document.exitFullscreen();
+        setIsFullscreen(false);
+      }
+    } catch {
+      // ignore fullscreen errors
+    }
+  }, []);
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(Boolean(document.fullscreenElement));
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+    };
+  }, []);
+
+  useEffect(() => {
+    document.body.classList.toggle('landing-video-open', isVideoModalOpen);
+    document.body.style.overflow = isVideoModalOpen ? 'hidden' : '';
+
+    return () => {
+      document.body.classList.remove('landing-video-open');
+      document.body.style.overflow = '';
+    };
+  }, [isVideoModalOpen]);
 
   return (
     <section
@@ -201,7 +297,7 @@ export function HeroSection() {
 
               {/* Secondary CTA */}
               <button
-                onClick={() => setIsVideoModalOpen(true)}
+                onClick={openVideoModal}
                 className="inline-flex items-center justify-center h-[48px] md:h-[52px] px-7 md:px-8 text-[15px] md:text-[16px] font-semibold transition-all duration-200 w-full sm:w-auto"
                 style={{
                   borderRadius: '12px',
@@ -237,43 +333,123 @@ export function HeroSection() {
         </LandingContainer>
       </div>
 
-      {/* Video Modal */}
-      <AnimatePresence>
-        {isVideoModalOpen && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 md:p-12">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-              onClick={() => setIsVideoModalOpen(false)}
-              className="absolute inset-0 bg-slate-950/70 backdrop-blur-2xl"
-            />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              transition={{ type: 'spring', damping: 30, stiffness: 400, mass: 0.8 }}
-              className="relative w-full max-w-5xl aspect-video bg-black rounded-[24px] overflow-hidden shadow-[0_0_100px_rgba(0,0,0,0.5),0_0_40px_rgba(94,169,32,0.15)] ring-1 ring-white/10 z-10"
-            >
-              <button
-                onClick={() => setIsVideoModalOpen(false)}
-                className="absolute top-6 right-6 z-20 p-2.5 bg-black/40 hover:bg-black/60 backdrop-blur-md rounded-full text-white/90 hover:text-white transition-all duration-200 border border-white/10 hover:scale-105"
-              >
-                <X size={20} strokeWidth={2.5} />
-              </button>
-              <video
-                src="/videos/demo.mp4"
-                controls
-                autoPlay
-                className="w-full h-full object-cover rounded-[24px]"
-              >
-                Your browser does not support the video tag.
-              </video>
-            </motion.div>
-          </div>
+      {isMounted &&
+        createPortal(
+          <AnimatePresence>
+            {isVideoModalOpen && (
+              <div className="fixed inset-0 z-[100] flex items-center justify-center overflow-hidden bg-[#243331] p-4 sm:p-6 md:p-12">
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+                  onClick={closeVideoModal}
+                  className="absolute inset-0 bg-[radial-gradient(circle_at_50%_30%,rgba(94,169,32,0.18),transparent_34%),linear-gradient(180deg,#32413f_0%,#202b29_100%)]"
+                />
+                <motion.div
+                  ref={videoContainerRef}
+                  initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                  transition={{ type: 'spring', damping: 30, stiffness: 400, mass: 0.8 }}
+                  className="group relative z-10 aspect-video w-full max-w-5xl overflow-hidden rounded-[24px] bg-black shadow-[0_0_100px_rgba(0,0,0,0.5),0_0_40px_rgba(94,169,32,0.15)] ring-1 ring-white/10"
+                >
+                  <video
+                    ref={videoRef}
+                    key={activeVideo.src}
+                    src={activeVideo.src}
+                    autoPlay
+                    playsInline
+                    onPlay={() => setIsPlaying(true)}
+                    onPause={() => setIsPlaying(false)}
+                    onEnded={closeVideoModal}
+                    aria-label={activeVideo.label}
+                    onClick={togglePlayPause}
+                    className="h-full w-full rounded-[24px] object-cover cursor-pointer"
+                  >
+                    Your browser does not support the video tag.
+                  </video>
+
+
+                  {/* Actions overlay: Pause/Play, Mute/Unmute, Fullscreen, Close */}
+                  <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex items-center justify-between bg-gradient-to-t from-black/80 via-black/40 to-transparent p-4 md:p-6 opacity-100 transition-opacity duration-300">
+                    <div className="pointer-events-auto flex items-center gap-3">
+                      {/* Play / Pause */}
+                      <button
+                        onClick={togglePlayPause}
+                        aria-label={isPlaying ? 'Pause video' : 'Play video'}
+                        className="flex items-center gap-2 rounded-full border border-white/15 bg-black/60 px-3.5 py-2 text-xs font-medium text-white shadow-sm backdrop-blur-md transition-all duration-200 hover:scale-105 hover:bg-black/80"
+                      >
+                        {isPlaying ? (
+                          <>
+                            <Pause size={15} className="fill-white" />
+                            <span>Pause</span>
+                          </>
+                        ) : (
+                          <>
+                            <Play size={15} className="fill-white" />
+                            <span>Play</span>
+                          </>
+                        )}
+                      </button>
+
+                      {/* Mute / Unmute */}
+                      <button
+                        onClick={toggleMute}
+                        aria-label={isMuted ? 'Unmute video' : 'Mute video'}
+                        className="flex items-center gap-2 rounded-full border border-white/15 bg-black/60 px-3.5 py-2 text-xs font-medium text-white shadow-sm backdrop-blur-md transition-all duration-200 hover:scale-105 hover:bg-black/80"
+                      >
+                        {isMuted ? (
+                          <>
+                            <VolumeX size={15} />
+                            <span>Unmute</span>
+                          </>
+                        ) : (
+                          <>
+                            <Volume2 size={15} />
+                            <span>Mute</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+
+                    <div className="pointer-events-auto flex items-center gap-3">
+                      {/* Fullscreen */}
+                      <button
+                        onClick={toggleFullscreen}
+                        aria-label={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+                        className="flex items-center gap-2 rounded-full border border-white/15 bg-black/60 px-3.5 py-2 text-xs font-medium text-white shadow-sm backdrop-blur-md transition-all duration-200 hover:scale-105 hover:bg-black/80"
+                      >
+                        {isFullscreen ? (
+                          <>
+                            <Minimize size={15} />
+                            <span>Exit Fullscreen</span>
+                          </>
+                        ) : (
+                          <>
+                            <Maximize size={15} />
+                            <span>Fullscreen</span>
+                          </>
+                        )}
+                      </button>
+
+                      {/* Close */}
+                      <button
+                        onClick={closeVideoModal}
+                        aria-label="Close video"
+                        className="flex items-center gap-2 rounded-full border border-white/15 bg-black/60 px-3.5 py-2 text-xs font-medium text-white shadow-sm backdrop-blur-md transition-all duration-200 hover:scale-105 hover:bg-red-500/80 hover:border-red-400"
+                      >
+                        <X size={15} strokeWidth={2.2} />
+                        <span>Close</span>
+                      </button>
+                    </div>
+                  </div>
+                </motion.div>
+              </div>
+            )}
+          </AnimatePresence>,
+          document.body,
         )}
-      </AnimatePresence>
     </section>
   );
 }
