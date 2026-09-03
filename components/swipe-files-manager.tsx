@@ -3,10 +3,10 @@ import { apiFetch } from "@/lib/api-client";
 
 import Link from "next/link";
 import { FormEvent, useState } from "react";
-import { ArrowRight, Folder, FolderPlus, Loader2, Trash2, X, Bookmark } from "lucide-react";
+import { ArrowRight, Folder, FolderPlus, Loader2, Trash2, Bookmark } from "lucide-react";
 import { Button, Skeleton } from "@/components/ui";
 import type { SwipeFile } from "@/lib/types";
-
+import { ModalShell } from "@/components/modal-shell";
 import { useSwipeFiles } from "@/hooks/use-swipe-files";
 
 export function SwipeFilesManager({ initialData }: { initialData?: SwipeFile[] }) {
@@ -241,23 +241,33 @@ function SwipeFileModal({ file, onClose, onSaved }: { file: SwipeFile | null; on
   }
 
   return (
-    <div className="fixed inset-0 z-[70] grid place-items-end bg-black/25 sm:place-items-center sm:p-4" onMouseDown={onClose}>
-      <form onSubmit={submit} className="w-full rounded-t-2xl bg-white p-5 sm:max-w-md sm:rounded-2xl" onMouseDown={(event) => event.stopPropagation()}>
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Create Swipe File</h2>
-          <button type="button" onClick={onClose} className="grid size-10 place-items-center"><X size={18} /></button>
-        </div>
-        <label className="mt-5 block text-xs font-semibold text-muted">Swipe File name
-          <input autoFocus value={name} onChange={(event) => setName(event.target.value)} maxLength={80} className="mt-2 h-11 w-full rounded-lg border border-line px-3 text-sm outline-none focus:border-brand focus:ring-4 focus:ring-brand-soft" placeholder="Winning Hooks" />
+    <ModalShell
+      open={true}
+      onClose={onClose}
+      title="Create Swipe File"
+      description="Organize your saved creatives into folders."
+      headerIcon={<FolderPlus size={18} />}
+    >
+      <form onSubmit={submit} className="p-5 sm:p-6 flex flex-col gap-4">
+        <label className="flex flex-col gap-1.5">
+          <span className="text-xs font-semibold text-zinc-500">Swipe File name</span>
+          <input
+            autoFocus
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            maxLength={80}
+            className="h-11 w-full rounded-xl border border-zinc-200 px-3 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition"
+            placeholder="Winning Hooks"
+          />
         </label>
-        {error && <p className="mt-3 rounded-lg bg-red-50 p-3 text-xs text-signal">{error}</p>}
-        <div className="mt-5 flex justify-end gap-2">
+        {error && <p className="rounded-xl bg-red-50 p-3 text-xs text-signal">{error}</p>}
+        <div className="flex justify-end gap-2 pt-1">
           <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
           <Button type="submit" variant="primary" disabled={!name.trim() || busy}>
             {busy && <Loader2 size={15} className="animate-spin" />}Create
           </Button>
         </div>
       </form>
-    </div>
+    </ModalShell>
   );
 }

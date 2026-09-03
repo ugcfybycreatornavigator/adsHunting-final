@@ -6,6 +6,8 @@ import { type PlanConfig } from "@/lib/billing/billing-config";
 import { type WorkspaceCreditBalance } from "@/lib/billing/usage";
 import { useState } from "react";
 import { cancelSubscription } from "@/app/(workspace)/settings/billing/actions";
+import { AppDialog } from "@/components/app-dialog";
+import { Rocket, AlertTriangle } from "lucide-react";
 
 interface SettingsBillingProps {
   entitlement: WorkspaceEntitlement;
@@ -16,6 +18,8 @@ interface SettingsBillingProps {
 export function SettingsBilling({ entitlement, planConfig, creditBalance }: SettingsBillingProps) {
   const [cancelling, setCancelling] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showComingSoon, setShowComingSoon] = useState(false);
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
 
   const displayPlanName = planConfig?.name || "No active plan";
   const isTrial = entitlement.accessSource === "trial";
@@ -25,10 +29,6 @@ export function SettingsBilling({ entitlement, planConfig, creditBalance }: Sett
     : null;
 
   const handleCancel = async () => {
-    if (!confirm("Are you sure you want to cancel your membership? You will retain access until the end of your billing period.")) {
-      return;
-    }
-    
     setCancelling(true);
     setError(null);
     const res = await cancelSubscription();
@@ -46,6 +46,43 @@ export function SettingsBilling({ entitlement, planConfig, creditBalance }: Sett
 
   return (
     <div className="space-y-6 max-w-[760px]">
+
+      {/* Coming Soon Dialog */}
+      <AppDialog
+        open={showComingSoon}
+        onClose={() => setShowComingSoon(false)}
+        title="More Plans Coming Soon"
+        icon={<Rocket size={22} />}
+        dismissLabel="Got it"
+      >
+        <p>
+          We are working on additional membership plans — Hunter and Agency — designed for growing teams and agencies.
+          They will be available soon. Stay tuned!
+        </p>
+        <p className="mt-2 text-[13px] text-zinc-400">
+          Your current <strong className="text-zinc-600">{displayPlanName}</strong> plan is active and fully functional.
+        </p>
+      </AppDialog>
+
+      {/* Cancel Confirm Dialog */}
+      <AppDialog
+        open={showCancelConfirm}
+        onClose={() => setShowCancelConfirm(false)}
+        title="Cancel Membership?"
+        icon={<AlertTriangle size={22} className="text-red-500" />}
+        confirmLabel={cancelling ? "Cancelling..." : "Yes, Cancel"}
+        confirmVariant="signal"
+        onConfirm={handleCancel}
+        dismissLabel="Keep Membership"
+      >
+        <p>
+          Are you sure you want to cancel your membership? You will retain access until the end of your current billing period.
+        </p>
+        {error && (
+          <p className="mt-3 text-[13px] text-red-600 font-medium">{error}</p>
+        )}
+      </AppDialog>
+
       <div className="mb-8">
         <h2 className="text-[18px] font-semibold text-[#18181B]">Billing</h2>
         <p className="mt-1 text-[14px] text-[#71717A]">Manage your membership and account usage.</p>
@@ -56,7 +93,7 @@ export function SettingsBilling({ entitlement, planConfig, creditBalance }: Sett
         
         <div className="mt-4 border border-[#E1E1E1] rounded-[10px] p-5">
           <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
-             <div>
+             <div className="flex-1">
                <h4 className="text-[18px] font-semibold text-[#18181B]">{displayPlanName}</h4>
                <p className="text-[13px] text-[#71717A] mt-1">Status: <span className="font-medium text-[#18181B]">{entitlement.billingStatus === "active" && !isTrial ? "Active" : isTrial ? "Trial" : entitlement.billingStatus === "cancelled" ? "Cancelled" : "Inactive"}</span></p>
                <p className="text-[13px] text-[#71717A] mt-1">Price: {planConfig ? (planConfig.currentPrice ? `₹${planConfig.currentPrice} / month` : planConfig.priceLabel || "Free") : "-"}</p>
@@ -67,11 +104,25 @@ export function SettingsBilling({ entitlement, planConfig, creditBalance }: Sett
                {renewsDate && entitlement.billingStatus === "cancelled" && (
                  <p className="text-[13px] text-[#71717A] mt-1">Access valid until: {renewsDate}</p>
                )}
+
+               {planConfig?.features && planConfig.features.length > 0 && (
+                 <div className="mt-4 pt-3 border-t border-[#F0F0F1]">
+                   <p className="text-[12px] font-semibold uppercase tracking-wider text-[#71717A] mb-2">Included Features</p>
+                   <ul className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                     {planConfig.features.map((feat) => (
+                       <li key={feat} className="text-[13px] text-[#3F3F46] flex items-center gap-2">
+                         <span className="size-1.5 rounded-full bg-[#68B32F] shrink-0" />
+                         {feat}
+                       </li>
+                     ))}
+                   </ul>
+                 </div>
+               )}
              </div>
           </div>
           
           <div className="mt-6 pt-5 border-t border-[#E1E1E1]">
-            <Button variant="secondary" className="h-[36px] text-[13px] font-medium" disabled={!planConfig || planConfig.id !== "scout"}>
+            <Button variant="secondary" className="h-[36px] text-[13px] font-medium" onClick={() => setShowComingSoon(true)}>
                {planConfig && planConfig.id === "scout" ? "Upgrade membership" : "Change plan"}
             </Button>
           </div>
@@ -92,7 +143,14 @@ export function SettingsBilling({ entitlement, planConfig, creditBalance }: Sett
               </div>
               <div className="text-right">
                 <p className="text-[15px] font-semibold text-[#18181B]">
-                  {creditBalance.creditsUsed.toLocaleString()} <span className="text-[#71717A] font-medium">/ {creditBalance.creditsAllocated.toLocaleString()}</span>
+                  {creditBalance.creditsAllocated >= 999999999 ? (
+                    <span className="text-[#68B32F] font-semibold">Unlimited</span>
+                  ) : (
+                    <>
+                      {creditBalance.creditsUsed.toLocaleString()}{" "}
+                      <span className="text-[#71717A] font-medium">/ {creditBalance.creditsAllocated.toLocaleString()}</span>
+                    </>
+                  )}
                 </p>
               </div>
             </div>
@@ -118,15 +176,14 @@ export function SettingsBilling({ entitlement, planConfig, creditBalance }: Sett
       <Card className="p-6 shadow-sm border border-[#E1E1E1] rounded-[12px]">
         <h3 className="text-[15px] font-semibold text-[#18181B]">Subscription</h3>
         <div className="mt-4 flex flex-col gap-3">
-          <Button variant="secondary" className="justify-center h-[36px] w-full sm:w-auto text-[13px] font-medium bg-white">
+          <Button variant="secondary" className="justify-center h-[36px] w-full sm:w-auto text-[13px] font-medium bg-white" onClick={() => setShowComingSoon(true)}>
             Manage membership
           </Button>
           {entitlement.billingStatus === "active" && !isTrial && (
-            <Button variant="secondary" className="justify-center h-[36px] w-full sm:w-auto text-[13px] font-medium text-red-600 hover:text-red-700 bg-white" onClick={handleCancel} disabled={cancelling}>
+            <Button variant="secondary" className="justify-center h-[36px] w-full sm:w-auto text-[13px] font-medium text-red-600 hover:text-red-700 bg-white" onClick={() => setShowCancelConfirm(true)} disabled={cancelling}>
               {cancelling ? "Cancelling..." : "Cancel membership"}
             </Button>
           )}
-          {error && <p className="text-red-600 text-[12px]">{error}</p>}
         </div>
       </Card>
     </div>

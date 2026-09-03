@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, useRef, useEffect } from "react";
-import { Menu, X, MoreHorizontal, LogOut, Settings } from "lucide-react";
+import { Menu, X, MoreHorizontal, LogOut, Settings, ShieldCheck } from "lucide-react";
 import { BrandMark } from "@/components/brand-mark";
 import { cn } from "@/lib/utils";
 import { useClerk, useUser } from "@clerk/nextjs";
@@ -216,6 +216,9 @@ function SidebarProfile() {
 
   if (!user) return null;
 
+  const email = user.primaryEmailAddress?.emailAddress;
+  const isOwner = email?.trim().toLowerCase() === "creatornavigator@gmail.com";
+
   return (
     <div className="relative w-full" ref={ref}>
       <button
@@ -225,17 +228,28 @@ function SidebarProfile() {
         className="group relative flex w-full items-center gap-3 rounded-[12px] pt-[8px] pb-[8px] px-[10px] transition duration-150 hover:bg-[#F7F7F8] bg-transparent text-left outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-1 focus-visible:ring-offset-white"
         style={isOpen ? { backgroundColor: "#F4F4F5" } : {}}
       >
-        <img
-          src={user.imageUrl}
-          alt=""
-          className="size-[32px] shrink-0 rounded-full border border-black/10 object-cover bg-white"
-        />
+        <div className="relative">
+          <img
+            src={user.imageUrl}
+            alt=""
+            className="size-[32px] shrink-0 rounded-full border border-black/10 object-cover bg-white"
+          />
+          {isOwner && (
+            <span className="absolute -bottom-0.5 -right-0.5 grid size-3.5 place-items-center rounded-full bg-[#68B32F] text-white ring-2 ring-white" title="Platform Owner">
+              <ShieldCheck size={10} strokeWidth={2.5} />
+            </span>
+          )}
+        </div>
         <div className="flex flex-1 flex-col overflow-hidden">
           <p className="truncate text-[13px] font-semibold text-[#18181B]">
-            {user.fullName || user.primaryEmailAddress?.emailAddress?.split('@')[0] || "User"}
+            {user.fullName || email?.split('@')[0] || "User"}
           </p>
-          <p className="truncate text-[11px] text-[#71717A]">
-            Personal account
+          <p className="truncate text-[11px] font-medium text-[#71717A] flex items-center gap-1">
+            {isOwner ? (
+              <span className="text-[#529322] font-semibold">Platform Owner</span>
+            ) : (
+              "Personal account"
+            )}
           </p>
         </div>
         <MoreHorizontal size={16} className={cn("transition-colors", isOpen ? "text-[#18181B]" : "text-[#A1A1AA] group-hover:text-[#52525B]")} />
@@ -247,14 +261,26 @@ function SidebarProfile() {
           role="menu"
         >
           <div className="flex items-center gap-3 px-2 pb-3 pt-2">
-            <img src={user.imageUrl} alt="" className="size-[36px] rounded-full border border-line object-cover bg-zinc-50" />
+            <div className="relative">
+              <img src={user.imageUrl} alt="" className="size-[36px] rounded-full border border-line object-cover bg-zinc-50" />
+              {isOwner && (
+                <span className="absolute -bottom-0.5 -right-0.5 grid size-4 place-items-center rounded-full bg-[#68B32F] text-white ring-2 ring-white">
+                  <ShieldCheck size={11} strokeWidth={2.5} />
+                </span>
+              )}
+            </div>
             <div className="flex flex-col min-w-0">
-              <span className="truncate text-[13.5px] font-semibold text-[#18181B]">
+              <span className="truncate text-[13.5px] font-semibold text-[#18181B] flex items-center gap-1.5">
                 {user.fullName || "User"}
               </span>
               <span className="truncate text-[12px] text-[#71717A]">
-                {user.primaryEmailAddress?.emailAddress}
+                {email}
               </span>
+              {isOwner && (
+                <span className="mt-1 inline-flex w-fit items-center gap-1 rounded bg-[#68B32F]/15 px-1.5 py-0.5 text-[10px] font-bold text-[#529322]">
+                  <ShieldCheck size={11} /> OWNER
+                </span>
+              )}
             </div>
           </div>
           <div className="h-px w-full bg-[#ECEDEF] my-1" />
@@ -297,7 +323,11 @@ function SidebarCredits() {
       <div className="flex items-center justify-between">
         <span className="text-[12px] font-semibold text-[#18181B]">Credits</span>
         <span className="text-[11px] font-medium text-[#71717A] tabular-nums group-hover:text-[#18181B] transition-colors">
-          {state.creditsRemaining >= 1000 ? (state.creditsRemaining / 1000).toFixed(1) + 'K' : state.creditsRemaining} / {state.creditsAllocated >= 1000 ? (state.creditsAllocated / 1000).toFixed(0) + 'K' : state.creditsAllocated}
+          {state.creditsAllocated >= 999999999 ? (
+            <span className="text-[#68B32F] font-semibold">Unlimited</span>
+          ) : (
+            `${state.creditsRemaining >= 1000 ? (state.creditsRemaining / 1000).toFixed(1) + 'K' : state.creditsRemaining} / ${state.creditsAllocated >= 1000 ? (state.creditsAllocated / 1000).toFixed(0) + 'K' : state.creditsAllocated}`
+          )}
         </span>
       </div>
       <div className="h-1.5 w-full bg-[#ECEDEF] rounded-full overflow-hidden">

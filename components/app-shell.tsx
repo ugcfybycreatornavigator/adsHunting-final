@@ -4,11 +4,13 @@ import { isAnyAdsProviderConfigured } from "@/lib/env/server";
 import { isPreviewMode } from "@/lib/preview";
 import { SupportProvider } from "@/components/support/support-context";
 import { SupportModal } from "@/components/support/SupportModal";
+import { OwnerWelcomeModal } from "@/components/auth/owner-welcome-modal";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <SupportProvider>
       <div className="min-h-screen bg-[#FFFFFF] text-ink">
+      <OwnerWelcomeModal />
       <Sidebar />
       <MobileHeader />
       <main className="min-h-screen lg:pl-[236px]">

@@ -368,6 +368,27 @@ export async function POST(request: NextRequest) {
       }
       payload.resolvedIntent = resolvedIntent;
       payload.requestId = requestId;
+
+      // Track user search queries and brand searches asynchronously in background
+      const searchQueryText = filters.query || (filters.brand ? `Brand: ${filters.brand}` : null);
+      if (searchQueryText && authRes.user && catalogClient) {
+        const userId = authRes.user.id;
+        const finalQuery = searchQueryText.slice(0, 160);
+        after(async () => {
+          try {
+            await catalogClient
+              .from("search_history")
+              .insert({
+                user_id: userId,
+                query: finalQuery,
+                searched_at: new Date().toISOString(),
+              });
+          } catch (trackingErr) {
+            console.error("[SearchTracking] Failed to log search history:", trackingErr);
+          }
+        });
+      }
+
       return NextResponse.json(payload);
     }
 

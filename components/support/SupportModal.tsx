@@ -34,18 +34,23 @@ export function SupportModal() {
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/40 p-0 sm:p-4 backdrop-blur-[2px] animate-in fade-in duration-200"
+      className="fixed inset-0 z-[150] flex items-end sm:items-center justify-center p-0 sm:p-4"
       role="dialog"
       aria-modal="true"
       aria-labelledby="support-modal-title"
-      onMouseDown={closeSupport}
     >
+      {/* Backdrop */}
+      <div
+        className="absolute inset-0 bg-black/50 backdrop-blur-[3px] animate-in fade-in duration-150"
+        onMouseDown={closeSupport}
+      />
+
       <div
         ref={modalRef}
         tabIndex={-1}
         className={cn(
-          "relative flex flex-col w-full bg-white shadow-2xl outline-none sm:rounded-2xl",
-          "rounded-t-2xl sm:rounded-t-2xl",
+          "relative z-10 flex flex-col w-full bg-white shadow-2xl outline-none border border-zinc-200/80",
+          "rounded-t-2xl sm:rounded-2xl",
           "h-[88vh] sm:h-auto sm:max-h-[88vh]",
           activeTab === "booking" ? "sm:max-w-[800px]" : "sm:max-w-[700px]",
           "animate-in slide-in-from-bottom-4 sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-200"
@@ -56,19 +61,19 @@ export function SupportModal() {
         }}
       >
         {/* Header */}
-        <div className="flex shrink-0 items-center justify-between border-b border-line px-5 py-4 sm:px-6 sm:py-5">
+        <div className="flex shrink-0 items-center justify-between border-b border-zinc-100 px-5 py-4 sm:px-6 sm:py-5">
           <div>
-            <p className="text-[11px] font-bold uppercase tracking-[.15em] text-muted">Support</p>
-            <h2 id="support-modal-title" className="mt-1 text-xl sm:text-2xl font-semibold tracking-tight text-ink">
+            <p className="text-[11px] font-bold uppercase tracking-[.15em] text-zinc-400">Support</p>
+            <h2 id="support-modal-title" className="mt-1 text-xl sm:text-2xl font-semibold tracking-tight text-zinc-900">
               How can we help?
             </h2>
           </div>
           <button
             onClick={closeSupport}
-            className="flex size-10 items-center justify-center rounded-lg text-muted hover:bg-surface hover:text-ink transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+            className="grid size-8 place-items-center rounded-full text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 transition-colors"
             aria-label="Close support modal"
           >
-            <X size={20} />
+            <X size={16} />
           </button>
         </div>
 
