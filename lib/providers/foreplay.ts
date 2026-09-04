@@ -10,7 +10,6 @@ import { computeAdIntelligence } from "@/lib/intelligence";
 import { computeAdFingerprints } from "@/lib/fingerprint";
 import { daysBetween, safeExternalUrl, sanitizeAdCopy } from "@/lib/utils";
 import { ProviderError, providerErrorFromStatus } from "@/lib/providers/errors";
-import type { BrandSearchResult } from "./spyglass"; // Optional, can redefine context type
 
 type UnknownRecord = Record<string, unknown>;
 
