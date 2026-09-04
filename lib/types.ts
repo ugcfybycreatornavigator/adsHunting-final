@@ -6,6 +6,7 @@ export type FilterCapability = "NATIVE" | "CACHED" | "POST_FILTER" | "UNSUPPORTE
 export type ProviderCapabilities = {
   keywordSearch: boolean;
   advertiserSearch: boolean;
+  brandSearch?: boolean;
   commercialAds: boolean;
   pagination: boolean;
   demographics: boolean;
@@ -44,7 +45,7 @@ export type RefinedAd = {
   externalId: string | null;
 
   provider: {
-    discoveryProvider: "searchapi" | "metaapi_io" | "meta_official" | "foreplay" | "catalog";
+    discoveryProvider: "searchapi" | "metaapi_io" | "meta_official" | "foreplay" | "catalog" | "spyglass";
     fetchedAt: string;
   };
 
@@ -186,9 +187,19 @@ export interface Advertiser {
   profileUrl: string | null;
 }
 
+export interface BrandSearchResult {
+  id: string;
+  name: string;
+  logoUrl?: string | null;
+  provider: string;
+  metadata?: Record<string, unknown>;
+}
+
 export interface AdProvider {
   readonly capabilities: ProviderCapabilities;
-  searchAds(filters: AdSearchFilters): Promise<AdSearchResult>;
+  searchAds(filters: AdSearchFilters, context?: { brandName?: string; logoUrl?: string }): Promise<AdSearchResult>;
+  searchBrands?(query: string): Promise<BrandSearchResult[]>;
+  searchBrandsByName?(brandNames: string[]): Promise<BrandSearchResult[]>;
   getAd?(id: string): Promise<NormalizedAd | null>;
   getAdvertiser?(id: string): Promise<Advertiser | null>;
 }

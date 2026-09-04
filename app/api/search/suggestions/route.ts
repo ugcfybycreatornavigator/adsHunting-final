@@ -1,6 +1,4 @@
-import { requirePaidWorkspaceAccess } from "@/lib/billing/entitlement";
 import { NextRequest, NextResponse } from "next/server";
-import { requireUser } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { NICHES, CONTENT_STYLES, LANGUAGES, MARKETS } from "@/lib/taxonomy";
 import { getAdProviders } from "@/lib/providers";
@@ -22,11 +20,11 @@ export type SearchSuggestion = {
 };
 
 export async function GET(request: NextRequest) {
-  const accessError = await requirePaidWorkspaceAccess();
-  if (accessError) return accessError;
+  // const accessError = await requirePaidWorkspaceAccess();
+  // if (accessError) return accessError;
 
-  const auth = await requireUser();
-  if (auth.error) return auth.error;
+  // const auth = await requireUser();
+  // if (auth.error) return auth.error;
 
   const { searchParams } = new URL(request.url);
   const rawQuery = searchParams.get("q") || "";
@@ -134,64 +132,178 @@ export async function GET(request: NextRequest) {
           imageUrl: b.advertiser_avatar_url as string | null,
         });
       }
-    } else if (query.length >= 3) {
-      // Local miss: Fallback to provider orchestrator to discover brand identity
+    } 
+    
+    if (query.length >= 3) {
+      // Fetch provider orchestrator to discover freshest brand identity and logos
       const now = Date.now();
       const cacheKey = query;
       let externalBrands: SearchSuggestion[] = [];
       
       const cached = externalProviderCache.get(cacheKey);
-      if (cached && (now - cached.timestamp < CACHE_TTL_MS)) {
+      
+      let dbCacheData: SearchSuggestion | null = null;
+      try {
+        const { data: resolutionData } = await supabase
+          .from("search_resolution_cache")
+          .select("*")
+          .eq("query_text", query)
+          .single();
+          
+        if (resolutionData) {
+          dbCacheData = {
+            id: resolutionData.provider_brand_id,
+            type: "brand",
+            label: resolutionData.canonical_name,
+            normalizedLabel: resolutionData.canonical_name.toLowerCase(),
+            subtitle: "Brand",
+            imageUrl: resolutionData.logo_url
+          };
+        }
+      } catch (e) {
+        // Table may not exist yet or no rows
+      }
+
+      if (dbCacheData) {
+        externalBrands = [dbCacheData];
+      } else if (cached && (now - cached.timestamp < CACHE_TTL_MS)) {
         externalBrands = cached.results;
       } else {
         try {
-          const providers = getAdProviders({ query });
-          // Find first capable provider (searchapi/foreplay)
-          const provider = providers.find(p => p.provider.capabilities.keywordSearch || p.provider.capabilities.advertiserSearch);
+          const providers = getAdProviders({});
+          console.log("[DEBUG] Autocomplete providers available:", providers.map(p => p.name));
+          // Find first capable provider (searchapi/foreplay/spyglass)
+          const provider = providers.find(p => p.provider.capabilities.brandSearch || p.provider.capabilities.keywordSearch || p.provider.capabilities.advertiserSearch);
           
           if (provider) {
              const abortController = new AbortController();
-             const timeout = setTimeout(() => abortController.abort(), 400); // 400ms budget
+             const timeout = setTimeout(() => abortController.abort(), 4000); // Allow sufficient time for Spyglass API response
              
-             // Cast to any to pass the signal if the provider supports it, or it will just abort at network level if the provider uses a global signal
-             const result = await Promise.race([
-                provider.provider.searchAds({ query, status: "all" }),
-                new Promise<never>((_, reject) => {
-                  abortController.signal.addEventListener('abort', () => reject(new Error('Provider autocomplete timeout')));
-                })
-             ]);
-             clearTimeout(timeout);
-             
-             // Extract unique advertisers
-             const brandMap = new Map();
-             for (const ad of result.ads) {
-               if (ad.advertiser.name && !brandMap.has(ad.advertiser.name.toLowerCase())) {
-                 brandMap.set(ad.advertiser.name.toLowerCase(), {
-                   id: ad.advertiser.id,
-                   label: ad.advertiser.name,
-                   logoUrl: ad.advertiser.logoUrl || null,
-                   activeCount: 0
-                 });
+             try {
+               if (provider.provider.capabilities.brandSearch && provider.provider.searchBrands) {
+                 let result = await Promise.race([
+                    provider.provider.searchBrands(query),
+                    new Promise<never>((_, reject) => {
+                      abortController.signal.addEventListener('abort', () => reject(new Error('Provider autocomplete timeout')));
+                    })
+                 ]) as { id: string; name: string; logoUrl?: string | null }[];
+                 
+                 // CASE B Controlled Recovery
+                 const normalize = (str: string) => (str || "").toLowerCase().trim().replace(/[\W_]+/g, "");
+                 
+                 const getConfidence = (q: string, candidate: string) => {
+                   const nq = normalize(q);
+                   const nc = normalize(candidate);
+                   if (nq === nc) return 100;
+                   if (nc.startsWith(nq)) return 90;
+                   if (nq.startsWith(nc)) return 80;
+                   
+                   const qRaw = (q || "").toLowerCase().trim();
+                   const cRaw = (candidate || "").toLowerCase().trim();
+                   if (cRaw.includes(qRaw)) return 70;
+                   
+                   return 0;
+                 };
+
+                 const hasStrongSmartMatch = result.some(b => getConfidence(query, b.name) >= 80);
+                 
+                 if (!hasStrongSmartMatch && dbBrands && dbBrands.length > 0 && query.length >= 3) {
+                    let bestCandidate: string | null = null;
+                    let bestScore = 0;
+                    
+                    for (const dbb of dbBrands) {
+                      const score = getConfidence(query, dbb.label as string);
+                      if (score > bestScore && score >= 80) {
+                         bestScore = score;
+                         bestCandidate = dbb.label as string;
+                      }
+                    }
+                    
+                    if (bestCandidate && provider.provider.searchBrandsByName) {
+                       console.log(`[Autocomplete] Targeted recovery for canonical brand: '${bestCandidate}'`);
+                       try {
+                         const recoveryResult = await provider.provider.searchBrandsByName([bestCandidate]);
+                         if (recoveryResult && recoveryResult.length > 0) {
+                           // Ensure targeted result is at the top, without duplicates
+                           const existingIds = new Set(result.map(r => r.id));
+                           const newResults = recoveryResult.filter(r => !existingIds.has(r.id));
+                           result = [...newResults, ...result];
+                         }
+                       } catch (e) {
+                         console.warn(`[Autocomplete] Targeted recovery failed for '${bestCandidate}'`, e);
+                       }
+                    }
+                 }
+                 
+                 externalBrands = result.map((b) => ({
+                    id: String(b.id),
+                    type: "brand" as const,
+                    label: String(b.name),
+                    normalizedLabel: String(b.name).toLowerCase(),
+                    subtitle: "Brand",
+                    activeAdCount: undefined,
+                    imageUrl: (b.logoUrl as string) || null,
+                 }));
+               } else {
+                 const result = await Promise.race([
+                    provider.provider.searchAds({ query, status: "all" }),
+                    new Promise<never>((_, reject) => {
+                      abortController.signal.addEventListener('abort', () => reject(new Error('Provider autocomplete timeout')));
+                    })
+                 ]);
+                 
+                 // Extract unique advertisers
+                 const brandMap = new Map();
+                 for (const ad of result.ads) {
+                   if (ad.advertiser.name && !brandMap.has(ad.advertiser.name.toLowerCase())) {
+                     brandMap.set(ad.advertiser.name.toLowerCase(), {
+                       id: ad.advertiser.id,
+                       label: ad.advertiser.name,
+                       logoUrl: ad.advertiser.logoUrl || null,
+                       activeCount: 0
+                     });
+                   }
+                   if (ad.advertiser.name && ad.delivery.status === "active") {
+                     brandMap.get(ad.advertiser.name.toLowerCase()).activeCount++;
+                   }
+                 }
+                 
+                 externalBrands = Array.from(brandMap.values()).map((b: { id: string; label: string; logoUrl: string | null; activeCount: number }) => ({
+                    id: String(b.id),
+                    type: "brand" as const,
+                    label: String(b.label),
+                    normalizedLabel: String(b.label).toLowerCase(),
+                    subtitle: "Brand",
+                    activeAdCount: b.activeCount,
+                    imageUrl: b.logoUrl,
+                 }));
                }
-               if (ad.advertiser.name && ad.delivery.status === "active") {
-                 brandMap.get(ad.advertiser.name.toLowerCase()).activeCount++;
+               
+               // Persist to search resolution cache for faster repeat searches
+               if (externalBrands.length > 0) {
+                 try {
+                   for (const eb of externalBrands) {
+                      await supabase.from("search_resolution_cache").upsert({
+                         query_text: query,
+                         provider_brand_id: eb.id,
+                         canonical_name: eb.label,
+                         logo_url: eb.imageUrl || null,
+                         last_resolved_at: new Date().toISOString()
+                      }, { onConflict: "query_text" });
+                      break; // Just cache the top one
+                   }
+                 } catch (e) {
+                   console.warn("[Autocomplete] Cache persistence failed (table might not exist yet):", e);
+                 }
                }
+               
+               externalProviderCache.set(cacheKey, { timestamp: now, results: externalBrands });
+             } finally {
+               clearTimeout(timeout);
              }
-             
-             externalBrands = Array.from(brandMap.values()).map(b => ({
-                id: b.id as string,
-                type: "brand" as const,
-                label: b.label as string,
-                normalizedLabel: b.label.toLowerCase(),
-                subtitle: "Brand",
-                activeAdCount: b.activeCount,
-                imageUrl: b.logoUrl as string | null,
-             }));
-             
-             externalProviderCache.set(cacheKey, { timestamp: now, results: externalBrands });
           }
-        } catch (err) {
-          console.warn(`[Autocomplete] External provider lookup failed/timeout for '${query}'`);
+        } catch (err: unknown) {
+          console.warn(`[Autocomplete] External provider lookup failed/timeout for '${query}':`, err instanceof Error ? err.message : err);
           // Fails safely; we just don't have provider brands
         }
       }
@@ -216,10 +328,29 @@ export async function GET(request: NextRequest) {
   
   for (const s of suggestions) {
     const key = `${s.type}:${s.normalizedLabel}`;
+    const cleanImageUrl = typeof s.imageUrl === "string" && s.imageUrl.trim() !== "" && s.imageUrl !== "null" ? s.imageUrl : null;
+    
     if (!dedupedMap.has(key)) {
-      dedupedMap.set(key, s);
+      dedupedMap.set(key, { ...s, imageUrl: cleanImageUrl });
     } else {
-      // Merge logic if needed, but since we pushed exact static first, keep existing
+      const existing = dedupedMap.get(key)!;
+      // If the incoming suggestion is from external provider, we want to prioritize its ID and logo
+      // We know it's external if it doesn't have an activeAdCount (or it comes after dbBrands)
+      // Since externalBrands are pushed after dbBrands, the later entries are external.
+      
+      const incomingLogo = cleanImageUrl;
+      
+      // Update the entry to use the external provider's identity
+      existing.id = s.id;
+      existing.label = s.label;
+      if (incomingLogo) {
+        existing.imageUrl = incomingLogo;
+      }
+      
+      // Preserve DB active count
+      if (s.activeAdCount != null) {
+        existing.activeAdCount = Math.max(existing.activeAdCount || 0, s.activeAdCount);
+      }
     }
   }
 

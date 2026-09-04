@@ -20,7 +20,7 @@ export function ShareModal({ isOpen, onClose, adIds, swipeFileId, defaultName }:
   const [visibility, setVisibility] = useState<"public" | "private">("private");
   const [allowSave, setAllowSave] = useState(false);
   const [allowDownload, setAllowDownload] = useState(false);
-  
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [sharedLink, setSharedLink] = useState<string | null>(null);
@@ -53,10 +53,10 @@ export function ShareModal({ isOpen, onClose, adIds, swipeFileId, defaultName }:
           allowDownload
         })
       });
-      
+
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.message || data.error || "Failed to create share");
-      
+
       setSharedLink(`${window.location.origin}/share/${data.token}`);
     } catch (err) {
       console.error(err);
@@ -93,7 +93,7 @@ export function ShareModal({ isOpen, onClose, adIds, swipeFileId, defaultName }:
           <div className="flex w-full items-center gap-2 bg-zinc-50 p-2 rounded-xl border border-zinc-200 mb-4">
             <input type="text" readOnly value={sharedLink} className="flex-1 bg-transparent text-sm text-zinc-900 outline-none px-2 min-w-0" />
             <Button variant={copied ? "primary" : "secondary"} onClick={copyToClipboard} className="shrink-0 gap-1.5 px-3 py-1.5 min-h-[auto] text-xs">
-              {copied ? <CheckCircle2 size={14}/> : <Copy size={14} />}
+              {copied ? <CheckCircle2 size={14} /> : <Copy size={14} />}
               {copied ? "Copied" : "Copy"}
             </Button>
           </div>

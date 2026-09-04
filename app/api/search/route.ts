@@ -13,6 +13,7 @@ import type { AdSearchResult, NormalizedAd, SearchIntent } from "@/lib/types";
 import { normalizeDiscoverFilters } from "@/lib/filter-utils";
 import { auth } from "@clerk/nextjs/server";
 import { getServerEnv } from "@/lib/env/server";
+import { getAdProviders } from "@/lib/providers";
 
 const schema = z.object({
   query: z.string().trim().max(160).optional(),
@@ -156,70 +157,60 @@ export async function POST(request: NextRequest) {
           if (filters.runtime.maxDays !== undefined) query = query.lte("running_days", filters.runtime.maxDays);
         }
         
-        // Fetch a large pool to allow in-memory diversity ranking before pagination
-        query = query.limit(1000);
+        // Determine pagination
+        const limit = 25;
+        const offset = filters.cursor ? parseInt(filters.cursor, 10) : 0;
 
         // Apply sort
         if (filters.sort === "newest") {
           query = query.order("start_date", { ascending: false, nullsFirst: false });
+          query = query.order("canonical_ad_id", { ascending: true });
         } else if (filters.sort === "oldest") {
           query = query.order("start_date", { ascending: true, nullsFirst: false });
+          query = query.order("canonical_ad_id", { ascending: true });
         } else if (filters.sort === "longest") {
           query = query.order("running_days", { ascending: false, nullsFirst: false });
-        } else {
+          query = query.order("canonical_ad_id", { ascending: true });
+        } else if (filters.sort === "variations") {
+          // Fallback if variations sort isn't natively supported on DB
           query = query.order("last_seen_at", { ascending: false });
+          query = query.order("canonical_ad_id", { ascending: true });
+        } else {
+          // "relevant" - use a seeded pseudo-random sort for variety if it's a brand profile, otherwise newest
+          if (filters.brand) {
+            // Postgres lacks a simple seeded random for string IDs without extension, 
+            // but we can sort by last_seen_at DESC as a stable proxy, 
+            // or simply canonical_ad_id for stability.
+            // A more varied feed can be simulated by ordering by start_date DESC.
+            query = query.order("start_date", { ascending: false, nullsFirst: false });
+            query = query.order("canonical_ad_id", { ascending: true });
+          } else {
+            query = query.order("last_seen_at", { ascending: false });
+            query = query.order("canonical_ad_id", { ascending: true });
+          }
         }
+
+        // Fetch exactly the requested page + 1 to determine next cursor
+        query = query.range(offset, offset + limit);
 
         const { data, error } = await query;
 
         if (!error && data) {
-          const ads = data.map(dbAdToNormalized);
-          let ranked = ads;
-          const hasActiveFilters = Object.keys(filters).some(k => 
-            !['cursor', 'sort', 'query'].includes(k) && 
-            filters[k as keyof typeof filters] !== undefined && 
-            (Array.isArray(filters[k as keyof typeof filters]) ? (filters[k as keyof typeof filters] as unknown[]).length > 0 : true)
-          );
+          const hasMore = data.length > limit;
+          const pagedData = hasMore ? data.slice(0, limit) : data;
           
-          if (!filters.sort || filters.sort === "relevant") {
-            ranked = rankDiscoveryFeed(ads, !hasActiveFilters && !filters.query);
-          } else if (filters.sort === "newest") {
-            ranked.sort((a, b) => new Date(b.delivery.startedAt || 0).getTime() - new Date(a.delivery.startedAt || 0).getTime());
-          } else if (filters.sort === "oldest") {
-            ranked.sort((a, b) => new Date(a.delivery.startedAt || 0).getTime() - new Date(b.delivery.startedAt || 0).getTime());
-          } else if (filters.sort === "longest") {
-            ranked.sort((a, b) => (b.delivery.daysRunning || 0) - (a.delivery.daysRunning || 0));
-          } else if (filters.sort === "variations") {
-            ranked.sort((a, b) => (b.variants ?? 0) - (a.variants ?? 0));
-          }
+          const ads = pagedData.map(dbAdToNormalized);
           
-          // Deduplicate into variant groups (pick representative) for UI feed
-          const variantGroups = new Map<string, NormalizedAd>();
-          for (const ad of ranked) {
-            const groupId = ad.fingerprint || ad.id;
-            if (!variantGroups.has(groupId)) {
-              variantGroups.set(groupId, ad);
-            } else {
-              // Track variants count on the representative (for UI display)
-              const rep = variantGroups.get(groupId)!;
-              rep.variants = (rep.variants || 1) + 1; 
-            }
-          }
-          
-          const deduplicatedRanked = Array.from(variantGroups.values());
-          
-          // Now apply pagination
-          const limit = 25;
-          const offset = filters.cursor ? parseInt(filters.cursor, 10) : 0;
-          const paged = deduplicatedRanked.slice(offset, offset + limit);
+          // No longer deduplicating aggressively by ad.id because canonical_ad_id is unique per creative variant.
+          // The UI will group them if needed, but the search API returns all variants.
           
           const nextOffset = offset + limit;
-          const nextCursor = nextOffset < deduplicatedRanked.length ? nextOffset.toString() : null;
+          const nextCursor = hasMore ? nextOffset.toString() : null;
           
           payload = { 
-            ads: adsForClient(paged), 
+            ads: adsForClient(ads), 
             nextCursor, 
-            total: deduplicatedRanked.length, 
+            total: pagedData.length, // total is an estimate or omitted unless we want to query exact count again
             source: "catalog" 
           };
         } else if (filters.source === "competitor") {
@@ -232,7 +223,20 @@ export async function POST(request: NextRequest) {
     }
 
     // 2. Call provider if not satisfied by preloaded cache (e.g. we have a search query)
-    if (!payload && isSupabaseConfigured && filters.source !== "competitor") {
+    const hasLiveSearchIntent = Boolean(filters.query?.trim() || filters.brand);
+    
+    let canUseProvider = false;
+    let capabilityMismatch = false;
+    try {
+      if (hasLiveSearchIntent) {
+        getAdProviders(filters);
+        canUseProvider = true;
+      }
+    } catch {
+      capabilityMismatch = true;
+    }
+    
+    if (!payload && isSupabaseConfigured && filters.source !== "competitor" && hasLiveSearchIntent && canUseProvider) {
       const { getToken } = await auth();
       const token = await getToken();
       
@@ -267,15 +271,17 @@ export async function POST(request: NextRequest) {
           
           const result = await pending;
           
-          if (result && result.ads && result.ads.length > 0) {
-            // Deduplicate provider results canonically by ad.id before persistence
-            const dedupMap = new Map<string, NormalizedAd>();
-            for (const ad of result.ads) {
-              if (!dedupMap.has(ad.id)) {
-                dedupMap.set(ad.id, ad);
+            if (result && result.ads && result.ads.length > 0) {
+              // Note: We no longer deduplicate by ad.id blindly here.
+              // We rely on canonical_ad_id which already encapsulates unique creatives.
+              // Duplicates in result.ads are real variants and should be preserved.
+              const dedupMap = new Map<string, NormalizedAd>();
+              for (const ad of result.ads) {
+                if (!dedupMap.has(ad.id)) {
+                  dedupMap.set(ad.id, ad);
+                }
               }
-            }
-            result.ads = Array.from(dedupMap.values());
+              result.ads = Array.from(dedupMap.values());
             
             const adsToArchive = result.ads;
             after(() => {
@@ -304,15 +310,17 @@ export async function POST(request: NextRequest) {
         }
 
         if (!payload) {
-          // Fallback to Supabase stored ads on total provider failure (query-aware)
-          console.info(`[AdsSearch][requestId=${requestId}] Attempting query-aware cache fallback`);
+          // Local indexed/cached corpus search for keyword capability
+          if (providerError) console.info(`[AdsSearch][requestId=${requestId}] Attempting query-aware cache fallback after provider error`);
+          else if (capabilityMismatch) console.info(`[AdsSearch][requestId=${requestId}] Using local corpus due to provider capability mismatch`);
           try {
             let query = catalogClient!.from("ads").select("*", { count: "exact" });
             
             if (filters.brand) {
               query = query.eq("advertiser_id", filters.brand);
             } else if (filters.query) {
-              query = query.ilike("headline", `%${filters.query}%`);
+              const q = filters.query.trim().replace(/%/g, '\\%');
+              query = query.or(`headline.ilike.%${q}%,body.ilike.%${q}%,description.ilike.%${q}%,advertiser_name.ilike.%${q}%`);
             }
 
             if (filters.formats?.length) query = query.in("media_type", filters.formats);

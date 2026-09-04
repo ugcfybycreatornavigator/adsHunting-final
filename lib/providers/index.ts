@@ -47,8 +47,14 @@ function circuitOpen(name: ProviderName) {
 
 function canSatisfy(provider: AdProvider, filters: AdSearchFilters) {
   const caps = provider.capabilities;
-  if (filters.query?.trim() && !caps.keywordSearch) return false;
-  if (filters.brand && !caps.advertiserSearch) return false;
+  
+  // Explicit intent handling
+  if (filters.brand) {
+    if (!caps.advertiserSearch && !caps.brandSearch) return false;
+  } else if (filters.query?.trim()) {
+    if (!caps.keywordSearch) return false;
+  }
+  
   if (filters.cursor && !caps.pagination) return false;
   
   if (filters.niches && filters.niches.length > 0 && caps.niches === "UNSUPPORTED") return false;

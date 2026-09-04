@@ -50,7 +50,7 @@ export function dbAdToNormalized(row: DatabaseAdRow): NormalizedAd {
     refinedAd.id = row.id;
     return refinedAd;
   }
-  
+
   // Fallback for old records without refined_data
   return {
     id: row.id,
@@ -101,7 +101,7 @@ export function dbAdToNormalized(row: DatabaseAdRow): NormalizedAd {
       creativeFormat: null,
       hookType: null,
       offerType: null,
-      winnerScore: Number(row.quality_score) || 0,
+      winnerScore: row.quality_score != null ? Number(row.quality_score) : 0,
       labels: [],
     },
     enrichment: {
@@ -117,9 +117,8 @@ export function dbAdToNormalized(row: DatabaseAdRow): NormalizedAd {
   };
 }
 
-export function normalizedToDb(ad: NormalizedAd): Omit<DatabaseAdRow, "created_at" | "updated_at"> {
+export function normalizedToDb(ad: NormalizedAd): Omit<DatabaseAdRow, "created_at" | "updated_at" | "id"> {
   return {
-    id: ad.id,
     external_ad_id: ad.externalId || ad.id,
     canonical_ad_id: ad.id,
     creative_fingerprint: "",
@@ -156,8 +155,8 @@ export function normalizedToDb(ad: NormalizedAd): Omit<DatabaseAdRow, "created_a
     snapshot_url: null,
     source: ad.provider.discoveryProvider === "meta_official" ? "meta" : ad.provider.discoveryProvider as string,
     variant_key: `${ad.advertiser.name}:${ad.copy.headline || ""}:${ad.creative.type}`.slice(0, 500),
-    raw_data: null,
+    raw_data: ad.rawData ?? {},
     refined_data: ad,
-    quality_score: ad.enrichment.qualityScore,
+    quality_score: ad.intelligence.winnerScore ?? 0,
   } as unknown as Omit<DatabaseAdRow, "created_at" | "updated_at">;
 }

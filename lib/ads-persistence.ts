@@ -5,34 +5,111 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { archiveMediaFromUrl } from "./media-archiver";
 import { integrationConfig } from "@/lib/env/server";
 
+import { calculateWinnerScore } from "@/lib/intelligence";
+
 export async function persistNormalizedAds(ads: NormalizedAd[]) {
   if (!ads.length || !integrationConfig().supabase) return { persisted: 0, error: null };
   try {
     const admin = createAdminClient();
-    const rows = ads.map(normalizedToDb);
-    const { error } = await admin.from("ads").upsert(rows, { 
-      onConflict: "canonical_ad_id",
-      ignoreDuplicates: false 
-    });
-    // For smart merging, since Supabase 'upsert' overwrites entirely (unless using a Postgres function),
-    // we should ideally use a custom RPC or handle the merge correctly.
-    // However, the standard `upsert` in PostgREST replaces the entire row.
-    // To preserve first_seen_at and merge observation_count and provider_ad_ids securely,
-    // we should use a custom RPC, or accept that `upsert` will just overwrite the old row with the new one 
-    // EXCEPT we need to make sure the new one is properly formed.
-    // Wait, the new `normalizedToDb` row has `observation_count = 1`.
-    // We should call a custom RPC for smart merge.
-    // Let's call `upsert_canonical_ads` RPC if it exists, else just standard upsert for now.
     
-    // In our migration, we didn't create `upsert_canonical_ads`. Let's just rely on standard upsert
-    // for this version, and the dedupe backfill script will handle historicals.
-    // Actually, `insert ... on conflict (canonical_ad_id) do update set ...` is standard Postgres.
-    // We can execute an RPC. Let's add that to the migration.
+    // Group incoming ads by advertiser
+    const adsByAdvertiser = new Map<string, NormalizedAd[]>();
+    for (const ad of ads) {
+      const advId = ad.advertiser.id || "unknown";
+      if (!adsByAdvertiser.has(advId)) adsByAdvertiser.set(advId, []);
+      adsByAdvertiser.get(advId)!.push(ad);
+    }
+
+    const allAdsToUpsert: NormalizedAd[] = [];
+
+    // For each advertiser, fetch existing ads to build a complete context
+    for (const [advId, incomingAds] of adsByAdvertiser.entries()) {
+      if (advId === "unknown") {
+        // Fallback for unknown advertisers: just score against themselves
+        incomingAds.forEach(ad => {
+          ad.intelligence.winnerScore = calculateWinnerScore(ad, { advertiserAds: incomingAds });
+          allAdsToUpsert.push(ad);
+        });
+        continue;
+      }
+
+      // Fetch existing DB ads for this advertiser to build context
+      const { data: dbAds } = await admin
+        .from("ads")
+        .select("*")
+        .eq("advertiser_id", advId);
+      
+      const existingAds: NormalizedAd[] = [];
+      if (dbAds && dbAds.length > 0) {
+        for (const row of dbAds) {
+          try {
+            existingAds.push(row.refined_data as unknown as NormalizedAd);
+          } catch {
+             // Ignore malformed refined_data
+          }
+        }
+      }
+
+      // Merge incoming with existing, preferring incoming if conflict on ID
+      const mergedMap = new Map<string, NormalizedAd>();
+      for (const ad of existingAds) {
+        if (ad && ad.id) mergedMap.set(ad.id, ad);
+      }
+      for (const ad of incomingAds) {
+        if (ad && ad.id) mergedMap.set(ad.id, ad);
+      }
+      
+      const fullAdvertiserContext = Array.from(mergedMap.values());
+
+      // Recalculate score for ALL ads (incoming + existing) for this advertiser
+      // because a new ad might affect the "Creative Refresh Pattern" of an existing ad, etc.
+      for (const ad of fullAdvertiserContext) {
+        ad.intelligence.winnerScore = calculateWinnerScore(ad, { advertiserAds: fullAdvertiserContext });
+        allAdsToUpsert.push(ad);
+      }
+    }
+
+    // Now convert all recalculated ads to DB rows and upsert them
+    const rows = allAdsToUpsert.map(normalizedToDb);
     
-    // For now, use the standard upsert.
-    if (error) throw error;
-    return { persisted: rows.length, error: null };
-  } catch {
+    const validRows = [];
+    const invalidRows = [];
+    for (const row of rows) {
+      if (row.canonical_ad_id && row.advertiser_id && row.raw_data && row.media_type) {
+        validRows.push(row);
+      } else {
+        invalidRows.push({
+           id: row.canonical_ad_id,
+           hasRawData: !!row.raw_data,
+           hasAdvertiserId: !!row.advertiser_id,
+           hasMediaType: !!row.media_type
+        });
+      }
+    }
+
+    if (invalidRows.length > 0) {
+      console.warn(`[Persistence] Validation failed for ${invalidRows.length} rows:`, JSON.stringify(invalidRows.slice(0, 5)));
+    }
+    
+    // Chunk upserts if necessary, but typically < 1000
+    const chunkSize = 500;
+    let hasError = false;
+    for (let i = 0; i < validRows.length; i += chunkSize) {
+      const chunk = validRows.slice(i, i + chunkSize);
+      const { error } = await admin.from("ads").upsert(chunk, { 
+        onConflict: "canonical_ad_id",
+        ignoreDuplicates: false 
+      });
+      if (error) {
+        console.error("[Persistence] Chunk upsert error:", error);
+        hasError = true;
+      }
+    }
+    
+    // Return only the count of the newly provided ads that we actually intended to persist
+    return { persisted: ads.length, error: hasError ? "Some chunks failed to persist" : null };
+  } catch (error) {
+    console.error("Persistence error:", error);
     return { persisted: 0, error: "Normalized ads could not be persisted." };
   }
 }
@@ -101,6 +178,6 @@ export async function archiveAdsInBackground(ads: NormalizedAd[]) {
     // For now we can just execute an update statement if we assume there is a trigger or if we fetch it.
     // However, our new DB schema just stores it all in refined_data.
     // Let's just rely on the DB trigger or do nothing for now until background queue is built.
-    await admin.from("ads").update({ archive_status: finalStatus }).eq("id", ad.id);
+    await admin.from("ads").update({ archive_status: finalStatus }).eq("canonical_ad_id", ad.id);
   }
 }

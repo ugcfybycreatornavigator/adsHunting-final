@@ -6,6 +6,7 @@ export type FilterCapability = "NATIVE" | "CACHED" | "POST_FILTER" | "UNSUPPORTE
 export type ProviderCapabilities = {
   keywordSearch: boolean;
   advertiserSearch: boolean;
+  brandSearch?: boolean;
   commercialAds: boolean;
   pagination: boolean;
   demographics: boolean;
@@ -43,7 +44,7 @@ export type RefinedAd = {
   externalId: string | null;
 
   provider: {
-    discoveryProvider: "searchapi" | "metaapi_io" | "meta_official" | "foreplay" | "catalog";
+    discoveryProvider: "searchapi" | "metaapi_io" | "meta_official" | "foreplay" | "spyglass" | "catalog";
     fetchedAt: string;
   };
 
@@ -107,12 +108,14 @@ export type RefinedAd = {
     hookType: string | null;
     offerType: string | null;
     winnerScore: number | null;
+    labels?: string[];
   };
 
   enrichment: {
     status: "pending" | "processing" | "complete" | "partial" | "failed";
     qualityScore: number;
     lastEnrichedAt: string | null;
+    archiveStatus?: "not_requested" | "requested" | "completed" | "failed";
   };
 };
 
@@ -158,7 +161,7 @@ export interface AdSearchFilters {
   };
 }
 
-export type ProviderName = "meta" | "searchapi" | "foreplay" | "metaapi_io";
+export type ProviderName = "meta" | "searchapi" | "foreplay" | "metaapi_io" | "spyglass" | "catalog" | "meta_official";
 
 export interface AdSearchResult {
   ads: NormalizedAd[];
@@ -174,8 +177,18 @@ export interface Advertiser {
   profileUrl: string | null;
 }
 
+export interface BrandSearchResult {
+  id: string;
+  name: string;
+  logoUrl?: string | null;
+  provider: string;
+  metadata?: Record<string, unknown>;
+}
+
 export interface AdProvider {
   readonly name: ProviderName;
+  readonly capabilities?: ProviderCapabilities;
   isConfigured(): boolean;
   searchAds(filters: AdSearchFilters): Promise<AdSearchResult>;
+  searchBrands?(query: string): Promise<BrandSearchResult[]>;
 }

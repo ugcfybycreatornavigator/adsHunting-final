@@ -2,6 +2,7 @@
  * Signal Intelligence Engine v1.0
  * Observable Advertising Intelligence Scoring for Competitor Ads & Authorized Account Metrics.
  */
+import type { NormalizedAd } from "@/lib/types";
 
 export interface AdIntelligenceInput {
   startDate?: string | null;
@@ -89,13 +90,14 @@ export function calculateRepetitionScore(relatedCreativeCount: number): number {
 }
 
 export function calculateVariantScore(activeVariants: number): { score: number; label: string } {
-  const active = Math.max(1, activeVariants);
+  const active = Math.max(0, activeVariants);
   const score = Math.round(Math.min(100, (active / 8) * 100));
 
   let label = "Single Test (1 variant)";
   if (active >= 8) label = "High Creative Commitment (8+ variants)";
   else if (active >= 4) label = "Strong Iteration (4–7 variants)";
   else if (active >= 2) label = "Multiple Tests (2–3 variants)";
+  else if (active === 0) label = "No Variants";
 
   return { score, label };
 }
@@ -211,44 +213,137 @@ export function calculateConfidence(input: {
   return { score, label };
 }
 
+// The old computeAdIntelligence is removed.
+
+// Original metrics calculations can stay for backwards compatibility where needed, but we add the authoritative Winner Score engine.
+
+/**
+ * Normalizes a URL by stripping tracking parameters, hashes, and trailing slashes.
+ */
+export function normalizeLandingPageUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  try {
+    const parsed = new URL(url);
+    // Remove common tracking params
+    const paramsToDelete = [];
+    for (const [key] of parsed.searchParams.entries()) {
+      if (key.startsWith('utm_') || key === 'fbclid' || key === 'gclid' || key === 'ref' || key === 'source') {
+        paramsToDelete.push(key);
+      }
+    }
+    paramsToDelete.forEach(p => parsed.searchParams.delete(p));
+    parsed.hash = ''; // Remove fragment
+    let cleanUrl = parsed.toString().toLowerCase();
+    if (cleanUrl.endsWith('/')) cleanUrl = cleanUrl.slice(0, -1);
+    return cleanUrl;
+  } catch {
+    // If it's not a valid URL, just return it lowercased and trimmed
+    return url.toLowerCase().trim().replace(/\/+$/, '');
+  }
+}
+
+export function calculateActiveStatusScore(status: string): number {
+  return status === "active" ? 100 : 0;
+}
+
+export function calculateGeographicCoverageScore(countries: string[]): number {
+  if (!countries || countries.length === 0) return 0;
+  const uniqueMarkets = new Set(countries.map(c => c.toUpperCase()));
+  // Max score at 5+ countries
+  return Math.round(Math.min(100, (uniqueMarkets.size / 5) * 100));
+}
+
+export function calculateLandingPagePersistenceScore(ad: NormalizedAd, context: { advertiserAds: NormalizedAd[] }): number {
+  const cleanCurrentUrl = normalizeLandingPageUrl(ad.destination?.url);
+  if (!cleanCurrentUrl) return 0;
+
+  // Count how many of the advertiser's active ads use this exact canonical URL
+  let reuseCount = 0;
+  for (const contextAd of context.advertiserAds) {
+    if (contextAd.delivery.status === "active") {
+      const cleanContextUrl = normalizeLandingPageUrl(contextAd.destination?.url);
+      if (cleanContextUrl === cleanCurrentUrl) {
+        reuseCount++;
+      }
+    }
+  }
+  // If the same LP is used in multiple active ads, they are persistent about it. Max out at 5 reuses.
+  return Math.round(Math.min(100, (reuseCount / 5) * 100));
+}
+
+export function calculateCreativeRefreshPatternScore(context: { advertiserAds: NormalizedAd[] }): number {
+  if (!context.advertiserAds || context.advertiserAds.length === 0) return 0;
+  
+  // Find ads launched in the last 30 days
+  const nowMs = Date.now();
+  let recentLaunches = 0;
+  const uniqueFingerprints = new Set<string>();
+
+  for (const contextAd of context.advertiserAds) {
+    if (contextAd.delivery.startedAt) {
+      const startMs = new Date(contextAd.delivery.startedAt).getTime();
+      if (Number.isFinite(startMs)) {
+        const daysAgo = (nowMs - startMs) / 86400000;
+        if (daysAgo >= 0 && daysAgo <= 30) {
+          // Use fingerprint, or fallback to external ID to dedupe actual creatives
+          const id = contextAd.fingerprint || contextAd.externalId || contextAd.id;
+          if (!uniqueFingerprints.has(id)) {
+            uniqueFingerprints.add(id);
+            recentLaunches++;
+          }
+        }
+      }
+    }
+  }
+
+  // Max score if they launched 5+ distinct creatives in the last 30 days
+  return Math.round(Math.min(100, (recentLaunches / 5) * 100));
+}
+
+export function calculateWinnerScore(ad: NormalizedAd, context: { advertiserAds: NormalizedAd[] }): number {
+  // 1. Longevity (35%)
+  const { score: longevityScore } = calculateLongevityScore(ad.delivery.daysRunning);
+  
+  // 2. Active Status (20%)
+  const activeStatusScore = calculateActiveStatusScore(ad.delivery.status);
+  
+  // 3. Creative Variations (15%)
+  const activeVariants = ad.variants != null ? ad.variants : 1;
+  const { score: creativeVariationsScore } = calculateVariantScore(activeVariants);
+  
+  // 4. Geographic Coverage (10%)
+  const geographicCoverageScore = calculateGeographicCoverageScore(ad.delivery.countries);
+  
+  // 5. Landing Page Persistence (10%)
+  const landingPagePersistenceScore = calculateLandingPagePersistenceScore(ad, context);
+  
+  // 6. Creative Refresh Pattern (10%)
+  const creativeRefreshPatternScore = calculateCreativeRefreshPatternScore(context);
+
+  const rawScore = 
+    (longevityScore * 0.35) +
+    (activeStatusScore * 0.20) +
+    (creativeVariationsScore * 0.15) +
+    (geographicCoverageScore * 0.10) +
+    (landingPagePersistenceScore * 0.10) +
+    (creativeRefreshPatternScore * 0.10);
+
+  const finalScore = Math.round(Math.max(0, Math.min(100, rawScore)));
+  return Number.isFinite(finalScore) ? finalScore : 0;
+}
+
+// Keep computeAdIntelligence purely for badgeCategory and string labels.
+// We strip the math from it affecting winnerScore, substituting it with a placeholder (0)
+// which will be strictly overwritten by `calculateWinnerScore` during sync/ingestion.
 export function computeAdIntelligence(input: AdIntelligenceInput): AdIntelligenceBreakdown {
   const fromMs = input.startDate ? new Date(input.startDate).getTime() : NaN;
   const toMs = input.stopDate ? new Date(input.stopDate).getTime() : Date.now();
   const runningDays = Number.isFinite(fromMs) ? Math.max(0, Math.floor((toMs - fromMs) / 86_400_000)) : null;
 
   const { score: longevityScore, label: longevityLabel } = calculateLongevityScore(runningDays);
-  const repetitionScore = calculateRepetitionScore(input.creativeRepetition ?? 0);
   const activeVarCount = Math.max(1, input.activeVariants ?? input.variants ?? 1);
   const { score: variantScore, label: variantLabel } = calculateVariantScore(activeVarCount);
-
-  const brandCommitmentScore = calculateBrandCommitmentScore({
-    activeVariants: activeVarCount,
-    formatCount: input.mediaType && input.mediaType !== "unknown" ? 2 : 1,
-    platformCount: Math.max(1, input.platforms?.length ?? 1),
-    runningDays: runningDays ?? 0,
-  });
-
-  const recencyScore = calculateRecencyScore(input.status, input.lastSeenAt);
-
-  const clickPropensityScore = calculateClickPropensity({
-    hasCTA: Boolean(input.cta),
-    hasHeadline: Boolean(input.headline),
-    hasBody: Boolean(input.body),
-    bodyText: input.body,
-    mediaType: input.mediaType || "unknown",
-    hasLandingPage: Boolean(input.landingPageUrl),
-  });
-
-  const conversionPotentialScore = calculateConversionPotential({
-    hasOffer: Boolean(input.cta || input.headline?.toLowerCase().includes("off") || input.headline?.toLowerCase().includes("%")),
-    hasLandingPage: Boolean(input.landingPageUrl),
-    hasCTA: Boolean(input.cta),
-    hasBody: Boolean(input.body),
-    bodyText: input.body,
-    longevityScore,
-    variantScore,
-  });
-
+  
   const { score: confidenceScore, label: confidenceLabel } = calculateConfidence({
     hasStartDate: Boolean(input.startDate),
     hasStatus: input.status !== "unknown",
@@ -259,71 +354,36 @@ export function computeAdIntelligence(input: AdIntelligenceInput): AdIntelligenc
     hasAdvertiserHistory: Boolean(input.advertiserId),
   });
 
-  // Base Winner Score:
-  // 0.35 * Longevity + 0.20 * Repetition + 0.15 * Variant + 0.10 * BrandCommitment + 0.10 * Recency + 0.10 * Quality
-  const rawWinner = 
-    0.35 * longevityScore +
-    0.20 * repetitionScore +
-    0.15 * variantScore +
-    0.10 * brandCommitmentScore +
-    0.10 * recencyScore +
-    0.10 * clickPropensityScore;
-
-  // Active Bonus
-  let activeBonus = 0;
-  if (input.status === "active" && (runningDays ?? 0) >= 30) activeBonus += 3;
-  if (input.status === "active" && (runningDays ?? 0) >= 60) activeBonus += 3;
-  if (input.status === "active" && (runningDays ?? 0) >= 90) activeBonus += 4;
-
-  // Early Test Penalty
-  let earlyTestPenalty = 0;
-  if ((runningDays ?? 0) < 4 && activeVarCount <= 1) earlyTestPenalty = -10;
-  else if ((runningDays ?? 0) < 7 && activeVarCount <= 1) earlyTestPenalty = -5;
-
-  // Dead Creative Penalty
-  let deadCreativePenalty = 0;
-  if (input.status === "inactive" && (runningDays ?? 0) <= 5) deadCreativePenalty = -15;
-  else if (input.status === "inactive" && (runningDays ?? 0) <= 14) deadCreativePenalty = -7;
-
-  const winnerScore = Math.round(Math.min(100, Math.max(0, rawWinner + activeBonus + earlyTestPenalty + deadCreativePenalty)));
-
-  // Adjusted Winner Score based on Confidence Penalty
-  const adjustedWinnerScore = Math.round(Math.min(100, Math.max(0, winnerScore * (0.65 + 0.35 * (confidenceScore / 100)))));
-
-  // Explanations
   const explanation: string[] = [];
   if (runningDays && runningDays >= 30) explanation.push(`Active for ${runningDays} days in market`);
   if (activeVarCount > 1) explanation.push(`${activeVarCount} related creative variants active`);
   if (input.status === "active") explanation.push("Currently active and running");
   if (input.landingPageUrl) explanation.push("Direct landing page attached");
   if (input.cta) explanation.push(`Clear call to action: "${input.cta}"`);
-  if (confidenceScore >= 70) explanation.push("High metadata signal confidence");
 
-  // Badge Category
   let badgeCategory: AdIntelligenceBreakdown["badgeCategory"] = "Standard";
-  if (adjustedWinnerScore >= 85 && confidenceScore >= 80) badgeCategory = "High-Confidence Winner";
-  else if (runningDays && runningDays >= 60 && input.status === "active") badgeCategory = "Proven Long Runner";
-  else if (adjustedWinnerScore >= 65 && (runningDays ?? 0) < 30 && input.status === "active") badgeCategory = "Emerging Winner";
-  else if (adjustedWinnerScore < 50) badgeCategory = "Testing";
+  if (runningDays && runningDays >= 60 && input.status === "active") badgeCategory = "Proven Long Runner";
+  else if (runningDays && runningDays < 30 && input.status === "active") badgeCategory = "Emerging Winner";
+  else if (input.status === "inactive") badgeCategory = "Testing";
 
   return {
-    winnerScore,
-    adjustedWinnerScore,
+    winnerScore: 0,
+    adjustedWinnerScore: 0,
     scoreVersion: SCORE_VERSION,
     longevityScore,
     longevityLabel,
-    repetitionScore,
+    repetitionScore: 0,
     variantScore,
     variantLabel,
-    brandCommitmentScore,
-    recencyScore,
-    clickPropensityScore,
-    conversionPotentialScore,
+    brandCommitmentScore: 0,
+    recencyScore: 0,
+    clickPropensityScore: 0,
+    conversionPotentialScore: 0,
     confidenceScore,
     confidenceLabel,
-    activeBonus,
-    earlyTestPenalty,
-    deadCreativePenalty,
+    activeBonus: 0,
+    earlyTestPenalty: 0,
+    deadCreativePenalty: 0,
     runningDays,
     badgeCategory,
     explanation,

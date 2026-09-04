@@ -10,8 +10,21 @@ import { computeAdIntelligence } from "@/lib/intelligence";
 import { computeAdFingerprints } from "@/lib/fingerprint";
 import { daysBetween, safeExternalUrl, sanitizeAdCopy } from "@/lib/utils";
 import { ProviderError, providerErrorFromStatus } from "@/lib/providers/errors";
+import type { BrandSearchResult } from "./spyglass"; // Optional, can redefine context type
 
 type UnknownRecord = Record<string, unknown>;
+
+function cyrb53(str: string, seed = 0) {
+  let h1 = 0xdeadbeef ^ seed, h2 = 0x41c6ce57 ^ seed;
+  for (let i = 0, ch; i < str.length; i++) {
+      ch = str.charCodeAt(i);
+      h1 = Math.imul(h1 ^ ch, 2654435761);
+      h2 = Math.imul(h2 ^ ch, 1597334677);
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  return 4294967296 * (2097151 & h2) + (h1 >>> 0);
+}
 
 const OFFICIAL_BASE_URL = "https://public.api.foreplay.co";
 
@@ -47,7 +60,7 @@ function mediaTypeFor(format: string | null, video: string | null, image: string
   return "unknown";
 }
 
-export function normalizeForeplayAd(input: UnknownRecord): NormalizedAd {
+export function normalizeForeplayAd(input: UnknownRecord, context?: { brandName?: string; logoUrl?: string }): NormalizedAd {
   const cards = Array.isArray(input.cards) ? input.cards.map(record) : [];
   const video = safeExternalUrl(text(input.video));
   const image = safeExternalUrl(text(input.image));
@@ -65,7 +78,7 @@ export function normalizeForeplayAd(input: UnknownRecord): NormalizedAd {
   const body = sanitizeAdCopy(text(input.description));
   const headline = sanitizeAdCopy(text(input.headline) || text(input.name));
   const advertiserId = text(input.brand_id) || "unknown";
-  const advertiserName = text(input.name) || "Unknown advertiser";
+  const advertiserName = context?.brandName || text(input.name) || "Unknown advertiser";
   const cta = text(input.cta_title) || text(input.cta_type);
   const landingPageUrl = safeExternalUrl(text(input.link_url));
   const platforms = stringArray(input.publisher_platform).map((item) => item.toLowerCase());
@@ -75,10 +88,28 @@ export function normalizeForeplayAd(input: UnknownRecord): NormalizedAd {
     creativeRepetition: 0, platforms, mediaType, headline, body, cta,
     landingPageUrl, sourceMediaUrl, advertiserId,
   });
-  const externalAdId = text(input.ad_id) || text(input.id) || crypto.randomUUID();
+  
+  const externalAdId = text(input.ad_id) || text(input.id) || `fp_${cyrb53(sourceMediaUrl || headline || now)}`;
+  
+  let fingerprintInput = "";
+  if (cards.length > 0) {
+    fingerprintInput = cards.map(c => safeExternalUrl(text(c.image)) || safeExternalUrl(text(c.video)) || "").join("|");
+  } else {
+    fingerprintInput = sourceMediaUrl || externalAdId;
+  }
+  
+  try {
+    const url = new URL(fingerprintInput.split("|")[0]);
+    url.searchParams.delete("fbclid");
+    url.searchParams.delete("timestamp");
+    fingerprintInput = url.toString() + (cards.length > 1 ? "|..." : "");
+  } catch {}
+
+  const creativeFingerprint = cyrb53(fingerprintInput).toString(36);
+  const canonicalCreativeId = `foreplay:${externalAdId}:${creativeFingerprint}`;
 
   const baseAd: NormalizedAd = {
-    id: text(input.id) || externalAdId,
+    id: canonicalCreativeId,
     externalId: externalAdId,
     provider: {
       discoveryProvider: "foreplay",
@@ -89,7 +120,7 @@ export function normalizeForeplayAd(input: UnknownRecord): NormalizedAd {
       name: advertiserName,
       normalizedName: null,
       pageUrl: null,
-      logoUrl: safeExternalUrl(text(input.avatar)),
+      logoUrl: context?.logoUrl || safeExternalUrl(text(input.avatar)),
       domain: null,
       social: { facebook: null, instagram: null, linkedin: null },
     },
@@ -236,7 +267,12 @@ export class ForeplayProvider implements AdProvider {
 
     const { payload } = await this.request("/api/discovery/ads", params);
     const data = Array.isArray(payload.data) ? payload.data.map(record) : [];
-    let ads = data.map(normalizeForeplayAd);
+    
+    // Accept brand context as second parameter, although ForeplayProvider currently isn't wired up internally to accept it in searchAds signature?
+    // Wait, the interface for searchAds is `searchAds(filters: AdSearchFilters, context?: {brandName?: string, logoUrl?: string})`
+    // Let's pass it!
+    const context = arguments.length > 1 ? arguments[1] : undefined;
+    let ads = data.map(d => normalizeForeplayAd(d, context));
     if (filters.cta) ads = ads.filter((ad) => ad.copy.cta?.toLowerCase() === filters.cta?.toLowerCase());
     const metadata = record(payload.metadata);
     const cursor = typeof metadata.cursor === "string" || typeof metadata.cursor === "number" ? String(metadata.cursor) : null;

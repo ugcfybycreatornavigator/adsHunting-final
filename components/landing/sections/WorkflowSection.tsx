@@ -14,7 +14,7 @@ const steps = [
     title: 'Discover',
     desc: 'Find ads worth studying.',
     body: 'Search across brands and creatives, then narrow results with filters built for competitive research.',
-    image: '/images/how-it-works/discover-new.png',
+    image: '/images/how-it-works/discover-updated.png',
     imageClass: 'object-contain object-center w-full h-full'
   },
   {
@@ -22,7 +22,7 @@ const steps = [
     title: 'Review',
     desc: 'See the full creative context.',
     body: 'Inspect the ad, advertiser, platforms and available signals before deciding what matters.',
-    image: '/images/how-it-works/review-v2.png',
+    image: '/images/how-it-works/review-updated.png',
     imageClass: 'object-contain object-center w-full h-full'
   },
   {
@@ -30,7 +30,7 @@ const steps = [
     title: 'Research',
     desc: 'Go deeper on the brands behind the ads.',
     body: 'Move from an individual creative into broader brand and competitor intelligence.',
-    image: '/images/how-it-works/research-v2.png',
+    image: '/images/how-it-works/research-updated.png',
     imageClass: 'object-contain object-center w-full h-full'
   },
   {
@@ -38,7 +38,7 @@ const steps = [
     title: 'Save',
     desc: 'Turn inspiration into a system.',
     body: 'Save ads and organize them into Swipe Files for campaigns, hooks, formats or competitors.',
-    image: '/images/how-it-works/save-swipe-files.png',
+    image: '/images/how-it-works/save-updated.png',
     imageClass: 'object-contain object-center w-full h-full'
   },
   {
@@ -46,7 +46,7 @@ const steps = [
     title: 'Share',
     desc: 'Share the work, not screenshots.',
     body: 'Send selected ads or collections through the sharing workflow already built into AdsHunting.',
-    image: '/images/how-it-works/share-new.png',
+    image: '/images/how-it-works/share-modal.png',
     imageClass: 'object-contain object-center w-full h-full scale-[1.02]'
   }
 ];

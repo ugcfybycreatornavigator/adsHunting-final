@@ -130,7 +130,7 @@ export function BrandIntelligenceProfile({
       {/* Content */}
       <div className="py-8">
         {tab === "overview" && <OverviewTab data={data} />}
-        {tab === "ads" && <DiscoverExperience brandId={data.advertiserId} source="competitor" hideHeader={true} />}
+        {tab === "ads" && <DiscoverExperience brandId={data.advertiserId} hideHeader={true} />}
         {tab === "activity" && <ActivityTab data={data} />}
       </div>
     </div>

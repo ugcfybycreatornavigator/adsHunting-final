@@ -87,8 +87,19 @@ export async function syncCompetitorAds(advertiserId: string): Promise<number> {
     }
 
     const provider = providers[0].provider;
+    const supabase = createAdminClient();
+    
+    // Attempt to load known brand context to prevent "Unknown Brand"
+    let brandContext = undefined;
+    try {
+      const { data: comp } = await supabase.from("competitors").select("advertiser_name, advertiser_avatar_url").eq("advertiser_id", advertiserId).maybeSingle();
+      if (comp && comp.advertiser_name) {
+        brandContext = { brandName: comp.advertiser_name, logoUrl: comp.advertiser_avatar_url || undefined };
+      }
+    } catch (e) {}
+
     console.info(`${logPrefix} Syncing ads via ${providers[0].name}...`);
-    const result = await provider.searchAds({ brand: advertiserId, statuses: ["active", "inactive"] });
+    const result = await provider.searchAds({ brand: advertiserId, statuses: ["active", "inactive"] }, brandContext);
     
     const ads = result.ads;
 
@@ -97,7 +108,9 @@ export async function syncCompetitorAds(advertiserId: string): Promise<number> {
       return 0;
     }
 
-    // Deduplicate by ad ID before persisting
+    // Deduplicate exact variants by canonical ad.id before persisting
+    // Note: ad.id is now a unique composite of (providerAdId + fingerprint), 
+    // ensuring we don't accidentally discard valid distinct variants.
     const dedupMap = new Map<string, import("@/lib/types").NormalizedAd>();
     for (const ad of ads) {
       if (!dedupMap.has(ad.id)) dedupMap.set(ad.id, ad);
@@ -113,36 +126,37 @@ export async function syncCompetitorAds(advertiserId: string): Promise<number> {
     const durationMs = Date.now() - startMs;
     console.info(`${logPrefix} Sync complete: ${uniqueAds.length} fetched, ${persisted} persisted, ${durationMs}ms`);
 
-    // Update competitor record with resolved identity from actual provider data
-    try {
-      const firstAd = uniqueAds[0];
-      const resolvedName = firstAd.advertiser?.name;
-      const resolvedAvatar = firstAd.advertiser?.logoUrl;
-      if (
-        resolvedName && 
-        resolvedName !== "Unknown" && 
-        resolvedName !== "Unknown advertiser" &&
-        !/^\d+$/.test(resolvedName)
-      ) {
-        const supabase = createAdminClient();
-        await supabase
-          .from("competitors")
-          .update({
-            advertiser_name: resolvedName,
-            advertiser_avatar_url: resolvedAvatar || undefined,
-            last_synced_at: new Date().toISOString(),
-          })
-          .eq("advertiser_id", advertiserId);
-      } else {
-        // Still update last_synced_at even if name wasn't resolved
-        const supabase = createAdminClient();
-        await supabase
-          .from("competitors")
-          .update({ last_synced_at: new Date().toISOString() })
-          .eq("advertiser_id", advertiserId);
+    // Update competitor record with resolved identity from actual provider data ONLY if persistence succeeded
+    if (!persistError) {
+      try {
+        const firstAd = uniqueAds[0];
+        const resolvedName = firstAd?.advertiser?.name;
+        const resolvedAvatar = firstAd?.advertiser?.logoUrl;
+        
+        if (
+          resolvedName && 
+          resolvedName !== "Unknown" && 
+          resolvedName !== "Unknown advertiser" &&
+          !/^\d+$/.test(resolvedName)
+        ) {
+          await supabase
+            .from("competitors")
+            .update({
+              advertiser_name: resolvedName,
+              advertiser_avatar_url: resolvedAvatar || undefined,
+              last_synced_at: new Date().toISOString(),
+            })
+            .eq("advertiser_id", advertiserId);
+        } else {
+          // Still update last_synced_at even if name wasn't resolved
+          await supabase
+            .from("competitors")
+            .update({ last_synced_at: new Date().toISOString() })
+            .eq("advertiser_id", advertiserId);
+        }
+      } catch (updateErr) {
+        console.error(`${logPrefix} Failed to update competitor identity:`, updateErr);
       }
-    } catch (updateErr) {
-      console.error(`${logPrefix} Failed to update competitor identity:`, updateErr);
     }
 
     return persisted;
@@ -166,14 +180,14 @@ function buildCompetitorIntelligence(
   const oneWeekAgoStr = oneWeekAgo.toISOString();
 
   // Identity Resolution Priority: 
-  // 1. Tracked competitor DB record (highest priority - user-set value)
+  // 1. Tracked competitor DB record (highest priority - user-set or canonical value)
   // 2. First ad's advertiser name (from provider)
   // 3. Fallback based on sync status
   let brandName = trackedRecord?.advertiser_name;
   let logoUrl = trackedRecord?.advertiser_avatar_url || null;
 
-  if (brandName && brandName.trim() !== "") {
-    // Use tracked name (highest priority)
+  if (brandName && brandName.trim() !== "" && brandName !== "Unknown Brand") {
+    // Use canonical name (highest priority)
   } else if (ads.length > 0) {
     // Use provider name from ads
     brandName = ads[0].advertiser_name;
@@ -205,6 +219,21 @@ function buildCompetitorIntelligence(
     }
   }
   const distinctAds = Array.from(uniqueAdsMap.values());
+  
+  // Seeded randomization over the bounded ad result set (by day and brand)
+  const today = new Date().toISOString().split("T")[0];
+  const seedString = `${advertiserId}-${today}`;
+  let seed = 0;
+  for (let i = 0; i < seedString.length; i++) {
+    seed = (seed << 5) - seed + seedString.charCodeAt(i);
+    seed |= 0;
+  }
+  const random = () => {
+    const x = Math.sin(seed++) * 10000;
+    return x - Math.floor(x);
+  };
+  
+  distinctAds.sort(() => random() - 0.5);
 
   // Counts
   const activeAdsCount = distinctAds.filter(a => a.status === "active").length;
@@ -272,37 +301,16 @@ function buildCompetitorIntelligence(
   };
 }
 
+const BRAND_CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours config
+
 /**
  * Gets the intelligence for a single competitor (Intelligence Page).
- * Safely handles syncing if no data exists.
+ * Safely handles syncing if no data exists or is stale.
  */
 export async function getCompetitorIntelligence(id: string, allowSync = true, userId?: string): Promise<CompetitorIntelligence> {
   const supabase = createAdminClient();
 
-  const fetchAds = async () => {
-    const { data } = await supabase
-      .from("ads")
-      .select("advertiser_id, advertiser_name, advertiser_avatar_url, status, running_days, start_date, media_type, cta, platforms, canonical_ad_id, source_media_url, thumbnail_url, end_date")
-      .eq("advertiser_id", id)
-      .order("start_date", { ascending: false });
-    return (data || []) as BulkAdRow[];
-  };
-
-  let ads = await fetchAds();
-
-  // If no ads exist, trigger an inline sync and refetch (only if allowed)
-  if (ads.length === 0 && allowSync) {
-    try {
-      const synced = await syncCompetitorAds(id);
-      if (synced > 0) {
-        ads = await fetchAds();
-      }
-    } catch (err) {
-      console.warn(`Inline sync failed for ${id}:`, err);
-    }
-  }
-
-  // Attempt to fetch the tracked competitor record for custom name overriding
+  // 1. Fetch tracked competitor record for custom name overriding & cache freshness
   let query = supabase
     .from("competitors")
     .select("advertiser_name, advertiser_avatar_url, created_at, sync_status, sync_error, last_synced_at, ads_count, status")
@@ -314,8 +322,33 @@ export async function getCompetitorIntelligence(id: string, allowSync = true, us
   
   const { data: competitorRecord } = await query.limit(1).maybeSingle();
 
-  // If there are still no ads AND we didn't have a tracked record, try to fetch fallback advertiser details
-  // so the intelligence page doesn't just say "Meta advertiser 123"
+  const fetchAds = async () => {
+    const { data } = await supabase
+      .from("ads")
+      .select("advertiser_id, advertiser_name, advertiser_avatar_url, status, running_days, start_date, media_type, cta, platforms, canonical_ad_id, source_media_url, thumbnail_url, end_date")
+      .eq("advertiser_id", id);
+    return (data || []) as BulkAdRow[];
+  };
+
+  let ads = await fetchAds();
+
+  // 2. Cache-First Logic: Check if we need to sync based on TTL
+  const lastSynced = competitorRecord?.last_synced_at ? new Date(competitorRecord.last_synced_at).getTime() : 0;
+  const isStale = Date.now() - lastSynced > BRAND_CACHE_TTL_MS;
+  const isMissing = ads.length === 0;
+
+  if ((isMissing || isStale) && allowSync) {
+    try {
+      const synced = await syncCompetitorAds(id);
+      if (synced > 0) {
+        ads = await fetchAds();
+      }
+    } catch (err) {
+      console.warn(`Inline sync failed for ${id}:`, err);
+    }
+  }
+
+  // 3. Fallback identity if still unknown
   let fallbackRecord = competitorRecord;
   if (ads.length === 0 && !fallbackRecord) {
     try {

@@ -36,7 +36,7 @@ export function DiscoverAdsSection() {
 
         {/* Full Width Visual Mockup */}
         <div className="w-full max-w-[1240px] rounded-2xl overflow-hidden mb-12 border border-border shadow-[0_20px_60px_rgba(0,0,0,0.06)] bg-slate-50">
-          <img src="/images/how-it-works/discover-new.png" alt="Discover Ads" className="w-full h-auto" />
+          <img src="/images/how-it-works/discover-updated.png" alt="Discover Ads" className="w-full h-auto" />
         </div>
 
         <CTAButton href={authLinks.signUp} size="lg" className="h-12 md:h-14 px-8">
