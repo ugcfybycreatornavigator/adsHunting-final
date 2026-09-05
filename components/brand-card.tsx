@@ -82,7 +82,7 @@ export function BrandCard({ brand }: { brand: BrandSummary }) {
 
   return (
     <Link
-      href={`/brands/${encodeURIComponent(brand.id)}`}
+      href={`/brands/${encodeURIComponent(brand.id)}?name=${encodeURIComponent(brandName)}`}
       className="group flex flex-col w-full overflow-hidden rounded-[12px] border border-[#E5E7EB] bg-white transition-all duration-150 hover:border-[#D1D5DB] hover:shadow-[0_2px_8px_rgba(0,0,0,0.04)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
     >
       <div className="flex flex-col p-[16px] flex-1">

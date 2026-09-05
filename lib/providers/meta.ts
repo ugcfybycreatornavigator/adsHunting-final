@@ -1,5 +1,6 @@
+import { matchingBrand, realAdvertiserName, resolveAdvertiser } from "../../supabase/functions/_shared/ads/advertiser-identity";
 import type { AdProvider, AdSearchFilters, AdSearchResult, NormalizedAd, ProviderCapabilities } from "@/lib/types";
-import { daysBetween, sanitizeAdCopy } from "@/lib/utils";
+import { daysBetween, sanitizeAdCopy, extractAdvertiserName } from "@/lib/utils";
 import { ProviderError, providerErrorFromStatus } from "@/lib/providers/errors";
 import { computeAdIntelligence } from "@/lib/intelligence";
 
@@ -115,7 +116,10 @@ export class MetaProvider implements AdProvider {
     });
 
     if (filters.brand) {
-      params.set("search_page_ids", filters.brand);
+      if (filters.selectedBrand && filters.selectedBrand.provider !== "meta") {
+        throw new ProviderError("PROVIDER_UNSUPPORTED", "No verified Meta page ID for this advertiser.", 422);
+      }
+      params.set("search_page_ids", JSON.stringify([filters.selectedBrand?.providerAdvertiserId || filters.brand]));
     } else if (filters.query?.trim()) {
       params.set("search_terms", filters.query.trim());
     } else {
@@ -171,7 +175,15 @@ export class MetaProvider implements AdProvider {
       throw providerErrorFromStatus("Meta API", response.status || 502, detail);
     }
 
-    const ads = (payload.data ?? []).map((ad) => normalizeMetaAd(ad, markets[0] || "ALL"));
+    const pageId = filters.selectedBrand?.providerAdvertiserId || filters.brand;
+    const ads = (payload.data ?? [])
+      .filter(raw => !filters.brand || raw.page_id === pageId)
+      .map(raw => {
+        const ad = normalizeMetaAd(raw, markets[0] || "ALL");
+        ad.advertiser = resolveAdvertiser(ad.advertiser, undefined,
+          matchingBrand(filters.selectedBrand, "meta", filters.brand, raw.page_id));
+        return ad;
+      });
     return { ads, nextCursor: payload.paging?.cursors?.after ?? null, total: null, source: "provider" };
   }
 }
@@ -215,7 +227,7 @@ function normalizeMetaAd(raw: MetaRawAd, country: string): NormalizedAd {
     },
     advertiser: {
       id: raw.page_id || null,
-      name: raw.page_name || "Unknown advertiser",
+      name: realAdvertiserName(raw.page_name, raw.page_id),
       normalizedName: null,
       pageUrl: null,
       logoUrl: null,

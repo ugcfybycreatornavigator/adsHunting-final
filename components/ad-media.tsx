@@ -5,7 +5,7 @@ import type { NormalizedAd } from "@/lib/types";
 import { resolveAdMedia } from "@/lib/media";
 import { VideoPreview } from "@/components/video-preview";
 import { CarouselPreview } from "@/components/carousel-preview";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 export function AdMedia({
   ad,
@@ -22,23 +22,11 @@ export function AdMedia({
   const videoUrl = media.videoUrl;
   const imageUrl = media.imageUrl;
   const thumbnailUrl = media.thumbnailUrl;
-  const advertiserName = ad.advertiser.name || "Unknown advertiser";
-  
-  // Diagnostic logging
-  if (typeof window !== 'undefined') {
-    console.log('[AdMedia] Rendering', {
-      adId: ad.id,
-      creativeType: ad.creative.type,
-      resolvedType: type,
-      hasVideoUrl: Boolean(videoUrl),
-      videoUrlSample: videoUrl ? videoUrl.substring(0, 80) : null,
-      hasImageUrl: Boolean(imageUrl),
-      imageUrlSample: imageUrl ? imageUrl.substring(0, 80) : null,
-      hasThumbnailUrl: Boolean(thumbnailUrl),
-      hasCarouselAssets: Boolean(media.carouselAssets?.length),
-      carouselCount: media.carouselAssets?.length || 0,
-    });
-  }
+  const advertiserName = ad.advertiser.displayName || ad.advertiser.name || "Advertiser";
+
+  useEffect(() => {
+    setImageFailed(false);
+  }, [ad.id]);
   
   const objectFit = "contain";
   
@@ -49,6 +37,7 @@ export function AdMedia({
     let effectiveVideoUrl = videoUrl;
     if (!effectiveVideoUrl && ad.rawData) {
       // Fallback: try to extract from rawData if not in normalized form
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const raw = ad.rawData as any;
       const snap = raw.snapshot || raw;
       effectiveVideoUrl = snap.video_hd_url || snap.video_sd_url || snap.videos?.[0]?.video_hd_url;
@@ -66,13 +55,13 @@ export function AdMedia({
     // Get effective poster/thumbnail
     let effectivePoster = thumbnailUrl || imageUrl;
     if (!effectivePoster && ad.rawData) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const raw = ad.rawData as any;
       const snap = raw.snapshot || raw;
       effectivePoster = snap.video_preview_image_url || snap.videos?.[0]?.video_preview_image_url;
     }
     
     if (videoSources.length > 0) {
-      console.log('[AdMedia] Rendering video', { adId: ad.id, sourceCount: videoSources.length, hasPoster: Boolean(effectivePoster) });
       return (
         <div className={`h-full w-full bg-zinc-950 flex items-center justify-center relative ${className}`}>
           <VideoPreview
@@ -104,6 +93,7 @@ export function AdMedia({
   
   // Try to get image URL from rawData if not found in normalized form
   if (!fallbackImage && ad.rawData) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const raw = ad.rawData as any;
     const snap = raw.snapshot || raw;
     fallbackImage = 
@@ -115,7 +105,6 @@ export function AdMedia({
   }
   
   if (fallbackImage && !imageFailed) {
-    console.log('[AdMedia] Rendering image', { adId: ad.id, imageSample: fallbackImage.substring(0, 80) });
     return (
       <div className={`h-full w-full flex items-center justify-center relative ${variant === 'detail' ? 'bg-zinc-900' : 'bg-zinc-50'} ${className}`}>
         <img
@@ -124,7 +113,6 @@ export function AdMedia({
           className={`h-full w-full text-transparent object-contain`}
           loading="lazy"
           onError={() => {
-            console.log('[AdMedia] Image failed to load:', { adId: ad.id, url: fallbackImage.substring(0, 80) });
             setImageFailed(true);
           }}
         />

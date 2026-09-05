@@ -48,3 +48,13 @@ test-*.js
 # agent instruction files
 CLAUDE.md
 AGENTS.md
+
+# Keep active edge identity fixes reviewable despite the legacy ads/ exclusion.
+!supabase/functions/_shared/ads/
+supabase/functions/_shared/ads/*
+!supabase/functions/_shared/ads/advertiser-identity.ts
+!supabase/functions/_shared/ads/orchestrator.ts
+!supabase/functions/_shared/ads/providers/
+supabase/functions/_shared/ads/providers/*
+!supabase/functions/_shared/ads/providers/meta.ts
+!supabase/functions/_shared/ads/providers/foreplay.ts

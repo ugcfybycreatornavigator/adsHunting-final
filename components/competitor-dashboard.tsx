@@ -202,7 +202,10 @@ function CompetitorCard({ brand, onRefresh, onPauseResume, onRemove }: CardProps
   );
 
   return (
-    <article className="group relative flex flex-col w-full overflow-hidden rounded-[16px] border border-line bg-white transition-all duration-200 hover:border-brand/30 hover:shadow-sm">
+    <article className={cn(
+      "group relative flex flex-col w-full rounded-[16px] border border-line bg-white transition-all duration-200 hover:border-brand/30 hover:shadow-sm",
+      menuOpen ? "z-50 overflow-visible" : "overflow-hidden z-10"
+    )}>
       <div className="flex flex-col p-5 flex-1">
         {/* Header */}
         <div className="flex items-center gap-3">

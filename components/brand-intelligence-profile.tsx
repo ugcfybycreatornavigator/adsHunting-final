@@ -176,22 +176,33 @@ function OverviewTab({ data }: { data: CompetitorIntelligence }) {
 }
 
 function ActivityTab({ data }: { data: CompetitorIntelligence }) {
+  const formatDate = (value: string | null) =>
+    value ? new Date(value).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "No date available";
+
   return (
     <div className="max-w-2xl">
       <h2 className="text-lg font-bold text-ink mb-6">Recent Activity</h2>
       <div className="flex flex-col gap-6 relative before:absolute before:inset-y-0 before:left-[11px] before:w-px before:bg-line">
         <div className="relative pl-8">
           <span className="absolute left-0 top-1.5 size-6 rounded-full border-[4px] border-white bg-brand shadow-sm" />
-          <p className="text-sm font-bold text-ink">Tracking started</p>
-          <p className="text-sm text-muted mt-1">Began monitoring creative activity for {data.brandName}.</p>
-          <p className="text-xs text-muted mt-2 font-medium">Recently</p>
+          <p className="text-sm font-bold text-ink">Latest ad activity</p>
+          <p className="text-sm text-muted mt-1">{data.brandName} last showed creative activity on {formatDate(data.lastActivityAt)}.</p>
+          <p className="text-xs text-muted mt-2 font-medium">{formatDate(data.lastActivityAt)}</p>
         </div>
         <div className="relative pl-8">
           <span className="absolute left-0 top-1.5 size-6 rounded-full border-[4px] border-white bg-zinc-300 shadow-sm" />
           <p className="text-sm font-bold text-ink">{data.totalAds} ads discovered</p>
-          <p className="text-sm text-muted mt-1">Historically cataloged {data.totalAds} distinct creative variants.</p>
-          <p className="text-xs text-muted mt-2 font-medium">Historical</p>
+          <p className="text-sm text-muted mt-1">First cataloged creative activity for {data.brandName} on {formatDate(data.firstSeenAt)}.</p>
+          <p className="text-xs text-muted mt-2 font-medium">{formatDate(data.firstSeenAt)}</p>
         </div>
+        {data.lastSyncedAt && (
+          <div className="relative pl-8">
+            <span className="absolute left-0 top-1.5 size-6 rounded-full border-[4px] border-white bg-zinc-300 shadow-sm" />
+            <p className="text-sm font-bold text-ink">Profile refreshed</p>
+            <p className="text-sm text-muted mt-1">Metrics were refreshed from saved ad data.</p>
+            <p className="text-xs text-muted mt-2 font-medium">{formatDate(data.lastSyncedAt)}</p>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -33,24 +33,9 @@ export function VideoPreview({
   // Check if we have ANY valid sources
   const hasValidSources = sources.some(s => Boolean(s && s.trim()));
 
-  // Diagnostic logging
-  if (typeof window !== 'undefined') {
-    console.log('[VideoPreview]', {
-      sourceCount: sources.length,
-      hasValidSources,
-      currentSrcIndex,
-      currentSrc: currentSrc.substring(0, 80),
-      hasPoster: Boolean(poster),
-      failed,
-      playing,
-      isMuted,
-    });
-  }
-  
   // If we don't have any valid video sources, mark as failed immediately
   useEffect(() => {
     if (!hasValidSources && !failed) {
-      console.log('[VideoPreview] No valid video sources, marking as failed');
       setFailed(true);
     }
   }, [hasValidSources, failed]);
@@ -128,7 +113,7 @@ export function VideoPreview({
         playsInline
         preload={controls ? "metadata" : "none"}
         controls={controls && !failed}
-        className={`w-auto h-auto max-w-full max-h-full ${objectFit === "contain" ? "object-contain" : "object-cover"}`}
+        className={`h-full w-full ${objectFit === "contain" ? "object-contain" : "object-cover"} ${failed ? "opacity-0" : ""}`}
         onLoadedMetadata={(event) => {
           setFailed(false);
           const video = event.currentTarget;
@@ -138,13 +123,6 @@ export function VideoPreview({
         }}
         onError={() => {
           const nextIndex = currentSrcIndex + 1;
-          console.log('[VideoPreview onError]', {
-            currentIndex: currentSrcIndex,
-            currentUrl: sources[currentSrcIndex]?.substring(0, 80),
-            nextIndex,
-            hasNextSource: nextIndex < sources.length,
-            willFail: nextIndex >= sources.length,
-          });
           if (nextIndex < sources.length) {
             setCurrentSrcIndex(nextIndex);
           } else {
@@ -155,9 +133,7 @@ export function VideoPreview({
         onPause={() => setPlaying(false)}
       />
       {failed && poster && (
-        <div className="absolute top-3 right-3 z-10 rounded-[6px] bg-black/60 backdrop-blur px-2.5 py-1.5 border border-white/10 shadow-sm text-white flex items-center gap-2 pointer-events-none">
-          <span className="text-[11px] font-[550] tracking-wide">Video preview &middot; Playback unavailable</span>
-        </div>
+        <img src={poster} alt="" className="absolute inset-0 h-full w-full object-contain" />
       )}
       {failed && !poster && (
         <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 bg-zinc-100 text-muted">

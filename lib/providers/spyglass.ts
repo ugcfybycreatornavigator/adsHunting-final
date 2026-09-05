@@ -7,6 +7,7 @@ import type {
   RefinedAd,
 } from "@/lib/types";
 import { ProviderError } from "@/lib/providers/errors";
+import { extractAdvertiserName } from "@/lib/utils";
 
 interface SpyglassBrand {
   id: string | number;
@@ -134,7 +135,7 @@ export class SpyglassProvider implements AdProvider {
 
       return data.brands.map((b: SpyglassBrand) => ({
         id: String(b.id),
-        name: String(b.name || "Unknown Brand"),
+        name: String(b.name || ""),
         logoUrl: b.thumbnailUrl || b.logoUrl || b.logo || b.profilePicture || b.avatar || b.image || null,
         provider: "spyglass",
         metadata: {
@@ -183,7 +184,7 @@ export class SpyglassProvider implements AdProvider {
 
       return data.brands.map((b: SpyglassBrand) => ({
         id: String(b.id),
-        name: String(b.name || "Unknown Brand"),
+        name: String(b.name || ""),
         logoUrl: b.thumbnailUrl || b.logoUrl || b.logo || b.profilePicture || b.avatar || b.image || null,
         provider: "spyglass",
         metadata: {
@@ -330,7 +331,7 @@ export class SpyglassProvider implements AdProvider {
   private normalizeSpyglassAd(ad: SpyglassAd, brandId: string, resolvedBrand: BrandSearchResult | null): RefinedAd {
     const { type, imageUrl, videoUrl, thumbnailUrl, carouselItems } = this.resolveSpyglassMedia(ad);
     
-    const finalBrandName = resolvedBrand?.name || ad.brandName || ad.advertiserName || "Unknown Brand";
+    const finalBrandName = extractAdvertiserName([resolvedBrand?.name, ad.brandName, ad.advertiserName]);
     const finalBrandLogo = resolvedBrand?.logoUrl || ad.brandLogoUrl || ad.advertiserLogoUrl || null;
 
     // Deterministic identity creation
@@ -364,7 +365,7 @@ export class SpyglassProvider implements AdProvider {
       advertiser: {
         id: brandId,
         name: finalBrandName,
-        normalizedName: finalBrandName.toLowerCase(),
+        normalizedName: finalBrandName?.toLowerCase() || null,
         pageUrl: ad.pageUrl || null,
         logoUrl: finalBrandLogo,
         domain: ad.domain || null,

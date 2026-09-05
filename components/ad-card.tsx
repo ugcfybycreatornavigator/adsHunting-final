@@ -58,7 +58,7 @@ export function AdCard({
   const mediaInfo = resolveAdMedia(ad);
   const advertiserProfile = safeExternalUrl(ad.advertiser.pageUrl);
   const landingPage = safeExternalUrl(ad.destination.url);
-  const advertiserName = ad.advertiser.name || "Unknown advertiser";
+  const advertiserName = ad.advertiser.displayName || ad.advertiser.name || "Advertiser";
   const initial = advertiserName.slice(0, 1).toUpperCase() || "A";
 
   const displayCopy =
@@ -83,7 +83,10 @@ export function AdCard({
   }, [menuOpen]);
 
   return (
-    <article className="group relative flex flex-col w-full overflow-hidden rounded-[12px] border border-line bg-white shadow-sm transition-all duration-200 hover:border-zinc-300 hover:shadow-md">
+    <article className={cn(
+      "group relative flex flex-col w-full rounded-[12px] border border-line bg-white shadow-sm transition-all duration-200 hover:border-zinc-300 hover:shadow-md",
+      menuOpen ? "z-50 overflow-visible" : "overflow-hidden z-10"
+    )}>
       {/* Full-card accessible clickable overlay */}
       <div 
         className="absolute inset-0 z-0 cursor-pointer" 
@@ -95,7 +98,7 @@ export function AdCard({
       />
       
       {/* Header */}
-      <div className="relative z-10 flex h-[52px] items-center gap-2.5 px-3">
+      <div className="relative z-30 flex h-[52px] items-center gap-2.5 px-3">
         {ad.advertiser.logoUrl && !avatarFailed ? (
           <img 
             src={ad.advertiser.logoUrl} 
@@ -138,12 +141,15 @@ export function AdCard({
           </button>
           {menuOpen && (
             <div className="absolute right-0 top-11 z-40 w-48 rounded-lg border border-line bg-white p-1 text-xs font-semibold shadow-card" role="menu">
-              {advertiserProfile && (
-                <a href={advertiserProfile} target="_blank" rel="noreferrer noopener" role="menuitem" onClick={() => setMenuOpen(false)} className="flex min-h-9 items-center gap-2 rounded-md px-2.5 hover:bg-zinc-50">
-                  <ExternalLink size={14} />
-                  Visit advertiser
-                </a>
-              )}
+              <Link 
+                href={`/brands/${encodeURIComponent(ad.advertiser.id || ad.id)}`}
+                role="menuitem" 
+                onClick={() => setMenuOpen(false)} 
+                className="flex min-h-9 items-center gap-2 rounded-md px-2.5 hover:bg-zinc-50"
+              >
+                <ExternalLink size={14} />
+                Visit advertiser
+              </Link>
               {landingPage && (
                 <a href={landingPage} target="_blank" rel="noreferrer noopener" role="menuitem" onClick={() => setMenuOpen(false)} className="flex min-h-9 items-center gap-2 rounded-md px-2.5 hover:bg-zinc-50">
                   <ExternalLink size={14} />

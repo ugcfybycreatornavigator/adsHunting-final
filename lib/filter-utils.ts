@@ -3,6 +3,8 @@ import { AdSearchFilters } from "./types";
 export function normalizeDiscoverFilters(filters: AdSearchFilters): AdSearchFilters {
   const normalized: AdSearchFilters = { ...filters };
 
+  if (!normalized.brand || normalized.selectedBrand?.id !== normalized.brand) normalized.selectedBrand = undefined;
+
   // Remove empty arrays
   if (normalized.platforms?.length === 0) normalized.platforms = undefined;
   if (normalized.formats?.length === 0) normalized.formats = undefined;

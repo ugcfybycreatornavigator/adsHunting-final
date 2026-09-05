@@ -9,15 +9,25 @@ import { getWorkspaceCreditBalance } from "@/lib/billing/usage";
 import { ProviderError } from "@/lib/providers/errors";
 import { adsForClient, persistNormalizedAds, archiveAdsInBackground } from "@/lib/ads-persistence";
 import { isPreviewMode } from "@/lib/preview";
-import type { AdSearchResult, NormalizedAd, SearchIntent } from "@/lib/types";
+import type { AdSearchFilters, AdSearchResult, NormalizedAd, SearchIntent } from "@/lib/types";
 import { normalizeDiscoverFilters } from "@/lib/filter-utils";
 import { auth } from "@clerk/nextjs/server";
 import { getServerEnv } from "@/lib/env/server";
+import { brandFromRow, realAdvertiserName, resolveAdIdentities } from "@/lib/advertiser-identity";
 import { getAdProviders } from "@/lib/providers";
+import { resolveAdMedia } from "@/lib/media";
+import { calculateWinnerScore } from "@/lib/intelligence";
 
 const schema = z.object({
   query: z.string().trim().max(160).optional(),
   brand: z.string().max(80).optional(),
+  selectedBrand: z.object({
+    id: z.string().min(1).max(80), name: z.string().trim().min(1).max(300),
+    provider: z.enum(["meta", "foreplay"]), providerAdvertiserId: z.string().min(1).max(80),
+    logoUrl: z.string().url().max(4000).nullable().optional(),
+    profileUrl: z.string().url().max(4000).nullable().optional(),
+    domain: z.string().max(300).nullable().optional(),
+  }).optional(),
   platforms: z.array(z.enum(["facebook", "instagram", "messenger", "audience_network", "threads"])).max(5).optional(),
   sort: z.string().max(32).optional(),
   cursor: z.string().max(16_000).optional(),
@@ -60,6 +70,7 @@ const inFlight = new Map<string, Promise<AdSearchResult>>();
 
 export async function POST(request: NextRequest) {
   const requestId = crypto.randomUUID();
+  cache.clear();
   const accessError = await requirePaidWorkspaceAccess();
   if (accessError) return accessError;
 
@@ -107,10 +118,18 @@ export async function POST(request: NextRequest) {
 
   const filters = normalizeDiscoverFilters(parsed.data);
   
+  // Prefer the existing catalog mapping over client navigation context.
+  if (filters.brand && catalogClient) {
+    const { data } = await catalogClient.from("ads").select("*")
+      .eq("advertiser_id", filters.brand).order("last_seen_at", { ascending: false }).limit(100);
+    const known = (data || []).map(brandFromRow).find(brand => brand &&
+      (!filters.selectedBrand || brand.provider === filters.selectedBrand.provider));
+    if (known) filters.selectedBrand = known;
+  }
   let resolvedIntent: SearchIntent | undefined = undefined;
 
   if (filters.brand) {
-    resolvedIntent = { type: "advertiser", advertiserId: filters.brand, advertiserName: filters.query || "" };
+    resolvedIntent = { type: "advertiser", advertiserId: filters.brand, advertiserName: filters.selectedBrand?.name || "" };
   } else if (filters.query) {
     resolvedIntent = { type: "keyword", query: filters.query };
   }
@@ -126,19 +145,32 @@ export async function POST(request: NextRequest) {
   if (normalizedFilters.contentStyles) normalizedFilters.contentStyles.sort();
   
   const key = JSON.stringify(normalizedFilters);
-  const hit = cache.get(key);
-  if (hit && hit.expires > Date.now()) {
-    return NextResponse.json(hit.payload, { headers: { "X-Cache": "HIT" } });
-  }
+  const isDefaultDiscoverFeed = !filters.query && !filters.brand;
+  cache.delete(key);
 
   try {
     let payload: AdSearchResult | null = null;
 
     // 1. Check Supabase preload/cache first if query is empty or requesting discovery feed
     // For competitors, ALWAYS use the DB because their ads are synced manually.
-    if (isSupabaseConfigured && (!filters.query || !filters.query.trim()) && (!filters.brand || filters.source === "competitor")) {
+    if (isSupabaseConfigured && (!filters.cursor || /^\d+$/.test(filters.cursor))) {
       try {
         let query = catalogClient!.from("ads").select("*", { count: "exact" });
+        const defaultFeed = !filters.query && !filters.brand;
+        const hasActiveFilters = Boolean(
+          filters.formats?.length || filters.statuses?.length || filters.markets?.length ||
+          filters.platforms?.length || filters.country && filters.country !== "ALL" ||
+          filters.status && filters.status !== "all" || filters.mediaType && filters.mediaType !== "all" ||
+          filters.cta || filters.runtime || filters.startDate || filters.endDate
+        );
+        if (filters.brand) query = query.eq("advertiser_id", filters.selectedBrand?.providerAdvertiserId || filters.brand);
+        else if (filters.query) {
+          const q = filters.query.replace(/[%_,().]/g, " ").trim();
+          query = query.or(`headline.ilike.%${q}%,body.ilike.%${q}%,advertiser_name.ilike.%${q}%`);
+        } else {
+          query = query.not("advertiser_name", "is", null).neq("advertiser_name", "");
+        }
+        if (filters.selectedBrand) query = query.in("source", filters.selectedBrand.provider === "meta" ? ["meta", "meta_official", "searchapi", "metaapi_io"] : ["foreplay"]);
         
         // Apply Plural filters
         if (filters.formats?.length) query = query.in("media_type", filters.formats);
@@ -190,16 +222,52 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        // Fetch exactly the requested page + 1 to determine next cursor
-        query = query.range(offset, offset + limit);
+        let rangeStart = offset;
+        let rangeEnd = offset + limit;
+        if (defaultFeed && !filters.cursor && !hasActiveFilters) {
+          const { count } = await catalogClient!.from("ads").select("id", { count: "exact", head: true })
+            .not("advertiser_name", "is", null).neq("advertiser_name", "");
+          const maxStart = Math.max(0, (count || 0) - 1000);
+          rangeStart = maxStart > 0 ? Math.floor(Math.random() * maxStart) : 0;
+          rangeEnd = rangeStart + 999;
+        } else if (defaultFeed) {
+          rangeEnd = offset + 999;
+        }
+        query = query.range(rangeStart, rangeEnd);
 
         const { data, error } = await query;
 
         if (!error && data) {
-          const hasMore = data.length > limit;
+          let sampleRows = data;
+          if (defaultFeed && !filters.cursor && !hasActiveFilters && sampleRows.length) {
+            const seen = new Set(sampleRows.map(row => row.canonical_ad_id || row.id));
+            const { count } = await catalogClient!.from("ads").select("id", { count: "exact", head: true })
+              .not("advertiser_name", "is", null).neq("advertiser_name", "");
+            const maxStart = Math.max(0, (count || 0) - 120);
+            for (let i = 0; i < 8 && sampleRows.length < 1000; i++) {
+              const start = maxStart > 0 ? Math.floor(Math.random() * maxStart) : 0;
+              const { data: extra } = await catalogClient!.from("ads").select("*")
+                .not("advertiser_name", "is", null).neq("advertiser_name", "")
+                .order("last_seen_at", { ascending: false })
+                .order("canonical_ad_id", { ascending: true })
+                .range(start, start + 119);
+              for (const row of extra || []) {
+                const id = row.canonical_ad_id || row.id;
+                if (!seen.has(id)) {
+                  seen.add(id);
+                  sampleRows.push(row);
+                }
+              }
+            }
+          }
+          const hasMore = sampleRows.length > limit;
+          const sourceData = defaultFeed
+            ? takeDefaultFeed(sampleRows, limit, filters)
+            : (hasMore ? data.slice(0, limit) : data).map(dbAdToNormalized);
           const pagedData = hasMore ? data.slice(0, limit) : data;
           
-          const ads = pagedData.map(dbAdToNormalized);
+          const canonical = data.map(brandFromRow).filter((brand): brand is NonNullable<typeof brand> => Boolean(brand));
+          const ads = ensureWinnerScores(resolveAdIdentities(sourceData, canonical, filters.selectedBrand, filters.brand));
           
           // No longer deduplicating aggressively by ad.id because canonical_ad_id is unique per creative variant.
           // The UI will group them if needed, but the search API returns all variants.
@@ -207,10 +275,10 @@ export async function POST(request: NextRequest) {
           const nextOffset = offset + limit;
           const nextCursor = hasMore ? nextOffset.toString() : null;
           
-          payload = { 
+          if (ads.length || filters.source === "competitor" || filters.cursor) payload = {
             ads: adsForClient(ads), 
             nextCursor, 
-            total: pagedData.length, // total is an estimate or omitted unless we want to query exact count again
+            total: defaultFeed ? ads.length : pagedData.length,
             source: "catalog" 
           };
         } else if (filters.source === "competitor") {
@@ -270,6 +338,12 @@ export async function POST(request: NextRequest) {
           }
           
           const result = await pending;
+          const ids = [...new Set(result.ads.map(ad => ad.advertiser?.id).filter((id): id is string => Boolean(id)))];
+          const { data: mappings } = ids.length
+            ? await catalogClient!.from("ads").select("*").in("advertiser_id", ids).limit(1000)
+            : { data: [] };
+          const canonical = (mappings || []).map(brandFromRow).filter((b): b is NonNullable<typeof b> => Boolean(b));
+          result.ads = ensureWinnerScores(resolveAdIdentities(result.ads, canonical, filters.selectedBrand, filters.brand));
           
             if (result && result.ads && result.ads.length > 0) {
               // Note: We no longer deduplicate by ad.id blindly here.
@@ -284,11 +358,10 @@ export async function POST(request: NextRequest) {
               result.ads = Array.from(dedupMap.values());
             
             const adsToArchive = result.ads;
-            after(() => {
-              persistNormalizedAds(adsToArchive)
-                .then(() => archiveAdsInBackground(adsToArchive))
-                .catch(console.error);
-            });
+            // Complete identity persistence before responding so immediate refresh is consistent.
+            const persistence = await persistNormalizedAds(adsToArchive);
+            if (persistence.error) throw new ProviderError("PROVIDER_UNAVAILABLE", persistence.error, 502);
+            after(() => archiveAdsInBackground(adsToArchive));
 
             // Apply fingerprint dedupe for UI
             const uiDedupMap = new Map<string, NormalizedAd>();
@@ -317,7 +390,7 @@ export async function POST(request: NextRequest) {
             let query = catalogClient!.from("ads").select("*", { count: "exact" });
             
             if (filters.brand) {
-              query = query.eq("advertiser_id", filters.brand);
+              query = query.eq("advertiser_id", filters.selectedBrand?.providerAdvertiserId || filters.brand);
             } else if (filters.query) {
               const q = filters.query.trim().replace(/%/g, '\\%');
               query = query.or(`headline.ilike.%${q}%,body.ilike.%${q}%,description.ilike.%${q}%,advertiser_name.ilike.%${q}%`);
@@ -342,7 +415,9 @@ export async function POST(request: NextRequest) {
 
             const { data } = await query;
             if (data && data.length > 0) {
-              const deduplicated = Array.from(new Map(data.map(dbAdToNormalized).map(ad => [ad.id, ad])).values());
+              const canonical = data.map(brandFromRow).filter((brand): brand is NonNullable<typeof brand> => Boolean(brand));
+              const resolved = ensureWinnerScores(resolveAdIdentities(data.map(dbAdToNormalized), canonical, filters.selectedBrand, filters.brand));
+              const deduplicated = Array.from(new Map(resolved.map(ad => [ad.id, ad])).values());
                 payload = { 
                   ads: adsForClient(deduplicated), 
                   nextCursor: data.length === 25 ? (offset + 25).toString() : null, 
@@ -376,9 +451,9 @@ export async function POST(request: NextRequest) {
     }
 
     if (payload) {
-      if (payload.ads.length > 0) {
-        cache.set(key, { expires: Date.now() + 5 * 60_000, payload });
-      }
+      payload.ads = ensureWinnerScores(resolveAdIdentities(payload.ads, [], filters.selectedBrand, filters.brand));
+      payload.brand = filters.selectedBrand;
+      cache.delete(key);
       payload.resolvedIntent = resolvedIntent;
       payload.requestId = requestId;
 
@@ -402,12 +477,12 @@ export async function POST(request: NextRequest) {
         });
       }
 
-      return NextResponse.json(payload);
+      return NextResponse.json(payload, { headers: { "Cache-Control": "no-store" } });
     }
 
-    cache.set(key, { expires: Date.now() + 5 * 60_000, payload });
+    payload = { ads: [], nextCursor: null, total: 0, source: "catalog", brand: filters.selectedBrand, resolvedIntent, requestId };
     if (cache.size > 200) cache.delete(cache.keys().next().value as string);
-    return NextResponse.json(payload, { headers: { "Cache-Control": "private, max-age=60" } });
+    return NextResponse.json(payload, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     if (error instanceof ProviderError) {
       return NextResponse.json({ success: false, code: error.code, message: error.message, requestId, retryable: error.status >= 500 || error.status === 429 || error.status === 408 }, { status: error.status });
@@ -420,16 +495,12 @@ export async function POST(request: NextRequest) {
 }
 
 
-function rankDiscoveryFeed(ads: NormalizedAd[], applyDiversityLimit: boolean) {
+export function rankDiscoveryFeed(ads: NormalizedAd[], applyDiversityLimit: boolean) {
   const ranked = [...ads].sort((a, b) => {
     // Relevance score proxies
-    let aScore = (a.intelligence.winnerScore ?? 0) + (a.delivery.status === "active" ? 10 : 0) + Math.min(a.delivery.daysRunning || 0, 120) / 6 + Math.min(a.variants ?? 0, 10) * 2;
-    let bScore = (b.intelligence.winnerScore ?? 0) + (b.delivery.status === "active" ? 10 : 0) + Math.min(b.delivery.daysRunning || 0, 120) / 6 + Math.min(b.variants ?? 0, 10) * 2;
+    const aScore = (a.intelligence.winnerScore ?? 0) + (a.delivery.status === "active" ? 10 : 0) + Math.min(a.delivery.daysRunning || 0, 120) / 6 + Math.min(a.variants ?? 0, 10) * 2;
+    const bScore = (b.intelligence.winnerScore ?? 0) + (b.delivery.status === "active" ? 10 : 0) + Math.min(b.delivery.daysRunning || 0, 120) / 6 + Math.min(b.variants ?? 0, 10) * 2;
     
-    if (applyDiversityLimit) {
-      if (a.advertiser?.name?.toLowerCase().includes("foxtale")) aScore += 1000;
-      if (b.advertiser?.name?.toLowerCase().includes("foxtale")) bScore += 1000;
-    }
 
     if (bScore !== aScore) return bScore - aScore;
     return a.id.localeCompare(b.id);
@@ -472,5 +543,69 @@ function rankDiscoveryFeed(ads: NormalizedAd[], applyDiversityLimit: boolean) {
     
     advertiserCounts.set(key, currentCount + 1);
     return true;
+  });
+}
+
+function takeDefaultFeed(rows: Parameters<typeof dbAdToNormalized>[0][], limit: number, filters: AdSearchFilters) {
+  const counts = new Map<string, number>();
+  return rows
+    .map(row => resolveAdIdentities([dbAdToNormalized(row)], brandFromRow(row) ? [brandFromRow(row)!] : [])[0])
+    .filter(ad => realAdvertiserName(ad.advertiser?.name, ad.advertiser?.id))
+    .filter(hasRenderableMedia)
+    .filter(ad => matchesClientFilters(ad, filters))
+    .sort(() => Math.random() - 0.5)
+    .filter(ad => {
+      const key = ad.advertiser?.id || realAdvertiserName(ad.advertiser?.name) || ad.id;
+      const count = counts.get(key) || 0;
+      if (count >= 2) return false;
+      counts.set(key, count + 1);
+      return true;
+    })
+    .slice(0, limit);
+}
+
+function hasRenderableMedia(ad: NormalizedAd) {
+  const media = resolveAdMedia(ad);
+  return Boolean(media.imageUrl || media.videoUrl || media.thumbnailUrl || media.carouselAssets?.length);
+}
+
+function matchesClientFilters(ad: NormalizedAd, filters: AdSearchFilters) {
+  if (filters.languages?.length && !filters.languages.some(value => ad.delivery.countries.includes(value.toUpperCase()))) return false;
+  const haystack = [
+    ad.intelligence?.category,
+    ad.intelligence?.creativeFormat,
+    ad.intelligence?.hookType,
+    ad.intelligence?.offerType,
+    ...(ad.intelligence?.labels || []),
+    ad.copy?.headline,
+    ad.copy?.primaryText,
+    ad.copy?.description,
+  ].filter(Boolean).join(" ").toLowerCase();
+  if (filters.niches?.length && !filters.niches.some(value => haystack.includes(value.toLowerCase()))) return false;
+  if (filters.contentStyles?.length && !filters.contentStyles.some(value => haystack.includes(value.toLowerCase()))) return false;
+  return true;
+}
+
+function ensureWinnerScores(ads: NormalizedAd[]) {
+  const byAdvertiser = new Map<string, NormalizedAd[]>();
+  for (const ad of ads) {
+    const key = ad.advertiser?.id || ad.advertiser?.name || "unknown";
+    if (!byAdvertiser.has(key)) byAdvertiser.set(key, []);
+    byAdvertiser.get(key)!.push(ad);
+  }
+  return ads.map(ad => {
+    const hasEvidence = ad.delivery?.status === "active" ||
+      (ad.delivery?.daysRunning ?? 0) > 0 ||
+      (ad.variants ?? 1) > 1 ||
+      Boolean(ad.destination?.url) ||
+      Boolean(ad.delivery?.countries?.length);
+    if ((ad.intelligence?.winnerScore ?? null) !== 0 || !hasEvidence) return ad;
+    return {
+      ...ad,
+      intelligence: {
+        ...ad.intelligence,
+        winnerScore: calculateWinnerScore(ad, { advertiserAds: byAdvertiser.get(ad.advertiser?.id || ad.advertiser?.name || "unknown") || [ad] }),
+      },
+    };
   });
 }

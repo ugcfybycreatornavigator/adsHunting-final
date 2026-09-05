@@ -44,7 +44,7 @@ function SuggestionAvatar({ suggestion, fallbackIcon }: { suggestion: SearchSugg
 interface SearchAutocompleteProps {
   value: string;
   onChange: (val: string) => void;
-  onSelectBrand: (id: string, name: string) => void;
+  onSelectBrand: (suggestion: SearchSuggestion) => void;
   onSelectCategory: (id: string, type: string, label: string) => void;
   onSubmit: (query: string) => void;
   onClear: () => void;
@@ -206,7 +206,7 @@ export function SearchAutocomplete({
 
   const handleSelectSuggestion = (s: SearchSuggestion) => {
     if (s.type === "brand" || s.type === "advertiser") {
-      onSelectBrand(s.id, s.label);
+      onSelectBrand(s);
     } else if (s.type === "category") {
       onSelectCategory(s.id, s.subtitle || "Niche", s.label);
     } else {

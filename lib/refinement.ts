@@ -14,7 +14,8 @@ export function refineAd(ad: Partial<NormalizedAd>): NormalizedAd {
     },
     advertiser: {
       id: ad.advertiser?.id || null,
-      name: ad.advertiser?.name || "Unknown Advertiser",
+      name: ad.advertiser?.name || null,
+      displayName: ad.advertiser?.name || null,
       normalizedName: ad.advertiser?.normalizedName || null,
       pageUrl: ad.advertiser?.pageUrl || null,
       logoUrl: ad.advertiser?.logoUrl || null,

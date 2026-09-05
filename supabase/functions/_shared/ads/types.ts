@@ -1,3 +1,4 @@
+import type { BrandIdentity } from "./advertiser-identity.ts";
 export type AdStatus = "active" | "inactive" | "unknown";
 export type MediaType = "image" | "video" | "carousel" | "unknown";
 
@@ -42,6 +43,7 @@ export interface NormalizedCarouselCard {
 export type RefinedAd = {
   id: string;
   externalId: string | null;
+  rawData?: Record<string, unknown> | null;
 
   provider: {
     discoveryProvider: "searchapi" | "metaapi_io" | "meta_official" | "foreplay" | "spyglass" | "catalog";
@@ -127,6 +129,7 @@ export type NormalizedAd = RefinedAd;
 export interface AdSearchFilters {
   query?: string;
   brand?: string;
+  selectedBrand?: BrandIdentity;
   platforms?: string[];
   sort?: string;
   cursor?: string;

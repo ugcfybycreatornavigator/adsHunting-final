@@ -1,3 +1,4 @@
+import { realAdvertiserName } from "../supabase/functions/_shared/ads/advertiser-identity";
 type ClassValue = string | number | null | false | undefined | ClassValue[] | Record<string, boolean | null | undefined>;
 
 export function cn(...inputs: ClassValue[]): string {
@@ -73,4 +74,17 @@ export function sanitizeAdCopy(value?: string | null): string | null {
   // Strip inline template placeholders if any remain inside longer text
   const cleaned = trimmed.replace(/\{\{[\s\S]*?\}\}|\$\{[\s\S]*?\}|\{%[\s\S]*?%\}/g, "").trim();
   return cleaned || null;
+}
+
+export function isValidAdvertiserName(value?: string | null): value is string {
+  return realAdvertiserName(value) !== null;
+}
+
+export function extractAdvertiserName(candidates: (string | undefined | null)[]): string | null {
+  for (const candidate of candidates) {
+    if (isValidAdvertiserName(candidate)) {
+      return candidate.trim();
+    }
+  }
+  return null;
 }

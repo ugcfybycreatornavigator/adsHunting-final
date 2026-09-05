@@ -3,6 +3,10 @@ import { getServerEnv } from "@/lib/env/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAdProviders } from "@/lib/providers";
 import { persistNormalizedAds } from "@/lib/ads-persistence";
+import { brandFromRow, realAdvertiserName, resolveAdIdentities } from "@/lib/advertiser-identity";
+import type { AdSearchFilters, BrandIdentity } from "@/lib/types";
+import { dbAdToNormalized } from "@/lib/catalog";
+import { resolveAdMedia } from "@/lib/media";
 
 export type CreativePreview = { id: string; url: string; type: string };
 
@@ -50,6 +54,8 @@ export type TrackedRecord = {
 };
 
 type BulkAdRow = {
+  id?: string;
+  external_ad_id?: string;
   advertiser_id: string;
   advertiser_name: string;
   advertiser_avatar_url: string | null;
@@ -63,7 +69,24 @@ type BulkAdRow = {
   canonical_ad_id: string;
   source_media_url: string | null;
   thumbnail_url: string | null;
+  raw_data?: Record<string, unknown> | null;
+  refined_data?: Record<string, unknown> | null;
+  quality_score?: number | null;
+  first_seen_at?: string;
+  last_seen_at?: string;
+  stop_date?: string | null;
+  advertiser_profile_url?: string | null;
+  landing_page_url?: string | null;
+  body?: string | null;
+  headline?: string | null;
+  description?: string | null;
+  country?: string | null;
+  stored_media_path?: string | null;
+  snapshot_url?: string | null;
+  source?: string;
 };
+
+type IdentityRecord = Partial<TrackedRecord> & { sync_status?: string; ads_count?: number };
 
 /**
  * Triggers an immediate API sync for the given competitor's ads and saves them to the DB.
@@ -79,29 +102,22 @@ export async function syncCompetitorAds(advertiserId: string): Promise<number> {
       return -1;
     }
     
+    const supabase = createAdminClient();
+    const brandContext = await loadCompetitorBrandIdentity(supabase, advertiserId);
+    const filters: AdSearchFilters = { brand: advertiserId, selectedBrand: brandContext, statuses: ["active", "inactive"] };
     const { getAdProviders } = await import("@/lib/providers/index");
-    const providers = getAdProviders({ brand: advertiserId });
+    const providers = getAdProviders(filters);
     if (providers.length === 0) {
       console.warn(`${logPrefix} No providers configured`);
       return -1;
     }
 
     const provider = providers[0].provider;
-    const supabase = createAdminClient();
-    
-    // Attempt to load known brand context to prevent "Unknown Brand"
-    let brandContext = undefined;
-    try {
-      const { data: comp } = await supabase.from("competitors").select("advertiser_name, advertiser_avatar_url").eq("advertiser_id", advertiserId).maybeSingle();
-      if (comp && comp.advertiser_name) {
-        brandContext = { brandName: comp.advertiser_name, logoUrl: comp.advertiser_avatar_url || undefined };
-      }
-    } catch (e) {}
 
     console.info(`${logPrefix} Syncing ads via ${providers[0].name}...`);
-    const result = await provider.searchAds({ brand: advertiserId, statuses: ["active", "inactive"] }, brandContext);
+    const result = await provider.searchAds(filters);
     
-    const ads = result.ads;
+    const ads = resolveAdIdentities(result.ads, brandContext ? [brandContext] : [], brandContext, advertiserId);
 
     if (ads.length === 0) {
       console.info(`${logPrefix} Provider returned 0 ads`);
@@ -130,7 +146,7 @@ export async function syncCompetitorAds(advertiserId: string): Promise<number> {
     if (!persistError) {
       try {
         const firstAd = uniqueAds[0];
-        const resolvedName = firstAd?.advertiser?.name;
+        const resolvedName = realAdvertiserName(firstAd?.advertiser?.name, firstAd?.advertiser?.id);
         const resolvedAvatar = firstAd?.advertiser?.logoUrl;
         
         if (
@@ -166,6 +182,68 @@ export async function syncCompetitorAds(advertiserId: string): Promise<number> {
   }
 }
 
+async function loadCompetitorBrandIdentity(
+  supabase: ReturnType<typeof createAdminClient>,
+  advertiserId: string
+): Promise<BrandIdentity | undefined> {
+  const { data: rows } = await supabase
+    .from("ads")
+    .select("*")
+    .eq("advertiser_id", advertiserId)
+    .order("last_seen_at", { ascending: false })
+    .limit(100);
+  const fromAds = (rows || []).map(brandFromRow).find(Boolean);
+  if (fromAds) return fromAds;
+
+  const { data: competitor } = await supabase
+    .from("competitors")
+    .select("advertiser_name, advertiser_avatar_url")
+    .eq("advertiser_id", advertiserId)
+    .maybeSingle();
+  const name = realAdvertiserName(competitor?.advertiser_name, advertiserId);
+  if (!name) return undefined;
+  return {
+    id: advertiserId,
+    name,
+    provider: "meta",
+    providerAdvertiserId: advertiserId,
+    logoUrl: competitor?.advertiser_avatar_url || null,
+  };
+}
+
+async function loadProfileIdentity(
+  supabase: ReturnType<typeof createAdminClient>,
+  advertiserId: string,
+  competitorRecord?: IdentityRecord | null,
+  displayNameHint?: string
+): Promise<IdentityRecord | null> {
+  const competitorName = realAdvertiserName(competitorRecord?.advertiser_name, advertiserId);
+  if (competitorName) return { ...competitorRecord, advertiser_name: competitorName };
+
+  const hintName = realAdvertiserName(displayNameHint, advertiserId);
+  if (hintName) {
+    return {
+      ...competitorRecord,
+      advertiser_name: hintName,
+      advertiser_avatar_url: competitorRecord?.advertiser_avatar_url || null,
+    };
+  }
+
+  const { data: rows } = await supabase
+    .from("ads")
+    .select("*")
+    .eq("advertiser_id", advertiserId)
+    .order("last_seen_at", { ascending: false })
+    .limit(100);
+  const fromAds = (rows || []).map(brandFromRow).find(Boolean);
+  if (!fromAds) return null;
+  return {
+    ...competitorRecord,
+    advertiser_name: fromAds.name,
+    advertiser_avatar_url: fromAds.logoUrl || competitorRecord?.advertiser_avatar_url || null,
+  };
+}
+
 /**
  * Core normalization logic to convert a raw list of ads into intelligence metrics.
  * This is the SINGLE canonical source for calculating competitor stats.
@@ -173,7 +251,7 @@ export async function syncCompetitorAds(advertiserId: string): Promise<number> {
 function buildCompetitorIntelligence(
   advertiserId: string,
   ads: BulkAdRow[],
-  trackedRecord?: (Partial<TrackedRecord> & { sync_status?: string; ads_count?: number }) | null
+  trackedRecord?: IdentityRecord | null
 ): CompetitorIntelligence {
   const oneWeekAgo = new Date();
   oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
@@ -183,30 +261,29 @@ function buildCompetitorIntelligence(
   // 1. Tracked competitor DB record (highest priority - user-set or canonical value)
   // 2. First ad's advertiser name (from provider)
   // 3. Fallback based on sync status
-  let brandName = trackedRecord?.advertiser_name;
+  let brandName = realAdvertiserName(trackedRecord?.advertiser_name, advertiserId);
   let logoUrl = trackedRecord?.advertiser_avatar_url || null;
 
-  if (brandName && brandName.trim() !== "" && brandName !== "Unknown Brand") {
+  if (brandName) {
     // Use canonical name (highest priority)
   } else if (ads.length > 0) {
     // Use provider name from ads
-    brandName = ads[0].advertiser_name;
+    brandName = realAdvertiserName(ads[0].advertiser_name, advertiserId) || "";
     logoUrl = ads[0].advertiser_avatar_url || null;
   } else {
     // No tracked name and no ads - determine fallback
     if (trackedRecord?.sync_status === "syncing") {
-      brandName = "Fetching advertiser...";
+      brandName = "";
     } else if (trackedRecord?.sync_status === "error") {
-      brandName = `${advertiserId}`;
+      brandName = "";
     } else {
-      // Default fallback to provider ID
-      brandName = `${advertiserId}`;
+      brandName = "";
     }
   }
 
-  // Safety: ensure we always have a brand name
+  // Safety: ensure the profile never renders an opaque provider ID as the brand name.
   if (!brandName || brandName.trim() === "") {
-    brandName = `${advertiserId}`;
+    brandName = "Brand";
   }
 
   // Deduplicate Ads by canonical ID
@@ -245,7 +322,11 @@ function buildCompetitorIntelligence(
   const stoppedAdsThisWeek = distinctAds.filter(a => a.status !== "active" && a.end_date && a.end_date >= oneWeekAgoStr).length;
 
   // Durations
-  const activeDays = distinctAds.map(a => a.running_days).filter((d): d is number => typeof d === "number" && d > 0);
+  const activeDays = distinctAds
+    .map(ad => typeof ad.running_days === "number" && ad.running_days > 0
+      ? ad.running_days
+      : ad.start_date ? Math.max(1, Math.ceil((Date.now() - new Date(ad.start_date).getTime()) / 86_400_000)) : null)
+    .filter((d): d is number => typeof d === "number" && Number.isFinite(d) && d > 0);
   const longest = activeDays.length > 0 ? Math.max(...activeDays) : null;
   const average = activeDays.length > 0 ? Math.round(activeDays.reduce((sum, d) => sum + d, 0) / activeDays.length) : null;
 
@@ -257,13 +338,13 @@ function buildCompetitorIntelligence(
 
   // Previews
   const latestCreatives = distinctAds
-    .filter(a => a.thumbnail_url || a.source_media_url)
-    .slice(0, 10)
-    .map(a => ({
-      id: a.canonical_ad_id,
-      url: (a.thumbnail_url || a.source_media_url) as string,
-      type: a.media_type
-    }));
+    .map(row => {
+      const media = resolveAdMedia(dbAdToNormalized(row as unknown as Parameters<typeof dbAdToNormalized>[0]));
+      const url = media.thumbnailUrl || media.imageUrl || media.videoUrl || media.carouselAssets?.[0] || null;
+      return url ? { id: row.canonical_ad_id, url, type: media.kind as string } : null;
+    })
+    .filter((item): item is CreativePreview => Boolean(item))
+    .slice(0, 10);
 
   // Dates
   const allStartDates = distinctAds.map(a => a.start_date).filter((d): d is string => Boolean(d)).sort();
@@ -307,7 +388,7 @@ const BRAND_CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours config
  * Gets the intelligence for a single competitor (Intelligence Page).
  * Safely handles syncing if no data exists or is stale.
  */
-export async function getCompetitorIntelligence(id: string, allowSync = true, userId?: string): Promise<CompetitorIntelligence> {
+export async function getCompetitorIntelligence(id: string, allowSync = true, userId?: string, displayNameHint?: string): Promise<CompetitorIntelligence> {
   const supabase = createAdminClient();
 
   // 1. Fetch tracked competitor record for custom name overriding & cache freshness
@@ -325,12 +406,13 @@ export async function getCompetitorIntelligence(id: string, allowSync = true, us
   const fetchAds = async () => {
     const { data } = await supabase
       .from("ads")
-      .select("advertiser_id, advertiser_name, advertiser_avatar_url, status, running_days, start_date, media_type, cta, platforms, canonical_ad_id, source_media_url, thumbnail_url, end_date")
+      .select("*")
       .eq("advertiser_id", id);
     return (data || []) as BulkAdRow[];
   };
 
   let ads = await fetchAds();
+  const profileIdentity = await loadProfileIdentity(supabase, id, competitorRecord, displayNameHint);
 
   // 2. Cache-First Logic: Check if we need to sync based on TTL
   const lastSynced = competitorRecord?.last_synced_at ? new Date(competitorRecord.last_synced_at).getTime() : 0;
@@ -349,7 +431,7 @@ export async function getCompetitorIntelligence(id: string, allowSync = true, us
   }
 
   // 3. Fallback identity if still unknown
-  let fallbackRecord = competitorRecord;
+  let fallbackRecord = profileIdentity || competitorRecord;
   if (ads.length === 0 && !fallbackRecord) {
     try {
       const providers = getAdProviders({ brand: id });
@@ -385,7 +467,7 @@ export async function getCompetitorSummaries(trackedRecords: TrackedRecord[]): P
 
   const { data: adsData } = await supabase
     .from("ads")
-    .select("advertiser_id, advertiser_name, advertiser_avatar_url, status, running_days, start_date, media_type, cta, platforms, canonical_ad_id, source_media_url, thumbnail_url, end_date")
+    .select("*")
     .in("advertiser_id", advertiserIds)
     .order("start_date", { ascending: false });
 

@@ -23,7 +23,7 @@ const defaults: AdSearchFilters = { query: "", status: "all", country: "ALL", pl
 
 export function DiscoverExperience({ brandId, hideHeader = false }: { brandId?: string, hideHeader?: boolean }) {
   const defaultFilters = useMemo(() => ({ ...defaults, brand: brandId }), [brandId]);
-  const { filters, updateFilters: setFilters, clearFilters } = useUrlFilters(defaultFilters);
+  const { filters, updateFilters: setFilters, clearFilters } = useUrlFilters(defaultFilters, { syncUrl: !hideHeader, readUrl: !hideHeader });
   const [ads, setAds] = useState<NormalizedAd[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
   const [total, setTotal] = useState<number | null>(null);
@@ -381,8 +381,8 @@ export function DiscoverExperience({ brandId, hideHeader = false }: { brandId?: 
                 onSubmit={(val) => {
                   setFilters({ query: val, brand: undefined });
                 }}
-                onSelectBrand={(id, name) => {
-                  setFilters({ query: name, brand: id });
+                onSelectBrand={(suggestion) => {
+                  setFilters({ query: suggestion.label, brand: suggestion.id, selectedBrand: suggestion.brand });
                 }}
                 onSelectCategory={(id, type) => {
                   const key = type === "Niche" ? "niches" : type === "Style" ? "contentStyles" : type === "Language" ? "languages" : "markets";

@@ -23,7 +23,7 @@ test("Contract: refineAd handles missing advertiser metadata", () => {
   const ad = { id: "test-3" };
   const refined = refineAd(ad);
   assert.ok(refined.advertiser);
-  assert.equal(refined.advertiser.name, "Unknown Advertiser");
+  assert.equal(refined.advertiser.name, null);
   assert.equal(refined.advertiser.logoUrl, null);
 });
 

@@ -1,3 +1,4 @@
+import { realAdvertiserName, resolveAdvertiser } from "../supabase/functions/_shared/ads/advertiser-identity";
 import type { AdStatus, MediaType, NormalizedAd } from "@/lib/types";
 
 export interface DatabaseAdRow {
@@ -44,16 +45,34 @@ export interface DatabaseAdRow {
 }
 
 export function dbAdToNormalized(row: DatabaseAdRow): NormalizedAd {
+  const derivedRunningDays = row.running_days && row.running_days > 0
+    ? Number(row.running_days)
+    : row.start_date
+      ? Math.max(0, Math.floor(((row.stop_date ? new Date(row.stop_date).getTime() : Date.now()) - new Date(row.start_date).getTime()) / 86_400_000))
+      : null;
   if (row.refined_data && Object.keys(row.refined_data).length > 0) {
     const refinedAd = row.refined_data as unknown as NormalizedAd;
-    // ensure IDs match row
-    refinedAd.id = row.id;
-    return refinedAd;
+    const advertiser = refinedAd.advertiser || { id: row.advertiser_id, name: null, logoUrl: null,
+      pageUrl: null, domain: null, normalizedName: null, social: { facebook: null, instagram: null, linkedin: null } };
+    return { ...refinedAd, id: row.canonical_ad_id || row.id,
+      creative: {
+        ...refinedAd.creative,
+        imageUrl: refinedAd.creative?.imageUrl || (row.media_type === "video" ? null : row.source_media_url),
+        videoUrl: refinedAd.creative?.videoUrl || (row.media_type === "video" ? row.source_media_url : null),
+        thumbnailUrl: refinedAd.creative?.thumbnailUrl || row.thumbnail_url,
+        carouselItems: refinedAd.creative?.carouselItems || [],
+      },
+      advertiser: resolveAdvertiser({ ...advertiser, id: advertiser.id || row.advertiser_id }, undefined, undefined, {
+        name: realAdvertiserName(row.advertiser_name, row.advertiser_id),
+        logoUrl: row.advertiser_avatar_url, pageUrl: row.advertiser_profile_url,
+      }),
+      delivery: { ...refinedAd.delivery, daysRunning: derivedRunningDays },
+    };
   }
 
   // Fallback for old records without refined_data
   return {
-    id: row.id,
+    id: row.canonical_ad_id || row.id,
     externalId: row.external_ad_id,
     provider: {
       discoveryProvider: row.source as NormalizedAd["provider"]["discoveryProvider"],
@@ -61,7 +80,7 @@ export function dbAdToNormalized(row: DatabaseAdRow): NormalizedAd {
     },
     advertiser: {
       id: row.advertiser_id,
-      name: row.advertiser_name,
+      name: realAdvertiserName(row.advertiser_name, row.advertiser_id),
       normalizedName: null,
       pageUrl: row.advertiser_profile_url,
       logoUrl: row.advertiser_avatar_url,
@@ -76,8 +95,8 @@ export function dbAdToNormalized(row: DatabaseAdRow): NormalizedAd {
     },
     creative: {
       type: row.media_type,
-      imageUrl: row.source_media_url,
-      videoUrl: row.source_media_url,
+      imageUrl: row.media_type === "video" ? null : row.source_media_url,
+      videoUrl: row.media_type === "video" ? row.source_media_url : null,
       thumbnailUrl: row.thumbnail_url,
       carouselItems: [], // Fallback ignores old carousel
     },
@@ -85,7 +104,7 @@ export function dbAdToNormalized(row: DatabaseAdRow): NormalizedAd {
       status: row.status,
       startedAt: row.start_date,
       endedAt: row.stop_date,
-      daysRunning: row.running_days == null ? null : Number(row.running_days),
+      daysRunning: derivedRunningDays,
       platforms: row.platforms ?? [],
       countries: row.country ? [row.country] : [],
     },
@@ -126,7 +145,7 @@ export function normalizedToDb(ad: NormalizedAd): Omit<DatabaseAdRow, "created_a
     observation_count: 1,
     provider_ad_ids: [ad.externalId || ad.id],
     advertiser_id: ad.advertiser.id || "unknown",
-    advertiser_name: ad.advertiser.name || "Unknown",
+    advertiser_name: realAdvertiserName(ad.advertiser.name, ad.advertiser.id) || "",
     advertiser_avatar_url: ad.advertiser.logoUrl,
     advertiser_profile_url: ad.advertiser.pageUrl,
     body: ad.copy.primaryText,

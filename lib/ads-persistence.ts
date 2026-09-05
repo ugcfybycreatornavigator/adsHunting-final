@@ -1,10 +1,11 @@
 import "server-only";
 import type { NormalizedAd } from "@/lib/types";
-import { normalizedToDb } from "@/lib/catalog";
+import { dbAdToNormalized, normalizedToDb } from "@/lib/catalog";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { archiveMediaFromUrl } from "./media-archiver";
 import { integrationConfig } from "@/lib/env/server";
 
+import { resolveAdvertiser } from "@/lib/advertiser-identity";
 import { calculateWinnerScore } from "@/lib/intelligence";
 
 export async function persistNormalizedAds(ads: NormalizedAd[]) {
@@ -12,6 +13,22 @@ export async function persistNormalizedAds(ads: NormalizedAd[]) {
   try {
     const admin = createAdminClient();
     
+    // Batch by ad ID as well: an update may omit the advertiser ID entirely.
+    const { data: existingRows, error: identityError } = await admin.from("ads").select("*")
+      .in("canonical_ad_id", ads.map(ad => ad.id));
+    if (identityError) return { persisted: 0, error: "Existing advertiser identity could not be loaded safely." };
+    const existingById = new Map((existingRows || []).map(row => [row.canonical_ad_id, dbAdToNormalized(row)]));
+    for (const ad of ads) {
+      const existing = existingById.get(ad.id);
+      if (!existing) continue;
+      if (!ad.advertiser.id || ad.advertiser.id === "unknown") ad.advertiser.id = existing.advertiser.id;
+      if (ad.advertiser.id === existing.advertiser.id) {
+        ad.advertiser = resolveAdvertiser(ad.advertiser, undefined, undefined, existing.advertiser);
+      } else if (!ad.advertiser.name) {
+        return { persisted: 0, error: "Conflicting advertiser identity on an existing ad." };
+      }
+    }
+
     // Group incoming ads by advertiser
     const adsByAdvertiser = new Map<string, NormalizedAd[]>();
     for (const ad of ads) {
@@ -43,7 +60,7 @@ export async function persistNormalizedAds(ads: NormalizedAd[]) {
       if (dbAds && dbAds.length > 0) {
         for (const row of dbAds) {
           try {
-            existingAds.push(row.refined_data as unknown as NormalizedAd);
+            existingAds.push(dbAdToNormalized(row));
           } catch {
              // Ignore malformed refined_data
           }

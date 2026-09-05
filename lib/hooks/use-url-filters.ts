@@ -13,18 +13,22 @@ function safeParseJSON<T>(str: string | null, fallback: T): T {
   }
 }
 
-export function useUrlFilters(defaultFilters: AdSearchFilters) {
+export function useUrlFilters(defaultFilters: AdSearchFilters, options: { syncUrl?: boolean; readUrl?: boolean } = {}) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const syncUrlEnabled = options.syncUrl !== false;
+  const readUrlEnabled = options.readUrl !== false;
 
   // Parse initial filters from URL
   const initialFilters = useMemo(() => {
     const parsed: Partial<AdSearchFilters> = {};
+    if (!readUrlEnabled) return { ...defaultFilters };
     searchParams.forEach((value, key) => {
       if (key === "q" || key === "query") parsed.query = value;
       else if (key === "view") parsed.view = value as "ads" | "brands";
       else if (key === "brand") parsed.brand = value;
+      else if (key === "selectedBrand") parsed.selectedBrand = safeParseJSON(value, undefined);
       else if (key === "sort") parsed.sort = value;
       else if (key === "platforms") parsed.platforms = value.split(",");
       else if (key === "formats") parsed.formats = value.split(",") as AdSearchFilters["formats"];
@@ -47,19 +51,21 @@ export function useUrlFilters(defaultFilters: AdSearchFilters) {
     });
 
     return { ...defaultFilters, ...parsed };
-  }, [searchParams, defaultFilters]);
+  }, [searchParams, defaultFilters, readUrlEnabled]);
 
   const [filters, setFilters] = useState<AdSearchFilters>(initialFilters);
 
   // Sync back to URL when filters change (using replaceState for speed)
   const syncToUrl = useCallback((newFilters: AdSearchFilters, replace = true) => {
     const params = new URLSearchParams();
+    if (!syncUrlEnabled) return;
     const normalized = normalizeDiscoverFilters(newFilters);
     
     // We only put non-default/non-empty values in the URL
     if (newFilters.view && newFilters.view !== "ads") params.set("view", newFilters.view);
     if (normalized.query) params.set("q", normalized.query);
     if (normalized.brand) params.set("brand", normalized.brand);
+    if (normalized.brand && normalized.selectedBrand) params.set("selectedBrand", JSON.stringify(normalized.selectedBrand));
     if (normalized.sort && normalized.sort !== defaultFilters.sort) params.set("sort", normalized.sort);
     if (normalized.platforms?.length) params.set("platforms", normalized.platforms.join(","));
     if (normalized.formats?.length) params.set("formats", normalized.formats.join(","));
@@ -93,12 +99,13 @@ export function useUrlFilters(defaultFilters: AdSearchFilters) {
     } else {
       router.push(newUrl);
     }
-  }, [pathname, router, defaultFilters]);
+  }, [pathname, router, defaultFilters, syncUrlEnabled]);
 
   // Handle popstate so browser back/forward works
   useEffect(() => {
     const handlePopState = () => {
       // When back button is pressed, the URL changes but React state needs to sync
+      if (!readUrlEnabled) return;
       const params = new URLSearchParams(window.location.search);
       const parsed: Partial<AdSearchFilters> = {};
       
@@ -106,6 +113,7 @@ export function useUrlFilters(defaultFilters: AdSearchFilters) {
         if (key === "q" || key === "query") parsed.query = value;
         else if (key === "view") parsed.view = value as "ads" | "brands";
         else if (key === "brand") parsed.brand = value;
+      else if (key === "selectedBrand") parsed.selectedBrand = safeParseJSON(value, undefined);
         else if (key === "sort") parsed.sort = value;
         else if (key === "platforms") parsed.platforms = value.split(",");
         else if (key === "formats") parsed.formats = value.split(",") as AdSearchFilters["formats"];
@@ -126,7 +134,7 @@ export function useUrlFilters(defaultFilters: AdSearchFilters) {
 
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
-  }, [defaultFilters]);
+  }, [defaultFilters, readUrlEnabled]);
 
   const updateFilters = useCallback((updates: Partial<AdSearchFilters>, replace = true) => {
     setFilters(prev => {

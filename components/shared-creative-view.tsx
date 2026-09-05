@@ -25,7 +25,7 @@ import { resolveAdMedia } from "@/lib/media";
 
 export function SharedCreativeView({ ad, onOpen }: { ad: NormalizedAd; onOpen?: () => void }) {
   const media = resolveAdMedia(ad);
-  const advertiserName = ad.advertiser.name || "Unknown advertiser";
+  const advertiserName = ad.advertiser.displayName || ad.advertiser.name || "Advertiser";
   const initial = advertiserName.slice(0, 1).toUpperCase() || "A";
 
   const displayCopy =

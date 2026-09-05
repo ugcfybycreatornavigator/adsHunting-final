@@ -1,3 +1,5 @@
+import type { BrandIdentity } from "../supabase/functions/_shared/ads/advertiser-identity";
+export type { BrandIdentity } from "../supabase/functions/_shared/ads/advertiser-identity";
 export type AdStatus = "active" | "inactive" | "unknown";
 export type MediaType = "image" | "video" | "carousel" | "unknown";
 
@@ -52,6 +54,7 @@ export type RefinedAd = {
   advertiser: {
     id: string | null;
     name: string | null;
+    displayName?: string | null;
     normalizedName: string | null;
     pageUrl: string | null;
     logoUrl: string | null;
@@ -128,6 +131,7 @@ export type NormalizedAd = RefinedAd;
 export interface AdSearchFilters {
   query?: string;
   brand?: string;
+  selectedBrand?: BrandIdentity;
   platforms?: string[];
   sort?: string;
   cursor?: string;
@@ -174,6 +178,7 @@ export interface AdSearchResult {
   nextCursor: string | null;
   total: number | null;
   source: "provider" | "catalog" | "cache";
+  brand?: BrandIdentity;
   resolvedIntent?: SearchIntent;
   requestId?: string;
   stale?: boolean;

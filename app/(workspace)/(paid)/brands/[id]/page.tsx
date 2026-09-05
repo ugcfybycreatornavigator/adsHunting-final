@@ -4,9 +4,16 @@ import { requireUser } from "@/lib/auth";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 
-export default async function BrandPage({params}:{params:Promise<{id:string}>}){
+export default async function BrandPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ name?: string }>;
+}) {
   const { id } = await params;
-  const data = await getCompetitorIntelligence(id);
+  const { name } = await searchParams;
+  const data = await getCompetitorIntelligence(id, false, undefined, name);
   const auth = await requireUser();
   let tracking = false;
   

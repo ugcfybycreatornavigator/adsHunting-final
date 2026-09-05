@@ -1,5 +1,5 @@
 import type { AdProvider, AdSearchFilters, AdSearchResult, Advertiser, MediaType, NormalizedAd, ProviderCapabilities } from "@/lib/types";
-import { daysBetween, safeExternalUrl, sanitizeAdCopy } from "@/lib/utils";
+import { daysBetween, safeExternalUrl, extractAdvertiserName, sanitizeAdCopy } from "@/lib/utils";
 import { ProviderError, providerErrorFromStatus } from "@/lib/providers/errors";
 import { computeAdIntelligence } from "@/lib/intelligence";
 import { refineAd } from "@/lib/refinement";
@@ -220,7 +220,7 @@ export function normalizeSearchApiAd(input: UnknownRecord, country?: string): No
     },
     advertiser: {
       id: text(input.page_id) || text(snapshot.page_id) || null,
-      name: text(input.page_name) || text(snapshot.page_name) || text(snapshot.current_page_name) || "Unknown advertiser",
+      name: extractAdvertiserName([text(input.page_name), text(snapshot.page_name), text(snapshot.current_page_name)]),
       normalizedName: null,
       logoUrl: safeExternalUrl(text(input.page_profile_picture_url) || text(snapshot.page_profile_picture_url) || text(input.logo_url) || text(input.profile_picture_url)),
       pageUrl: safeExternalUrl(text(snapshot.page_profile_uri)),

@@ -1,3 +1,4 @@
+import { matchingBrand, realAdvertiserName, resolveAdvertiser } from "../../supabase/functions/_shared/ads/advertiser-identity";
 import type {
   AdProvider,
   AdSearchFilters,
@@ -7,7 +8,6 @@ import type {
   ProviderCapabilities,
 } from "@/lib/types";
 import { computeAdIntelligence } from "@/lib/intelligence";
-import { computeAdFingerprints } from "@/lib/fingerprint";
 import { daysBetween, safeExternalUrl, sanitizeAdCopy } from "@/lib/utils";
 import { ProviderError, providerErrorFromStatus } from "@/lib/providers/errors";
 
@@ -59,7 +59,7 @@ function mediaTypeFor(format: string | null, video: string | null, image: string
   return "unknown";
 }
 
-export function normalizeForeplayAd(input: UnknownRecord, context?: { brandName?: string; logoUrl?: string }): NormalizedAd {
+export function normalizeForeplayAd(input: UnknownRecord): NormalizedAd {
   const cards = Array.isArray(input.cards) ? input.cards.map(record) : [];
   const video = safeExternalUrl(text(input.video));
   const image = safeExternalUrl(text(input.image));
@@ -76,8 +76,9 @@ export function normalizeForeplayAd(input: UnknownRecord, context?: { brandName?
   const now = new Date().toISOString();
   const body = sanitizeAdCopy(text(input.description));
   const headline = sanitizeAdCopy(text(input.headline) || text(input.name));
-  const advertiserId = text(input.brand_id) || "unknown";
-  const advertiserName = context?.brandName || text(input.name) || "Unknown advertiser";
+  const advertiserId = text(input.brand_id) || null;
+  // Foreplay AdResponse.name is the page label (verified against a live ad); headline is separate.
+  const advertiserName = realAdvertiserName(input.name, advertiserId);
   const cta = text(input.cta_title) || text(input.cta_type);
   const landingPageUrl = safeExternalUrl(text(input.link_url));
   const platforms = stringArray(input.publisher_platform).map((item) => item.toLowerCase());
@@ -119,7 +120,7 @@ export function normalizeForeplayAd(input: UnknownRecord, context?: { brandName?
       name: advertiserName,
       normalizedName: null,
       pageUrl: null,
-      logoUrl: context?.logoUrl || safeExternalUrl(text(input.avatar)),
+      logoUrl: safeExternalUrl(text(input.avatar)),
       domain: null,
       social: { facebook: null, instagram: null, linkedin: null },
     },
@@ -176,8 +177,6 @@ export function normalizeForeplayAd(input: UnknownRecord, context?: { brandName?
     rawData: input,
   };
 
-  const fps = computeAdFingerprints(baseAd);
-
   return {
     ...baseAd,
   } as NormalizedAd;
@@ -185,7 +184,7 @@ export function normalizeForeplayAd(input: UnknownRecord, context?: { brandName?
 
 export class ForeplayProvider implements AdProvider {
   readonly capabilities: ProviderCapabilities = {
-    keywordSearch: true, advertiserSearch: false, commercialAds: true,
+    keywordSearch: true, advertiserSearch: true, commercialAds: true,
     pagination: true, demographics: false, copy: true, landingPage: true,
     formats: "NATIVE",
     statuses: "NATIVE",
@@ -221,9 +220,14 @@ export class ForeplayProvider implements AdProvider {
     return { payload, creditsRemaining: response.headers.get("x-credits-remaining") };
   }
 
-  async searchAds(filters: AdSearchFilters): Promise<AdSearchResult> {
+  async searchAds(filters: AdSearchFilters, ..._args: unknown[]): Promise<AdSearchResult> {
     const params = new URLSearchParams({ limit: "20" });
-    if (filters.query?.trim()) params.set("query", filters.query.trim());
+    if (filters.brand) {
+      if (filters.selectedBrand?.provider !== "foreplay" || filters.selectedBrand.id !== filters.brand) {
+        throw new ProviderError("PROVIDER_UNSUPPORTED", "No verified Foreplay brand ID for this advertiser.", 422);
+      }
+      params.set("brand_ids", filters.selectedBrand.providerAdvertiserId);
+    } else if (filters.query?.trim()) params.set("query", filters.query.trim());
     
     let activeStatus = filters.status;
     if (filters.statuses && filters.statuses.length > 0) {
@@ -264,14 +268,13 @@ export class ForeplayProvider implements AdProvider {
       if (duration.max !== undefined) params.set("running_duration_max_days", String(duration.max));
     }
 
-    const { payload } = await this.request("/api/discovery/ads", params);
+    const { payload } = await this.request(filters.brand ? "/api/brand/getAdsByBrandId" : "/api/discovery/ads", params);
     const data = Array.isArray(payload.data) ? payload.data.map(record) : [];
     
-    // Accept brand context as second parameter, although ForeplayProvider currently isn't wired up internally to accept it in searchAds signature?
-    // Wait, the interface for searchAds is `searchAds(filters: AdSearchFilters, context?: {brandName?: string, logoUrl?: string})`
-    // Let's pass it!
-    const context = arguments.length > 1 ? arguments[1] : undefined;
-    let ads = data.map(d => normalizeForeplayAd(d, context));
+    let ads = data.map(d => normalizeForeplayAd(d));
+    if (filters.brand) ads = ads.filter(ad => Boolean(matchingBrand(filters.selectedBrand, "foreplay", filters.brand, ad.advertiser.id)));
+    ads = ads.map(ad => ({ ...ad, advertiser: resolveAdvertiser(ad.advertiser, undefined,
+      matchingBrand(filters.selectedBrand, "foreplay", filters.brand, ad.advertiser.id)) }));
     if (filters.cta) ads = ads.filter((ad) => ad.copy.cta?.toLowerCase() === filters.cta?.toLowerCase());
     const metadata = record(payload.metadata);
     const cursor = typeof metadata.cursor === "string" || typeof metadata.cursor === "number" ? String(metadata.cursor) : null;

@@ -73,7 +73,7 @@ function MetadataPopover({
   align = "center"
 }: { 
   children: React.ReactNode; 
-  content: React.ReactNode;
+  content: React.ReactNode | ((close: () => void) => React.ReactNode);
   align?: "left" | "center" | "right";
 }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -117,7 +117,7 @@ function MetadataPopover({
           className={cn("absolute top-[calc(100%+8px)] z-[70] bg-white rounded-xl shadow-lg border border-line/80 min-w-[260px] max-w-[340px] max-h-[400px] overflow-y-auto animate-in fade-in zoom-in-95 duration-100", alignClass)}
           onClick={(e) => e.stopPropagation()}
         >
-          {content}
+          {typeof content === "function" ? content(() => setIsOpen(false)) : content}
         </div>
       )}
     </div>
@@ -267,7 +267,7 @@ export function AdDetailDrawer({
               </span>
             )}
             <div className="min-w-0">
-              <h2 className="truncate text-[16px] sm:text-[18px] font-[600] text-ink leading-tight">{ad.advertiser.name || "Unknown advertiser"}</h2>
+              <h2 className="truncate text-[16px] sm:text-[18px] font-[600] text-ink leading-tight">{ad.advertiser.displayName || ad.advertiser.name || "Advertiser"}</h2>
               <div className="hidden sm:flex items-center gap-2 mt-0.5 text-[12px] text-muted whitespace-nowrap overflow-hidden text-ellipsis">
                 <span>Sponsored Ad</span>
               </div>
@@ -340,13 +340,14 @@ export function AdDetailDrawer({
             {/* Creative Control */}
             {media.kind && media.kind !== "unknown" && (
               <MetadataPopover
-                content={
-                  <div className="p-4 max-h-[300px] overflow-y-auto">
-                    <p className="text-[12px] font-[650] uppercase tracking-wide text-muted mb-3">Creative Type</p>
-                    <div className="text-[14px] font-[600] text-ink mb-4">{titleCase(media.kind)}</div>
-                    
+                content={(close) => (
+                  <div className="p-2 w-[240px]">
+                    <div className="flex items-center justify-between px-2 py-1.5 mb-1">
+                      <span className="text-[12px] font-[600] text-ink">Creative Type</span>
+                      <span className="text-[11px] font-[500] text-muted capitalize bg-zinc-100 px-1.5 py-0.5 rounded">{media.kind}</span>
+                    </div>
                     {media.kind === "carousel" && media.cards && media.cards.length > 0 && (
-                      <div className="space-y-3">
+                      <div className="flex flex-col gap-1 mt-2 max-h-[250px] overflow-y-auto custom-scrollbar">
                         <p className="text-[11px] font-[650] uppercase tracking-wide text-muted">Variations ({media.cards.length})</p>
                         {media.cards.map((item, idx) => (
                           <div 
@@ -354,8 +355,8 @@ export function AdDetailDrawer({
                             role="button"
                             tabIndex={0}
                             className="flex items-center gap-3 p-2 rounded-lg hover:bg-zinc-50 transition-colors cursor-pointer group"
-                            onClick={() => setActiveSlideIndex(idx)}
-                            onKeyDown={(e) => { if(e.key==="Enter") setActiveSlideIndex(idx); }}
+                            onClick={() => { setActiveSlideIndex(idx); close(); }}
+                            onKeyDown={(e) => { if(e.key==="Enter") { setActiveSlideIndex(idx); close(); } }}
                           >
                              <div className="size-10 rounded-md bg-[#F8FAFC] border border-line flex items-center justify-center shrink-0 overflow-hidden">
                                {item.imageUrl || item.videoUrl ? (
@@ -372,7 +373,7 @@ export function AdDetailDrawer({
                       </div>
                     )}
                   </div>
-                }
+                )}
               >
                 <button className="inline-flex items-center px-3 py-1.5 rounded-[8px] text-[12px] font-[650] border bg-zinc-50 text-ink border-line/80 hover:bg-zinc-100 transition-colors">
                   {titleCase(media.kind)} {media.kind === "carousel" && media.cards ? `· ${media.cards.length}` : ""}
@@ -408,17 +409,17 @@ export function AdDetailDrawer({
             <div className="sm:hidden">
               <MetadataPopover
                 align="right"
-                content={
+                content={(close) => (
                   <div className="p-2 flex flex-col gap-1 min-w-[180px]">
-                    <MobileMenuButton icon={<Download size={16} />} label="Download" onClick={handleDownload} disabled={!hasDownload} />
+                    <MobileMenuButton icon={<Download size={16} />} label="Download" onClick={() => { handleDownload(); close(); }} disabled={!hasDownload} />
                     {!isPublicShare && (
                       <>
-                        <MobileMenuButton icon={<Share size={16} />} label="Share" onClick={() => setShowShare(true)} />
-                        <MobileMenuButton icon={<LayoutTemplate size={16} />} label="Swipe File" onClick={() => setShowSwipePicker(true)} />
+                        <MobileMenuButton icon={<Share size={16} />} label="Share" onClick={() => { setShowShare(true); close(); }} />
+                        <MobileMenuButton icon={<LayoutTemplate size={16} />} label="Swipe File" onClick={() => { setShowSwipePicker(true); close(); }} />
                       </>
                     )}
                   </div>
-                }
+                )}
               >
                 <button className="grid size-9 place-items-center rounded-lg text-ink hover:bg-zinc-100 transition-colors">
                   <MoreHorizontal size={18} />
@@ -853,12 +854,15 @@ function CopyBlock({ text, label }: { text?: string | null, label: string }) {
 }
 
 function CarouselVariationCard({ item, index, advertiserName, fullWidth = false }: { item: NonNullable<ReturnType<typeof resolveAdMedia>["cards"]>[number], index: number, advertiserName: string, fullWidth?: boolean }) {
-  const media = safeExternalUrl(item.imageUrl || item.videoUrl);
+  const image = safeExternalUrl(item.imageUrl);
+  const video = safeExternalUrl(item.videoUrl);
   return (
     <div className={cn("bg-white rounded-[12px] border border-line shadow-sm overflow-hidden flex flex-col", fullWidth ? "w-full" : "w-[280px]")}>
       <div className="relative aspect-[4/5] bg-[#F8FAFC] flex items-center justify-center p-2 border-b border-line">
-        {media ? (
-           <img src={media} alt="Variation" className="w-full h-full object-contain rounded-[6px]" />
+        {video ? (
+           <video src={video} poster={image || undefined} muted playsInline controls className="w-full h-full object-contain rounded-[6px]" />
+        ) : image ? (
+           <img src={image} alt="Variation" className="w-full h-full object-contain rounded-[6px]" />
         ) : (
            <ImageIcon className="text-muted/50" size={32} />
         )}
