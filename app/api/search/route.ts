@@ -495,7 +495,7 @@ export async function POST(request: NextRequest) {
 }
 
 
-export function rankDiscoveryFeed(ads: NormalizedAd[], applyDiversityLimit: boolean) {
+function rankDiscoveryFeed(ads: NormalizedAd[], applyDiversityLimit: boolean) {
   const ranked = [...ads].sort((a, b) => {
     // Relevance score proxies
     const aScore = (a.intelligence.winnerScore ?? 0) + (a.delivery.status === "active" ? 10 : 0) + Math.min(a.delivery.daysRunning || 0, 120) / 6 + Math.min(a.variants ?? 0, 10) * 2;

@@ -17,6 +17,7 @@ import {
   Check,
   AlertCircle,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { Button, EmptyState } from "@/components/ui";
 import { CompetitorIntelligence } from "@/lib/brand-data";
 import { safeExternalUrl } from "@/lib/utils";
