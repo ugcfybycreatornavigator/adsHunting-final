@@ -220,7 +220,7 @@ export class ForeplayProvider implements AdProvider {
     return { payload, creditsRemaining: response.headers.get("x-credits-remaining") };
   }
 
-  async searchAds(filters: AdSearchFilters, ..._args: unknown[]): Promise<AdSearchResult> {
+  async searchAds(filters: AdSearchFilters): Promise<AdSearchResult> {
     const params = new URLSearchParams({ limit: "20" });
     if (filters.brand) {
       if (filters.selectedBrand?.provider !== "foreplay" || filters.selectedBrand.id !== filters.brand) {

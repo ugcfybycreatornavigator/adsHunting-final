@@ -10,7 +10,7 @@ export function BookingSupport() {
   const { setActiveTab } = useSupport();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
-  
+
   const bookingUrl = supportConfig.bookingUrl;
 
   useEffect(() => {
@@ -32,8 +32,8 @@ export function BookingSupport() {
         <p className="mt-2 text-sm text-muted max-w-sm">
           We haven&apos;t set up a public calendar yet. Please reach out via email instead.
         </p>
-        <Button 
-          variant="secondary" 
+        <Button
+          variant="secondary"
           className="mt-6"
           onClick={() => setActiveTab("email")}
         >

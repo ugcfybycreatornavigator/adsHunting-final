@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { X, Mail, CalendarDays, MessageSquare } from "lucide-react";
+import { X, Mail, CalendarDays, MessageSquare, Headphones } from "lucide-react";
 import { useSupport } from "./support-context";
 import { cn } from "@/lib/utils";
 import { EmailSupport } from "./EmailSupport";
@@ -49,96 +49,76 @@ export function SupportModal() {
         ref={modalRef}
         tabIndex={-1}
         className={cn(
-          "relative z-10 flex flex-col w-full bg-white shadow-2xl outline-none border border-zinc-200/80",
-          "rounded-t-2xl sm:rounded-2xl",
-          "h-[88vh] sm:h-auto sm:max-h-[88vh]",
-          activeTab === "booking" ? "sm:max-w-[800px]" : "sm:max-w-[700px]",
-          "animate-in slide-in-from-bottom-4 sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-200"
+          "relative z-10 flex flex-col w-full bg-white shadow-2xl outline-none overflow-hidden",
+          "rounded-t-3xl sm:rounded-3xl",
+          "h-[90vh] sm:h-auto sm:max-h-[90vh]",
+          activeTab === "booking" ? "sm:max-w-[800px]" : "sm:max-w-[480px]",
+          "animate-in slide-in-from-bottom-8 sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-300 transition-all"
         )}
         onMouseDown={(e) => e.stopPropagation()}
         onKeyDown={(e) => {
           if (e.key === "Escape") closeSupport();
         }}
       >
-        {/* Header */}
-        <div className="flex shrink-0 items-center justify-between border-b border-zinc-100 px-5 py-4 sm:px-6 sm:py-5">
-          <div>
-            <p className="text-[11px] font-bold uppercase tracking-[.15em] text-zinc-400">Support</p>
-            <h2 id="support-modal-title" className="mt-1 text-xl sm:text-2xl font-semibold tracking-tight text-zinc-900">
-              How can we help?
-            </h2>
-          </div>
+        {/* Premium Header */}
+        <div className="relative px-6 pt-6 pb-4 sm:px-8 sm:pt-8 sm:pb-5 shrink-0 bg-white">
           <button
             onClick={closeSupport}
-            className="grid size-8 place-items-center rounded-full text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 transition-colors"
+            className="absolute right-4 top-4 grid size-8 place-items-center rounded-full text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 transition-colors z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
             aria-label="Close support modal"
           >
             <X size={16} />
           </button>
-        </div>
 
-        {/* Tab Selector */}
-        <div className="shrink-0 border-b border-line bg-surface/30 px-5 py-4 sm:px-6">
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
-            <button
-              onClick={() => setActiveTab("email")}
-              className={cn(
-                "group flex items-start gap-3 rounded-xl border p-3 text-left transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand",
-                activeTab === "email"
-                  ? "border-brand bg-brand/5 shadow-sm ring-1 ring-brand/20"
-                  : "border-line bg-white hover:border-brand/40 hover:bg-surface"
-              )}
-            >
-              <div className={cn("mt-0.5 rounded-lg p-2 transition-colors", activeTab === "email" ? "bg-brand/10 text-brand" : "bg-surface text-muted group-hover:text-ink")}>
-                <Mail size={18} />
+          <div className="flex items-center gap-4">
+            <div className="relative shrink-0">
+              <div className="grid size-14 place-items-center rounded-full bg-brand/10 text-brand ring-4 ring-brand/5">
+                <Headphones size={24} strokeWidth={2} />
               </div>
-              <div>
-                <div className={cn("font-semibold text-sm", activeTab === "email" ? "text-brand" : "text-ink")}>Email</div>
-                <div className="text-xs text-muted mt-0.5">Write to us anytime</div>
-              </div>
-            </button>
-
-            <button
-              onClick={() => setActiveTab("booking")}
-              className={cn(
-                "group flex items-start gap-3 rounded-xl border p-3 text-left transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand",
-                activeTab === "booking"
-                  ? "border-brand bg-brand/5 shadow-sm ring-1 ring-brand/20"
-                  : "border-line bg-white hover:border-brand/40 hover:bg-surface"
-              )}
-            >
-              <div className={cn("mt-0.5 rounded-lg p-2 transition-colors", activeTab === "booking" ? "bg-brand/10 text-brand" : "bg-surface text-muted group-hover:text-ink")}>
-                <CalendarDays size={18} />
-              </div>
-              <div>
-                <div className={cn("font-semibold text-sm", activeTab === "booking" ? "text-brand" : "text-ink")}>Book a call</div>
-                <div className="text-xs text-muted mt-0.5">Pick a time that suits</div>
-              </div>
-            </button>
-
-            <button
-              onClick={() => setActiveTab("feedback")}
-              className={cn(
-                "group flex items-start gap-3 rounded-xl border p-3 text-left transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand",
-                activeTab === "feedback"
-                  ? "border-brand bg-brand/5 shadow-sm ring-1 ring-brand/20"
-                  : "border-line bg-white hover:border-brand/40 hover:bg-surface"
-              )}
-            >
-              <div className={cn("mt-0.5 rounded-lg p-2 transition-colors", activeTab === "feedback" ? "bg-brand/10 text-brand" : "bg-surface text-muted group-hover:text-ink")}>
-                <MessageSquare size={18} />
-              </div>
-              <div>
-                <div className={cn("font-semibold text-sm", activeTab === "feedback" ? "text-brand" : "text-ink")}>Feedback</div>
-                <div className="text-xs text-muted mt-0.5">Report bugs or ideas</div>
-              </div>
-            </button>
+              <div className="absolute bottom-0 right-0 size-3.5 rounded-full border-2 border-white bg-green-500" />
+            </div>
+            <div>
+              <h2 id="support-modal-title" className="text-xl sm:text-2xl font-bold tracking-tight text-ink">
+                How can we help?
+              </h2>
+              <p className="mt-0.5 text-sm font-medium text-muted">
+                Our team is here to assist you.
+              </p>
+            </div>
           </div>
         </div>
 
-        {/* Content Area */}
-        <div className="flex-1 overflow-y-auto overscroll-contain p-5 sm:p-6">
-          <div className="animate-in fade-in duration-200">
+        {/* Segmented Control Tabs */}
+        <div className="px-6 sm:px-8 pb-4 shrink-0 bg-white border-b border-line">
+          <div className="flex rounded-lg bg-zinc-100/80 p-1">
+            {[
+              { id: "email", label: "Email", icon: Mail },
+              { id: "booking", label: "Book a call", icon: CalendarDays },
+              { id: "feedback", label: "Feedback", icon: MessageSquare },
+            ].map((tab) => {
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id as "email" | "booking" | "feedback")}
+                  className={cn(
+                    "flex flex-1 items-center justify-center gap-2 rounded-md py-2 text-[13px] font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand",
+                    isActive
+                      ? "bg-white text-ink shadow-sm ring-1 ring-zinc-200/50"
+                      : "text-muted hover:text-ink"
+                  )}
+                >
+                  <tab.icon size={15} className={isActive ? "text-brand" : "text-muted opacity-70"} />
+                  {tab.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Content Area with Proper Padding */}
+        <div className="flex-1 overflow-y-auto overscroll-contain bg-zinc-50/50 p-6 sm:p-8">
+          <div className="animate-in fade-in duration-300 slide-in-from-bottom-2 h-full">
             {activeTab === "email" && <EmailSupport />}
             {activeTab === "booking" && <BookingSupport />}
             {activeTab === "feedback" && <FeedbackSupport />}
