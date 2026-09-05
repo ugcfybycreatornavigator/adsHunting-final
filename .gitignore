@@ -58,3 +58,6 @@ supabase/functions/_shared/ads/*
 supabase/functions/_shared/ads/providers/*
 !supabase/functions/_shared/ads/providers/meta.ts
 !supabase/functions/_shared/ads/providers/foreplay.ts
+
+# Sentry Config File
+.env.sentry-build-plugin
