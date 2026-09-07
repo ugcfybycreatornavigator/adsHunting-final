@@ -349,6 +349,7 @@ export function DiscoverExperience({ brandId, hideHeader = false }: { brandId?: 
   }
 
   const isBrandsView = filters.view === "brands";
+  const hasActiveFilters = activeChips.length > 0;
 
   return (
     <>
@@ -386,7 +387,7 @@ export function DiscoverExperience({ brandId, hideHeader = false }: { brandId?: 
                 value={draftQuery}
                 onChange={setDraftQuery}
                 onSubmit={(val) => {
-                  setFilters({ query: val, brand: undefined });
+                  setFilters({ query: val, brand: undefined }, false);
                 }}
                 onSelectBrand={(suggestion) => {
                   setFilters({ query: suggestion.label, brand: suggestion.id, selectedBrand: suggestion.brand });
@@ -402,7 +403,7 @@ export function DiscoverExperience({ brandId, hideHeader = false }: { brandId?: 
                 }}
                 onClear={() => {
                   setDraftQuery("");
-                  setFilters({ query: "", brand: undefined });
+                  clearFilters(false);
                 }}
               />
             </div>
@@ -498,11 +499,29 @@ export function DiscoverExperience({ brandId, hideHeader = false }: { brandId?: 
           ) : ads.length === 0 && !loading ? (
             <EmptyState
               icon={<Search />}
-              title={filters.brand ? "No advertiser ads found" : "No ads found"}
-              body={filters.brand ? `No ${filters.query || "advertiser"} ads match these filters. Try adjusting your filters.` : filters.query?.trim() ? `No ads found for "${filters.query.trim()}". Try another keyword or remove active filters.` : "Try removing active filters or typing a keyword above to search live ads."}
-              action={activeChips.length > 0 ? (
-                <Button variant="secondary" onClick={clearAllFilters}>Clear filters</Button>
-              ) : undefined}
+              title={
+                !hasActiveFilters && !filters.query && !filters.brand 
+                  ? "Welcome to Ad Discovery" 
+                  : filters.brand 
+                    ? "No advertiser ads found" 
+                    : "No ads found"
+              }
+              body={
+                !hasActiveFilters && !filters.query && !filters.brand
+                  ? "Search for keywords, brands, or products above to discover ads."
+                  : filters.brand 
+                    ? `No ${filters.query || "advertiser"} ads match these filters. Try adjusting your filters.` 
+                    : filters.query?.trim() 
+                      ? `No ads found for "${filters.query.trim()}". Try another keyword or remove active filters.` 
+                      : "Try removing active filters or typing a keyword above to search live ads."
+              }
+              action={
+                hasActiveFilters || filters.query || filters.brand ? (
+                  <Button variant="secondary" onClick={() => clearFilters(false)}>
+                    Clear all filters
+                  </Button>
+                ) : undefined
+              }
             />
           ) : (
             <div className={cn(gridClass(), loading && !loadingMore && "opacity-60 transition-opacity")}>

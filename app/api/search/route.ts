@@ -196,7 +196,7 @@ export async function POST(request: NextRequest) {
         }
         
         // Determine pagination
-        const limit = 25;
+        const limit = 30;
         const offset = filters.cursor ? parseInt(filters.cursor, 10) : 0;
 
         // Apply sort
@@ -506,7 +506,7 @@ function takeDefaultFeed(rows: Parameters<typeof dbAdToNormalized>[0][], limit: 
     .filter(ad => {
       const key = ad.advertiser?.id || realAdvertiserName(ad.advertiser?.name) || ad.id;
       const count = counts.get(key) || 0;
-      if (count >= 2) return false;
+      if (count >= 5) return false;
       counts.set(key, count + 1);
       return true;
     })
