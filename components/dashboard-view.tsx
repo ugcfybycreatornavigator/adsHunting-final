@@ -76,7 +76,7 @@ export function DashboardView({ data }: { data: DashboardData }) {
               <Settings size={16} className="mr-2 text-zinc-400" /> Settings
             </Link>
             <Link href="/discover" className="inline-flex h-10 items-center justify-center rounded-lg bg-[#68B32F] px-5 text-[13px] font-semibold text-white shadow-[0_1px_2px_rgba(0,0,0,0.08)] transition-all hover:bg-[#5a9c29] hover:shadow-[0_2px_4px_rgba(104,179,47,0.2)] active:scale-[0.98]">
-              Discover Ads
+              Discover our ads
             </Link>
           </div>
         </div>
@@ -115,7 +115,7 @@ export function DashboardView({ data }: { data: DashboardData }) {
           </div>
           <Link href="/discover" className="text-[13px] font-semibold text-[#68B32F] transition-colors hover:text-[#5a9c29]">View all</Link>
         </div>
-        
+
         {continueResearchItems.length > 0 ? (
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
             {continueResearchItems.map((ad) => (
@@ -133,7 +133,7 @@ export function DashboardView({ data }: { data: DashboardData }) {
             <h3 className="text-[15px] font-semibold text-zinc-900">Start discovering winning creatives</h3>
             <p className="mt-1.5 max-w-sm text-[13px] text-zinc-500">Discover top performing ads and save them to build your research library.</p>
             <Link href="/discover" className="mt-5 inline-flex h-9 items-center justify-center rounded-md bg-[#68B32F] px-4 text-[13px] font-medium text-white transition hover:bg-[#5a9c29]">
-              Discover Ads
+              Discover our ads
             </Link>
           </div>
         )}
@@ -201,13 +201,13 @@ export function DashboardView({ data }: { data: DashboardData }) {
           onSave={() => saveAd(details)}
         />
       )}
-      
+
       {shareAdId && (
-        <ShareModal 
-          isOpen={true} 
-          onClose={() => setShareAdId(null)} 
-          adIds={[shareAdId]} 
-          defaultName="Shared Ad" 
+        <ShareModal
+          isOpen={true}
+          onClose={() => setShareAdId(null)}
+          adIds={[shareAdId]}
+          defaultName="Shared Ad"
         />
       )}
     </div>

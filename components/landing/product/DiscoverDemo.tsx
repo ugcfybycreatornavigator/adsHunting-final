@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils';
 
 export function DiscoverDemo() {
   const [step, setStep] = useState<0 | 1 | 2 | 3>(0);
-  
+
   // 0: Initial search
   // 1: Typing
   // 2: Suggestions
@@ -31,7 +31,7 @@ export function DiscoverDemo() {
     <div className="w-full max-w-[560px] mx-auto bg-[#ffffff] border border-[#e4e8e2] rounded-[20px] shadow-sm overflow-hidden flex flex-col h-[420px]">
       {/* Header */}
       <div className="px-5 py-4 border-b border-[#e4e8e2] flex items-center justify-between bg-[#fcfcfa] shrink-0">
-        <h4 className="text-[14px] font-bold text-text-primary">Discover Ads</h4>
+        <h4 className="text-[14px] font-bold text-text-primary">Discover our ads</h4>
         <div className="flex gap-1.5">
           <div className="w-2.5 h-2.5 rounded-full bg-[#e4e8e2]"></div>
           <div className="w-2.5 h-2.5 rounded-full bg-[#e4e8e2]"></div>
@@ -101,9 +101,9 @@ export function DiscoverDemo() {
                 <img src={ad.thumbnail} alt={ad.brand} className="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity" />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></div>
                 <div className="absolute top-2 left-2 flex gap-1">
-                   {ad.format === 'video' && <div className="bg-black/50 backdrop-blur-md rounded px-1.5 py-1"><Video size={12} className="text-white" /></div>}
-                   {ad.format === 'image' && <div className="bg-black/50 backdrop-blur-md rounded px-1.5 py-1"><ImageIcon size={12} className="text-white" /></div>}
-                   {ad.format === 'carousel' && <div className="bg-black/50 backdrop-blur-md rounded px-1.5 py-1"><Layers size={12} className="text-white" /></div>}
+                  {ad.format === 'video' && <div className="bg-black/50 backdrop-blur-md rounded px-1.5 py-1"><Video size={12} className="text-white" /></div>}
+                  {ad.format === 'image' && <div className="bg-black/50 backdrop-blur-md rounded px-1.5 py-1"><ImageIcon size={12} className="text-white" /></div>}
+                  {ad.format === 'carousel' && <div className="bg-black/50 backdrop-blur-md rounded px-1.5 py-1"><Layers size={12} className="text-white" /></div>}
                 </div>
                 <div className="absolute bottom-2 left-2 right-2">
                   <div className="flex items-center gap-1.5 mb-1">

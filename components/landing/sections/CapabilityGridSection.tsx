@@ -4,7 +4,7 @@ import { Search, Tags, BarChart3, Bookmark, Share2 } from 'lucide-react';
 
 export function CapabilityGridSection() {
   const capabilities = [
-    { icon: Search, title: 'Discover Ads', desc: 'Search active and inactive ads by brand or keyword.' },
+    { icon: Search, title: 'Discover our ads', desc: 'Search active and inactive ads by brand or keyword.' },
     { icon: BarChart3, title: 'Competitors', desc: 'Track structural patterns in competitor creatives.' },
     { icon: Tags, title: 'Brands', desc: 'Follow specific brands and monitor their creative output.' },
     { icon: Bookmark, title: 'Swipe Files', desc: 'Organize high-signal ads into custom folders.' },
@@ -14,7 +14,7 @@ export function CapabilityGridSection() {
 
   return (
     <section className="py-24 bg-slate-50 border-t border-border relative overflow-hidden">
-      <div 
+      <div
         className="absolute inset-0 pointer-events-none"
         style={{
           background: 'radial-gradient(circle at 50% 0%, rgba(94,169,32,0.05), transparent 50%)'

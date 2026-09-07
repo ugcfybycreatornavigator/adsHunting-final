@@ -50,7 +50,7 @@ export function HelpClient() {
     },
     {
       id: 'discover-ads',
-      title: 'Discover Ads',
+      title: 'Discover our ads',
       items: [
         {
           question: 'What can I search for?',
@@ -138,8 +138,8 @@ export function HelpClient() {
 
   // Search logic
   const filteredData = faqData.map(category => {
-    const filteredItems = category.items.filter(item => 
-      item.question.toLowerCase().includes(searchQuery.toLowerCase()) || 
+    const filteredItems = category.items.filter(item =>
+      item.question.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (typeof item.answer === 'string' && item.answer.toLowerCase().includes(searchQuery.toLowerCase()))
     );
     return { ...category, items: filteredItems };
@@ -164,7 +164,7 @@ export function HelpClient() {
       {filteredData.length === 0 ? (
         <div className="text-center py-12 px-4 bg-[#fcfcfa] border border-[#e4e8e2] rounded-[16px]">
           <p className="text-[17px] text-text-secondary">No answers found for &quot;{searchQuery}&quot;.</p>
-          <button 
+          <button
             onClick={() => setSearchQuery('')}
             className="mt-4 text-brand font-medium hover:underline"
           >
@@ -177,8 +177,8 @@ export function HelpClient() {
           <div className="md:w-[240px] shrink-0">
             <nav className="flex overflow-x-auto md:overflow-visible pb-4 md:pb-0 gap-3 md:gap-1 md:flex-col md:sticky md:top-32 hide-scrollbar">
               {faqData.map(category => (
-                <a 
-                  key={`nav-${category.id}`} 
+                <a
+                  key={`nav-${category.id}`}
                   href={`#${category.id}`}
                   className="whitespace-nowrap px-4 py-2 md:py-3 md:px-4 rounded-full md:rounded-[8px] text-[14px] md:text-[15px] font-medium text-text-secondary hover:bg-[#f2f6f0] hover:text-brand transition-colors"
                 >
@@ -199,10 +199,10 @@ export function HelpClient() {
                   {category.items.map((item, index) => {
                     const itemId = `${category.id}-${index}`;
                     const isOpen = !!openItems[itemId] || searchQuery.length > 2; // Auto-open if actively searching
-                    
+
                     return (
-                      <div 
-                        key={index} 
+                      <div
+                        key={index}
                         className="border border-[#e4e8e2] rounded-[16px] bg-[#fcfcfa] overflow-hidden transition-all duration-200"
                       >
                         <button
@@ -213,12 +213,12 @@ export function HelpClient() {
                           <span className="text-[16px] md:text-[17px] font-bold text-text-primary pr-8 leading-snug">
                             {item.question}
                           </span>
-                          <ChevronDown 
-                            size={20} 
-                            className={cn("text-text-muted transition-transform duration-200 shrink-0", isOpen && "rotate-180")} 
+                          <ChevronDown
+                            size={20}
+                            className={cn("text-text-muted transition-transform duration-200 shrink-0", isOpen && "rotate-180")}
                           />
                         </button>
-                        <div 
+                        <div
                           className={cn(
                             "overflow-hidden transition-all duration-200 ease-in-out",
                             isOpen ? "max-h-[500px] opacity-100" : "max-h-0 opacity-0"

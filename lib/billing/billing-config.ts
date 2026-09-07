@@ -24,7 +24,7 @@ export const BILLING_CONFIG: Record<string, PlanConfig> = {
     currentPrice: 499,
     status: "available",
     features: [
-      "Discover Ads",
+      "Discover our ads",
       "Search & Filters",
       "Ad Details",
       "Brand Research",

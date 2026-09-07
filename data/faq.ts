@@ -36,7 +36,7 @@ export const faqData: FAQCategory[] = [
   },
   {
     id: "discover-ads",
-    label: "Discover Ads",
+    label: "Discover our ads",
     items: [
       {
         id: "how-search-works",

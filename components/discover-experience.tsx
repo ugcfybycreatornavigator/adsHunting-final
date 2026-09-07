@@ -18,7 +18,7 @@ import type { BrandSummary } from "@/lib/brand-data";
 import { normalizeDiscoverFilters } from "@/lib/filter-utils";
 import { cn } from "@/lib/utils";
 
-const countries = [["ALL","All countries"],["IN","India"],["US","United States"],["GB","United Kingdom"],["CA","Canada"],["AU","Australia"],["DE","Germany"],["FR","France"],["BR","Brazil"]];
+const countries = [["ALL", "All countries"], ["IN", "India"], ["US", "United States"], ["GB", "United Kingdom"], ["CA", "Canada"], ["AU", "Australia"], ["DE", "Germany"], ["FR", "France"], ["BR", "Brazil"]];
 const defaults: AdSearchFilters = { query: "", status: "all", country: "ALL", platforms: [], mediaType: "all", cta: "", duration: "", startDate: "", endDate: "" };
 
 export function DiscoverExperience({ brandId, hideHeader = false }: { brandId?: string, hideHeader?: boolean }) {
@@ -30,7 +30,7 @@ export function DiscoverExperience({ brandId, hideHeader = false }: { brandId?: 
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<{ message: string; code?: string } | null>(null);
-  
+
   const [brands, setBrands] = useState<BrandSummary[]>([]);
   const [brandsLoading, setBrandsLoading] = useState(false);
   const [brandsError, setBrandsError] = useState<{ message: string } | null>(null);
@@ -47,7 +47,7 @@ export function DiscoverExperience({ brandId, hideHeader = false }: { brandId?: 
   const requestController = useRef<AbortController | null>(null);
 
   useEffect(() => {
-    try { setHistory(JSON.parse(localStorage.getItem("signal-search-history") || "[]")); } catch {}
+    try { setHistory(JSON.parse(localStorage.getItem("signal-search-history") || "[]")); } catch { }
     if (typeof window !== "undefined") {
       setDeepLinkedAdId(new URLSearchParams(window.location.search).get("ad"));
     }
@@ -89,7 +89,7 @@ export function DiscoverExperience({ brandId, hideHeader = false }: { brandId?: 
     if (!append) requestController.current?.abort();
     const controller = new AbortController();
     requestController.current = controller;
-    
+
     if (append) setLoadingMore(true);
     else setLoading(true);
     setError(null);
@@ -106,7 +106,7 @@ export function DiscoverExperience({ brandId, hideHeader = false }: { brandId?: 
         throw { message: data.message || data.error || "Search failed.", code: data.code };
       }
       const result = data as AdSearchResult;
-      
+
       if (result.degraded) {
         setToast({ message: "Showing recently indexed results." });
       }
@@ -220,7 +220,7 @@ export function DiscoverExperience({ brandId, hideHeader = false }: { brandId?: 
   const activeChips = useMemo(() => {
     const chips: { key: string; label: string; value: string }[] = [];
     const normalized = normalizeDiscoverFilters(filters);
-    
+
     normalized.formats?.forEach(f => {
       chips.push({ key: "formats", label: `Format: ${title(f)}`, value: f });
     });
@@ -241,23 +241,23 @@ export function DiscoverExperience({ brandId, hideHeader = false }: { brandId?: 
       chips.push({ key: "contentStyles", label: `Style: ${title(cs)}`, value: cs });
     });
     if (normalized.runtime) {
-      chips.push({ 
-        key: "runtime", 
-        label: `Runtime: ${normalized.runtime.minDays || 0}-${normalized.runtime.maxDays || '+'} days`, 
-        value: "active" 
+      chips.push({
+        key: "runtime",
+        label: `Runtime: ${normalized.runtime.minDays || 0}-${normalized.runtime.maxDays || '+'} days`,
+        value: "active"
       });
     }
     if (normalized.videoLength) {
-      chips.push({ 
-        key: "videoLength", 
-        label: `Length: ${normalized.videoLength.minSeconds || 0}-${normalized.videoLength.maxSeconds || '+'}s`, 
-        value: "active" 
+      chips.push({
+        key: "videoLength",
+        label: `Length: ${normalized.videoLength.minSeconds || 0}-${normalized.videoLength.maxSeconds || '+'}s`,
+        value: "active"
       });
     }
     normalized.platforms?.forEach(p => {
       chips.push({ key: "platforms", label: title(p), value: p });
     });
-    
+
     // Legacy singular mapping fallback for chips if no plurals (for backward compatibility if URL has old params)
     if (!normalized.formats?.length && normalized.mediaType && normalized.mediaType !== "all") {
       chips.push({ key: "mediaType", label: `Media: ${title(normalized.mediaType)}`, value: normalized.mediaType });
@@ -269,7 +269,7 @@ export function DiscoverExperience({ brandId, hideHeader = false }: { brandId?: 
       const countryName = countries.find(([code]) => code === normalized.country)?.[1] || normalized.country;
       chips.push({ key: "country", label: `Country: ${countryName}`, value: normalized.country });
     }
-    
+
     return chips;
   }, [filters]);
 
@@ -343,9 +343,11 @@ export function DiscoverExperience({ brandId, hideHeader = false }: { brandId?: 
       ...current,
       [(ad.externalId || ad.id)]: [...new Set([...(current[(ad.externalId || ad.id)] ?? []), ...result.collectionIds])],
     }));
-    setToast({ message: result.added
-      ? result.collectionNames.length > 1 ? `Added to ${result.collectionNames.length} Swipe Files` : `Added to ${result.collectionNames[0] || "Swipe File"}`
-      : `Removed from ${result.collectionNames[0] || "Swipe File"}` });
+    setToast({
+      message: result.added
+        ? result.collectionNames.length > 1 ? `Added to ${result.collectionNames.length} Swipe Files` : `Added to ${result.collectionNames[0] || "Swipe File"}`
+        : `Removed from ${result.collectionNames[0] || "Swipe File"}`
+    });
   }
 
   const isBrandsView = filters.view === "brands";
@@ -382,7 +384,7 @@ export function DiscoverExperience({ brandId, hideHeader = false }: { brandId?: 
         <div className="flex flex-col gap-4">
           {!hideHeader && (
             <div className="relative">
-              <SearchAutocomplete 
+              <SearchAutocomplete
                 placeholder={isBrandsView ? "Search brands..." : "Search competitor ads, brands, products or keywords..."}
                 value={draftQuery}
                 onChange={setDraftQuery}
@@ -395,8 +397,8 @@ export function DiscoverExperience({ brandId, hideHeader = false }: { brandId?: 
                 onSelectCategory={(id, type) => {
                   const key = type === "Niche" ? "niches" : type === "Style" ? "contentStyles" : type === "Language" ? "languages" : "markets";
                   const currentArray = (filters[key as keyof AdSearchFilters] as string[]) || [];
-                  setFilters({ 
-                    query: "", 
+                  setFilters({
+                    query: "",
                     brand: undefined,
                     [key]: [...new Set([...currentArray, id.replace(/^cat_[^_]+_/, '')])]
                   });
@@ -414,20 +416,20 @@ export function DiscoverExperience({ brandId, hideHeader = false }: { brandId?: 
               <SavedFiltersPopover filters={filters} updateFilters={setFilters} />
             </div>
             <div className="flex flex-wrap items-center gap-3">
-              <CompactSelect ariaLabel="Sort" value={sort} onChange={setSort} options={[["relevant","Relevant"],["newest","Newest"],["oldest","Oldest"],["longest","Longest Running"],["variations","Variations"]]} />
-              
+              <CompactSelect ariaLabel="Sort" value={sort} onChange={setSort} options={[["relevant", "Relevant"], ["newest", "Newest"], ["oldest", "Oldest"], ["longest", "Longest Running"], ["variations", "Variations"]]} />
+
               {!hideHeader && (
                 <div className="flex items-center rounded-[10px] bg-zinc-100/80 p-[3px] shrink-0 h-9 border border-zinc-200/60 shadow-inner">
-                  <button 
-                    type="button" 
-                    onClick={() => setFilters({ view: "ads" })} 
+                  <button
+                    type="button"
+                    onClick={() => setFilters({ view: "ads" })}
                     className={cn("rounded-md px-4 py-1 text-[13px] font-semibold transition-all h-full", !isBrandsView ? "bg-white text-zinc-900 shadow-sm border border-zinc-200/50" : "text-zinc-500 hover:text-zinc-900")}
                   >
                     All Ads
                   </button>
-                  <button 
-                    type="button" 
-                    onClick={() => setFilters({ view: "brands" })} 
+                  <button
+                    type="button"
+                    onClick={() => setFilters({ view: "brands" })}
                     className={cn("rounded-md px-4 py-1 text-[13px] font-semibold transition-all h-full", isBrandsView ? "bg-white text-zinc-900 shadow-sm border border-zinc-200/50" : "text-zinc-500 hover:text-zinc-900")}
                   >
                     Brands
@@ -500,19 +502,19 @@ export function DiscoverExperience({ brandId, hideHeader = false }: { brandId?: 
             <EmptyState
               icon={<Search />}
               title={
-                !hasActiveFilters && !filters.query && !filters.brand 
-                  ? "Welcome to Ad Discovery" 
-                  : filters.brand 
-                    ? "No advertiser ads found" 
+                !hasActiveFilters && !filters.query && !filters.brand
+                  ? "Welcome to Ad Discovery"
+                  : filters.brand
+                    ? "No advertiser ads found"
                     : "No ads found"
               }
               body={
                 !hasActiveFilters && !filters.query && !filters.brand
-                  ? "Search for keywords, brands, or products above to discover ads."
-                  : filters.brand 
-                    ? `No ${filters.query || "advertiser"} ads match these filters. Try adjusting your filters.` 
-                    : filters.query?.trim() 
-                      ? `No ads found for "${filters.query.trim()}". Try another keyword or remove active filters.` 
+                  ? "Search for keywords, brands, or products above to Discover our ads."
+                  : filters.brand
+                    ? `No ${filters.query || "advertiser"} ads match these filters. Try adjusting your filters.`
+                    : filters.query?.trim()
+                      ? `No ads found for "${filters.query.trim()}". Try another keyword or remove active filters.`
                       : "Try removing active filters or typing a keyword above to search live ads."
               }
               action={
@@ -561,11 +563,11 @@ export function DiscoverExperience({ brandId, hideHeader = false }: { brandId?: 
         />
       )}
       {shareAdId && (
-        <ShareModal 
-          isOpen={true} 
-          onClose={() => setShareAdId(null)} 
-          adIds={[shareAdId]} 
-          defaultName="Shared Ad" 
+        <ShareModal
+          isOpen={true}
+          onClose={() => setShareAdId(null)}
+          adIds={[shareAdId]}
+          defaultName="Shared Ad"
         />
       )}
       {toast && <Toast message={toast.message} tone={toast.tone} />}
@@ -626,24 +628,24 @@ function BrandGridSkeleton() {
       {Array.from({ length: 12 }).map((_, index) => (
         <div key={index} className="flex flex-col w-full overflow-hidden rounded-[12px] border border-[#E5E7EB] bg-white p-[16px]">
           <div className="flex items-center gap-[12px] mb-[14px]">
-             <Skeleton className="size-[38px] rounded-[10px] shrink-0" />
-             <div className="flex flex-col gap-1.5 flex-1">
-               <Skeleton className="h-4 w-3/4" />
-               <Skeleton className="h-3 w-1/3" />
-             </div>
+            <Skeleton className="size-[38px] rounded-[10px] shrink-0" />
+            <div className="flex flex-col gap-1.5 flex-1">
+              <Skeleton className="h-4 w-3/4" />
+              <Skeleton className="h-3 w-1/3" />
+            </div>
           </div>
           <div className="flex items-center gap-[16px] mb-[16px]">
-             <Skeleton className="h-4 w-[60px]" />
-             <Skeleton className="h-4 w-[60px]" />
+            <Skeleton className="h-4 w-[60px]" />
+            <Skeleton className="h-4 w-[60px]" />
           </div>
           <div className="flex gap-[6px] mb-[16px]">
-             <Skeleton className="flex-1 aspect-[4/5] rounded-lg" />
-             <Skeleton className="flex-1 aspect-[4/5] rounded-lg" />
-             <Skeleton className="flex-1 aspect-[4/5] rounded-lg" />
+            <Skeleton className="flex-1 aspect-[4/5] rounded-lg" />
+            <Skeleton className="flex-1 aspect-[4/5] rounded-lg" />
+            <Skeleton className="flex-1 aspect-[4/5] rounded-lg" />
           </div>
           <div className="mt-auto pt-[4px] flex justify-between">
-             <Skeleton className="h-4 w-[120px]" />
-             <Skeleton className="h-4 w-[60px]" />
+            <Skeleton className="h-4 w-[120px]" />
+            <Skeleton className="h-4 w-[60px]" />
           </div>
         </div>
       ))}

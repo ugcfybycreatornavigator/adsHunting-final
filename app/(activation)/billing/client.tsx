@@ -224,7 +224,7 @@ export function BillingGateClient({ config }: { config: PlanConfig }) {
           <div className="mt-6 flex-grow">
             <ul className="space-y-3 text-sm text-muted">
               <li className="flex items-center gap-2"><span className="text-brand">✓</span> Access AdsHunting for 7 days</li>
-              <li className="flex items-center gap-2"><span className="text-brand">✓</span> Discover ads & search</li>
+              <li className="flex items-center gap-2"><span className="text-brand">✓</span> Discover our ads & search</li>
               <li className="flex items-center gap-2"><span className="text-brand">✓</span> Competitor research</li>
               <li className="flex items-center gap-2"><span className="text-brand">✓</span> Cancel anytime</li>
             </ul>

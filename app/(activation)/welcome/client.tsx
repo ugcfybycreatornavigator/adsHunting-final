@@ -32,25 +32,25 @@ export function WelcomeClient({ name }: { name: string }) {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
           </svg>
         </div>
-        
+
         <h1 className="text-3xl font-bold text-ink tracking-tight mb-2">Welcome to AdsHunting, {displayName}!</h1>
         <p className="text-lg text-muted mb-8">Your account is ready. Let&apos;s start finding winning ads.</p>
 
         <div className="text-left bg-zinc-50 p-6 rounded-lg border border-line mb-8 space-y-4">
           <h3 className="font-semibold text-ink">What&apos;s next?</h3>
           <ul className="space-y-3 text-sm text-muted">
-             <li className="flex gap-3">
-               <span className="text-brand shrink-0">1.</span>
-               <span><strong>Discover Ads:</strong> Search our database of high-performing creatives.</span>
-             </li>
-             <li className="flex gap-3">
-               <span className="text-brand shrink-0">2.</span>
-               <span><strong>Competitors:</strong> Track other brands and analyze their strategies.</span>
-             </li>
-             <li className="flex gap-3">
-               <span className="text-brand shrink-0">3.</span>
-               <span><strong>Swipe Files:</strong> Save your favorite ads for inspiration.</span>
-             </li>
+            <li className="flex gap-3">
+              <span className="text-brand shrink-0">1.</span>
+              <span><strong>Discover our ads:</strong> Search our database of high-performing creatives.</span>
+            </li>
+            <li className="flex gap-3">
+              <span className="text-brand shrink-0">2.</span>
+              <span><strong>Competitors:</strong> Track other brands and analyze their strategies.</span>
+            </li>
+            <li className="flex gap-3">
+              <span className="text-brand shrink-0">3.</span>
+              <span><strong>Swipe Files:</strong> Save your favorite ads for inspiration.</span>
+            </li>
           </ul>
         </div>
 
@@ -66,12 +66,12 @@ export function WelcomeClient({ name }: { name: string }) {
           className="w-full bg-brand hover:bg-brand-hover text-white py-3 px-6 rounded-md font-medium text-lg transition-colors disabled:opacity-70 flex justify-center items-center gap-2"
         >
           {loading ? (
-             <>
-               <div className="w-5 h-5 rounded-full border-2 border-white/30 border-t-white animate-spin" />
-               Preparing your dashboard...
-             </>
+            <>
+              <div className="w-5 h-5 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+              Preparing your dashboard...
+            </>
           ) : (
-             "Go to Dashboard"
+            "Go to Dashboard"
           )}
         </button>
       </Card>

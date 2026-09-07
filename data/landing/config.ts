@@ -45,7 +45,7 @@ export const pricingPlans: PricingPlan[] = [
     available: true,
     icon: Compass,
     features: [
-      "Discover Ads",
+      "Discover our ads",
       "Search & Filters",
       "Review Ad Details",
       "Brand Research",
@@ -77,11 +77,11 @@ export const pricingPlans: PricingPlan[] = [
 
 export const navigationConfig = {
   product: [
-    { 
-      name: 'Discover Ads', 
-      href: '/product/discover-ads', 
+    {
+      name: 'Discover our ads',
+      href: '/product/discover-ads',
       description: 'Search and research advertising creatives',
-      icon: Search 
+      icon: Search
     },
     {
       name: 'Creative Intelligence',
@@ -89,17 +89,17 @@ export const navigationConfig = {
       description: 'Review observable patterns in competitor ads',
       icon: Lightbulb
     },
-    { 
-      name: 'Swipe Files', 
-      href: '/product/swipe-files', 
+    {
+      name: 'Swipe Files',
+      href: '/product/swipe-files',
       description: 'Save and organize useful ad inspiration',
-      icon: FolderOpen 
+      icon: FolderOpen
     },
-    { 
-      name: 'Ad Sharing', 
-      href: '/product/ad-sharing', 
+    {
+      name: 'Ad Sharing',
+      href: '/product/ad-sharing',
       description: 'Manage and share ads with your team',
-      icon: Share2 
+      icon: Share2
     },
   ],
   resources: [

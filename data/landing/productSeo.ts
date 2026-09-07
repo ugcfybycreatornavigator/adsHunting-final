@@ -3,7 +3,7 @@ import { Bookmark, BrainCircuit, Search, Share2 } from "lucide-react";
 export const productSeoPages = [
   {
     slug: "discover-ads",
-    navName: "Discover Ads",
+    navName: "Discover our ads",
     eyebrow: "AD DISCOVERY",
     icon: Search,
     title: "Discover competitor ads without losing the research thread.",

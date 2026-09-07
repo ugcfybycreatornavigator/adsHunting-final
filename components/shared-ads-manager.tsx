@@ -47,7 +47,7 @@ export function SharedAdsManager() {
       setLinks(originalLinks);
     }
   }
-  
+
   async function enableLink(id: string) {
     const originalLinks = [...links];
     setLinks(links.map(l => l.id === id ? { ...l, status: "active", revokedAt: undefined } : l));
@@ -78,7 +78,7 @@ export function SharedAdsManager() {
     const originalLinks = [...links];
     setLinks(links.map(l => l.id === id ? { ...l, visibility: newVisibility } : l));
     try {
-      const res = await apiFetch(`/api/shared-ads/${id}/visibility`, { 
+      const res = await apiFetch(`/api/shared-ads/${id}/visibility`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ visibility: newVisibility })
@@ -112,7 +112,7 @@ export function SharedAdsManager() {
         icon={<Globe className="text-brand" />}
         title="No shared creatives yet"
         body="Share an ad from Discover or Saved Ads to create your first link."
-        action={<a href="/discover" className="inline-flex h-9 items-center justify-center rounded-md bg-brand px-4 py-2 text-sm font-medium text-white transition hover:opacity-90">Discover Ads</a>}
+        action={<a href="/discover" className="inline-flex h-9 items-center justify-center rounded-md bg-brand px-4 py-2 text-sm font-medium text-white transition hover:opacity-90">Discover our ads</a>}
       />
     );
   }
@@ -157,22 +157,20 @@ export function SharedAdsManager() {
                   <td className="px-6 py-4">
                     <div className="font-medium text-ink">{link.name}</div>
                     <div className="text-xs text-muted flex items-center gap-1 mt-1">
-                      {link.contentType === "single" ? <FileText size={12}/> : link.contentType === "multiple" ? <FileText size={12}/> : <FolderHeart size={12}/>}
+                      {link.contentType === "single" ? <FileText size={12} /> : link.contentType === "multiple" ? <FileText size={12} /> : <FolderHeart size={12} />}
                       {link.contentType === "swipe_file" ? "Swipe File" : link.contentType === "single" ? "Single Ad" : "Multiple Ads"}
                       {link.itemCount ? ` • ${link.itemCount} items` : ""}
                     </div>
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-2">
-                      <span className={`inline-flex items-center px-2 py-1 rounded-full text-[11px] font-semibold tracking-wide ${
-                        link.status === "active" ? "bg-green-50 text-green-700" :
-                        link.status === "expired" ? "bg-amber-50 text-amber-700" : "bg-red-50 text-red-700"
-                      }`}>
+                      <span className={`inline-flex items-center px-2 py-1 rounded-full text-[11px] font-semibold tracking-wide ${link.status === "active" ? "bg-green-50 text-green-700" :
+                          link.status === "expired" ? "bg-amber-50 text-amber-700" : "bg-red-50 text-red-700"
+                        }`}>
                         {link.status?.toUpperCase()}
                       </span>
-                      <span className={`inline-flex items-center px-2 py-1 rounded-full text-[11px] font-semibold tracking-wide ${
-                        link.visibility === "public" ? "bg-brand text-brand" : "bg-zinc-100 text-zinc-700"
-                      }`}>
+                      <span className={`inline-flex items-center px-2 py-1 rounded-full text-[11px] font-semibold tracking-wide ${link.visibility === "public" ? "bg-brand text-brand" : "bg-zinc-100 text-zinc-700"
+                        }`}>
                         {link.visibility === "public" ? "PUBLIC" : "PRIVATE"}
                       </span>
                     </div>
@@ -189,7 +187,7 @@ export function SharedAdsManager() {
                   </td>
                   <td className="px-6 py-4">
                     <span className="flex items-center gap-1.5 font-medium text-ink">
-                      <Eye size={14} className="text-muted"/>
+                      <Eye size={14} className="text-muted" />
                       {link.views || 0}
                     </span>
                   </td>
@@ -201,11 +199,11 @@ export function SharedAdsManager() {
                       <button onClick={() => copyLink(link.tokenHash)} className="p-2 text-muted hover:text-ink hover:bg-line rounded-md transition" title="Copy Link">
                         <Copy size={16} />
                       </button>
-                      
+
                       {link.status === "disabled" ? (
-                         <button onClick={() => enableLink(link.id)} className="p-2 text-muted hover:text-green-600 hover:bg-green-50 rounded-md transition" title="Enable Access">
+                        <button onClick={() => enableLink(link.id)} className="p-2 text-muted hover:text-green-600 hover:bg-green-50 rounded-md transition" title="Enable Access">
                           <Link2 size={16} />
-                         </button>
+                        </button>
                       ) : (
                         <button onClick={() => revokeLink(link.id)} className="p-2 text-muted hover:text-amber-600 hover:bg-amber-50 rounded-md transition" title="Disable Access">
                           <Ban size={16} />
@@ -233,11 +231,11 @@ export function SharedAdsManager() {
                   {link.visibility} &middot; {link.status}
                 </div>
               </div>
-              
+
               <div className="text-xs text-muted flex items-center gap-3">
-                <span className="font-medium text-ink flex items-center gap-1.5"><Eye size={13} className="text-muted"/> {link.views || 0} views</span>
+                <span className="font-medium text-ink flex items-center gap-1.5"><Eye size={13} className="text-muted" /> {link.views || 0} views</span>
               </div>
-              
+
               <div className="flex items-center gap-2 pt-3 border-t border-line mt-1">
                 <Button variant="secondary" onClick={() => copyLink(link.tokenHash)} className="flex-1 min-h-[36px] px-3 gap-1.5 text-xs">
                   <Copy size={14} /> Copy
