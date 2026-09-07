@@ -55,30 +55,35 @@ async function resolveCatalogAdId(supabase: NonNullable<Awaited<ReturnType<typeo
 }
 
 export async function POST(req: NextRequest) {
-  const accessError = await requirePaidWorkspaceAccess();
-  if (accessError) return accessError;
-
-  const auth = await requireUser();
-  if (auth.error || !auth.userId) return auth.error || NextResponse.json({error: "Unauthorized"}, {status: 401});
-
-  const { adId, externalAdId, swipeFileId } = await req.json().catch(() => ({}));
-  
-  if (!adId && !externalAdId) {
-    return NextResponse.json({ error: "Missing adId or externalAdId" }, { status: 400 });
-  }
-
   try {
-    const resolvedAdId = await resolveCatalogAdId(auth.supabase!, adId, externalAdId);
-    if (!resolvedAdId) {
-      return NextResponse.json({ error: "Creative has not been persisted to the catalog yet. Please try again in a moment." }, { status: 404 });
+    const accessError = await requirePaidWorkspaceAccess();
+    if (accessError) return accessError;
+
+    const auth = await requireUser();
+    if (auth.error || !auth.userId) return auth.error || NextResponse.json({error: "Unauthorized"}, {status: 401});
+
+    const { adId, externalAdId, swipeFileId } = await req.json().catch(() => ({}));
+    
+    if (!adId && !externalAdId) {
+      return NextResponse.json({ error: "Missing adId or externalAdId" }, { status: 400 });
     }
 
-    const result = swipeFileId
-      ? await toggleAdInSwipeFile(auth.supabase!, auth.userId, resolvedAdId, swipeFileId)
-      : await saveAdToDefaultSwipeFile(auth.supabase!, auth.userId, resolvedAdId);
+    try {
+      const resolvedAdId = await resolveCatalogAdId(auth.supabase!, adId, externalAdId);
+      if (!resolvedAdId) {
+        return NextResponse.json({ error: "Creative has not been persisted to the catalog yet. Please try again in a moment." }, { status: 404 });
+      }
 
-    return NextResponse.json(result);
-  } catch {
-    return NextResponse.json({ error: "Couldn't save ad. Try again." }, { status: 500 });
+      const result = swipeFileId
+        ? await toggleAdInSwipeFile(auth.supabase!, auth.userId, resolvedAdId, swipeFileId)
+        : await saveAdToDefaultSwipeFile(auth.supabase!, auth.userId, resolvedAdId);
+
+      return NextResponse.json(result);
+    } catch {
+      return NextResponse.json({ error: "Couldn't save ad. Try again." }, { status: 500 });
+    }
+  } catch (err) {
+    console.error("[SwipeFiles] Unexpected error saving item:", err);
+    return NextResponse.json({ error: "Failed to save item." }, { status: 500 });
   }
 }

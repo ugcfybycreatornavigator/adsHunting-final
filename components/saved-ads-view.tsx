@@ -14,14 +14,41 @@ type Saved = { id: string; notes: string | null; createdAt: string; ad: Normaliz
 
 export function SavedAdsView({ collectionId }: { collectionId?: string }) {
   const [items, setItems] = useState<Saved[]>([]); const [loading, setLoading] = useState(true); const [error, setError] = useState(""); const [query, setQuery] = useState(""); const [details, setDetails] = useState<NormalizedAd | null>(null); const [editing, setEditing] = useState<Saved | null>(null); const [toast, setToast] = useState<string | null>(null); const [shareAdId, setShareAdId] = useState<string | null>(null); const [shareCollection] = useState<boolean>(false);
-  const load = useCallback(async () => { setLoading(true); setError(""); try { const response = await apiFetch(`/api/swipe-files/ads${collectionId ? `?swipeFileId=${collectionId}` : ""}`); const data = await response.json(); if (!response.ok) throw new Error(data.error); setItems(Array.isArray(data.items) ? data.items : []); } catch (error) { setItems([]); setError(error instanceof Error ? error.message : "Unable to load saved ads."); } finally { setLoading(false); } }, [collectionId]);
+  
+  const load = useCallback(async () => { 
+    setLoading(true); 
+    setError(""); 
+    try { 
+      const response = await apiFetch(`/api/swipe-files/ads${collectionId ? `?swipeFileId=${collectionId}` : ""}`); 
+      
+      let data;
+      try {
+        data = await response.json();
+      } catch {
+        throw new Error("Received an invalid response from the server. Please try again.");
+      }
+
+      if (!response.ok) throw new Error(data?.error || "Failed to load saved ads."); 
+      
+      setItems(Array.isArray(data?.items) ? data.items : []); 
+    } catch (error) { 
+      setItems([]); 
+      setError(error instanceof Error ? error.message : "Unable to load saved ads."); 
+    } finally { 
+      setLoading(false); 
+    } 
+  }, [collectionId]);
+
   useEffect(() => { load(); }, [load]);
   useEffect(() => { if (!toast) return; const timer = window.setTimeout(() => setToast(null), 2400); return () => window.clearTimeout(timer); }, [toast]);
   const filtered = useMemo(() => { const q = query.trim().toLowerCase(); if (!q) return items; return items.filter(item => [item.ad?.advertiser?.name,item.ad?.copy?.headline,item.ad?.copy?.primaryText,item.notes,...(item.tags || []).map((t: { id: string; name: string }) => t.name)].some(value => typeof value === "string" && value.toLowerCase().includes(q))); }, [items, query]);
   async function remove(id: string) { if (!confirm("Remove this creative from Saved Ads?")) return; const response = await apiFetch(`/api/swipe-files/ads?id=${id}`, { method: "DELETE" }); if (response.ok) setItems(current => current.filter(item => item.id !== id)); }
   async function share(ad: NormalizedAd) { setShareAdId(ad.id); }
+  
   if (loading) return <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,280px),340px))] gap-4">{Array.from({length:6}).map((_,i)=><div key={i} className="flex flex-col w-full overflow-hidden rounded-[12px] border border-line bg-white shadow-sm"><div className="flex h-[52px] items-center gap-2.5 px-3"><Skeleton className="size-7 rounded-full" /><div className="flex-1 space-y-1"><Skeleton className="h-3 w-24" /><Skeleton className="h-2 w-16" /></div></div><Skeleton className="w-full aspect-[4/5] rounded-none" /><div className="flex w-full min-h-[44px] border-b border-line items-center px-3"><Skeleton className="h-4 w-12" /></div><div className="flex flex-col border-t border-line px-3 py-3 space-y-2"><Skeleton className="h-3 w-full" /><Skeleton className="h-3 w-3/4" /></div><div className="flex w-full min-h-[44px] border-t border-line items-center px-2 gap-2"><Skeleton className="h-7 flex-1 rounded-md" /><Skeleton className="h-7 flex-1 rounded-md" /><Skeleton className="size-8 rounded-md shrink-0" /></div></div>)}</div>;
+  
   if (error) return <EmptyState icon={<BookmarkX />} title="Saved ads unavailable" body={error} action={<Button variant="secondary" onClick={load}>Retry</Button>} />;
+  
   return <div className="flex h-full flex-col p-4 md:p-8 max-w-[1600px] mx-auto w-full">
     {!collectionId && (
       <div className="mb-8">
@@ -72,11 +99,43 @@ function EditModal({ item, onClose, onChange }: { item: Saved; onClose: () => vo
   const [collectionIds, setCollectionIds] = useState<string[]>(item.collectionIds || []);
 
   useEffect(() => {
-    apiFetch("/api/swipe-files").then(r => r.json()).then((d: { collections?: SwipeFile[] }) => { if (Array.isArray(d.collections)) setCollections(d.collections); });
+    apiFetch("/api/swipe-files")
+      .then(r => r.json())
+      .then(data => { 
+        if (Array.isArray(data)) setCollections(data.filter((c: SwipeFile) => !c.isSystem)); 
+      })
+      .catch(() => {});
   }, []);
 
-  async function saveNotes() { setBusy(true); const response = await apiFetch("/api/swipe-files/ads", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: item.id, notes }) }); const data = await response.json(); setBusy(false); if (!response.ok) return setError(data.error); onChange({ ...item, notes }); }
-  async function saveCollections() { setBusy(true); setError(""); const response = await apiFetch("/api/swipe-files/ads", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: item.id, collectionIds }) }); const data = await response.json(); setBusy(false); if (!response.ok) return setError(data.error); onChange({ ...item, collectionIds }); }
+  async function saveNotes() { 
+    setBusy(true); 
+    try {
+      const response = await apiFetch("/api/swipe-files/ads", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ itemId: item.id, notes }) }); 
+      const data = await response.json(); 
+      if (!response.ok) return setError(data.error || "Failed to save notes."); 
+      onChange({ ...item, notes }); 
+    } catch {
+      setError("Failed to communicate with server.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function saveCollections() { 
+    setBusy(true); 
+    setError(""); 
+    try {
+      const response = await apiFetch("/api/swipe-files/ads", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ adId: item.ad.id, collectionIds }) }); 
+      const data = await response.json(); 
+      if (!response.ok) return setError(data.error || "Failed to update folders."); 
+      onChange({ ...item, collectionIds }); 
+    } catch {
+      setError("Failed to communicate with server.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function addTag(event: FormEvent) { event.preventDefault(); if (!tag.trim()) return; setBusy(true); const response = await apiFetch("/api/tags", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ savedAdId: item.id, name: tag }) }); const data = await response.json(); setBusy(false); if (!response.ok) return setError(data.error); onChange({ ...item, tags: [...item.tags.filter(t => t.id !== data.tag.id), data.tag] }); setTag(""); }
   async function removeTag(tagId: string) { const response = await apiFetch(`/api/tags?savedAdId=${item.id}&tagId=${tagId}`, { method: "DELETE" }); if (response.ok) onChange({ ...item, tags: item.tags.filter(t => t.id !== tagId) }); }
 
