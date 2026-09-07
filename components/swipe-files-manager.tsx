@@ -63,7 +63,7 @@ export function SwipeFilesManager({ initialData }: { initialData?: SwipeFile[] }
   return <>
     {error && <p className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-signal">{error}</p>}
     {files.length > 0 && (
-      <div className="grid gap-[14px] grid-cols-[repeat(auto-fill,minmax(280px,1fr))]">
+      <div className="grid gap-[14px] grid-cols-[repeat(auto-fill,minmax(min(100%,280px),1fr))]">
         {/* Create Card */}
         <button 
           onClick={() => setModal("new")} 

@@ -1,5 +1,6 @@
 import { realAdvertiserName, resolveAdvertiser } from "../supabase/functions/_shared/ads/advertiser-identity";
 import type { AdStatus, MediaType, NormalizedAd } from "@/lib/types";
+import { computeAdFingerprints } from "@/lib/fingerprint";
 
 export interface DatabaseAdRow {
   id: string;
@@ -52,15 +53,22 @@ export function dbAdToNormalized(row: DatabaseAdRow): NormalizedAd {
       : null;
   if (row.refined_data && Object.keys(row.refined_data).length > 0) {
     const refinedAd = row.refined_data as unknown as NormalizedAd;
+    const rowCarouselItems = (row.carousel_assets || []).map((asset) =>
+      /\.(?:mp4|webm|mov)(?:$|\?)/i.test(asset) ? { videoUrl: asset } : { imageUrl: asset }
+    );
+    const refinedCarouselItems = Array.isArray(refinedAd.creative?.carouselItems)
+      ? refinedAd.creative.carouselItems
+      : [];
     const advertiser = refinedAd.advertiser || { id: row.advertiser_id, name: null, logoUrl: null,
       pageUrl: null, domain: null, normalizedName: null, social: { facebook: null, instagram: null, linkedin: null } };
     return { ...refinedAd, id: row.canonical_ad_id || row.id,
       creative: {
         ...refinedAd.creative,
-        imageUrl: refinedAd.creative?.imageUrl || (row.media_type === "video" ? null : row.source_media_url),
-        videoUrl: refinedAd.creative?.videoUrl || (row.media_type === "video" ? row.source_media_url : null),
-        thumbnailUrl: refinedAd.creative?.thumbnailUrl || row.thumbnail_url,
-        carouselItems: refinedAd.creative?.carouselItems || [],
+        type: row.media_type || refinedAd.creative?.type || "unknown",
+        imageUrl: row.media_type === "video" ? refinedAd.creative?.imageUrl || null : row.source_media_url || refinedAd.creative?.imageUrl || null,
+        videoUrl: row.media_type === "video" ? row.source_media_url || refinedAd.creative?.videoUrl || null : refinedAd.creative?.videoUrl || null,
+        thumbnailUrl: row.thumbnail_url || refinedAd.creative?.thumbnailUrl || null,
+        carouselItems: rowCarouselItems.length ? rowCarouselItems : refinedCarouselItems,
       },
       advertiser: resolveAdvertiser({ ...advertiser, id: advertiser.id || row.advertiser_id }, undefined, undefined, {
         name: realAdvertiserName(row.advertiser_name, row.advertiser_id),
@@ -98,7 +106,9 @@ export function dbAdToNormalized(row: DatabaseAdRow): NormalizedAd {
       imageUrl: row.media_type === "video" ? null : row.source_media_url,
       videoUrl: row.media_type === "video" ? row.source_media_url : null,
       thumbnailUrl: row.thumbnail_url,
-      carouselItems: [], // Fallback ignores old carousel
+      carouselItems: (row.carousel_assets || []).map((asset) =>
+        /\.(?:mp4|webm|mov)(?:$|\?)/i.test(asset) ? { videoUrl: asset } : { imageUrl: asset }
+      ),
     },
     delivery: {
       status: row.status,
@@ -137,14 +147,15 @@ export function dbAdToNormalized(row: DatabaseAdRow): NormalizedAd {
 }
 
 export function normalizedToDb(ad: NormalizedAd): Omit<DatabaseAdRow, "created_at" | "updated_at" | "id"> {
+  const fingerprints = computeAdFingerprints(ad);
   return {
     external_ad_id: ad.externalId || ad.id,
     canonical_ad_id: ad.id,
-    creative_fingerprint: "",
-    creative_group_id: "",
+    creative_fingerprint: ad.fingerprint || fingerprints.creativeFingerprint,
+    creative_group_id: fingerprints.creativeGroupId,
     observation_count: 1,
     provider_ad_ids: [ad.externalId || ad.id],
-    advertiser_id: ad.advertiser.id || "unknown",
+    advertiser_id: ad.advertiser.id || "",
     advertiser_name: realAdvertiserName(ad.advertiser.name, ad.advertiser.id) || "",
     advertiser_avatar_url: ad.advertiser.logoUrl,
     advertiser_profile_url: ad.advertiser.pageUrl,

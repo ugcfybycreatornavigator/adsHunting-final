@@ -11,8 +11,6 @@ const TRANSIENT_ERROR_CODES = [
   "RATE_LIMIT", "PROVIDER_TIMEOUT", "PROVIDER_UNAVAILABLE", "UPSTREAM"
 ];
 
-const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
-
 type CircuitState = {
   failures: number;
   openedAt?: number;
@@ -32,6 +30,10 @@ export type OrchestratorResult = AdSearchResult & {
   };
 };
 
+function usableText(value: unknown): value is string {
+  return typeof value === "string" && Boolean(value.trim()) && !/^(?:unknown|null|undefined)$/i.test(value.trim());
+}
+
 export class AdsProviderOrchestrator {
   private providers: AdProvider[] = [];
 
@@ -39,7 +41,7 @@ export class AdsProviderOrchestrator {
     const envVars = Deno.env.toObject();
     
     // Parse order configuration
-    const orderStr = Deno.env.get("ADS_PROVIDER_ORDER") || "spyglass,foreplay,searchapi";
+    const orderStr = Deno.env.get("ADS_PROVIDER_PRIORITY") || Deno.env.get("ADS_PROVIDER_ORDER") || "meta,foreplay,searchapi";
     const order = orderStr.split(",").map(s => s.trim().toLowerCase()).filter(Boolean);
     
     const registry = new Map<string, () => AdProvider | null>();
@@ -75,7 +77,7 @@ export class AdsProviderOrchestrator {
     registry.set("searchapi", () => {
       const searchApiKeys = Object.entries(envVars)
         .filter(([key]) => key === "SEARCHAPI_API_KEY" || key.startsWith("SEARCH_API_KEY"))
-        .map(([_, val]) => val)
+        .map((entry) => entry[1])
         .filter(Boolean);
       if (searchApiKeys.length > 0) return new SearchApiProvider(searchApiKeys);
       return null;
@@ -87,7 +89,7 @@ export class AdsProviderOrchestrator {
       return null;
     });
     
-    const configuredOrder = ["meta", "foreplay"]; // Launch policy; dormant providers stay out.
+    const configuredOrder = [...new Set(order)];
     
     for (const providerName of configuredOrder) {
       if (!registry.has(providerName)) {
@@ -155,14 +157,21 @@ export class AdsProviderOrchestrator {
 
     const attempts: { provider: string; error?: string }[] = [];
 
-      const MAX_TOTAL_BUDGET_MS = 15_000;
+      const MAX_TOTAL_BUDGET_MS = 25_000;
       const orchestratorStartTime = Date.now();
       
       for (const provider of configuredProviders) {
-        // Provider IDs are not interchangeable. No keyword fallback for a selected brand.
-        if (filters.brand && (provider.name === "foreplay"
-          ? filters.selectedBrand?.provider !== "foreplay"
-          : filters.selectedBrand && filters.selectedBrand.provider !== "meta")) continue;
+        // Provider IDs are not interchangeable. SearchAPI uses Meta page IDs, while
+        // Foreplay has its own advertiser identity namespace.
+        if (filters.brand && filters.selectedBrand) {
+          const supportsIdentity = filters.selectedBrand.provider === "meta"
+            ? provider.name === "meta" || provider.name === "searchapi"
+            : provider.name === "foreplay";
+          if (!supportsIdentity) continue;
+        }
+        const capabilities = provider.capabilities;
+        if (filters.brand && capabilities && !capabilities.advertiserSearch && !capabilities.brandSearch) continue;
+        if (!filters.brand && filters.query?.trim() && capabilities && !capabilities.keywordSearch) continue;
         if (this.isCircuitOpen(provider.name)) {
           console.warn(JSON.stringify({
             event: "ads_provider_circuit_open",
@@ -185,17 +194,34 @@ export class AdsProviderOrchestrator {
 
         const startTime = Date.now();
         try {
-          const abortController = new AbortController();
-          const timeout = setTimeout(() => abortController.abort(), providerBudget);
-          
+          let timeout: ReturnType<typeof setTimeout> | undefined;
           const result = await Promise.race([
             provider.searchAds(filters),
             new Promise<never>((_, reject) => {
-              abortController.signal.addEventListener('abort', () => reject(new ProviderError("PROVIDER_TIMEOUT", "Provider exceeded budget", 504)));
+              timeout = setTimeout(() => reject(new ProviderError("PROVIDER_TIMEOUT", "Provider exceeded budget", 504)), providerBudget);
             })
-          ]);
-          
-          clearTimeout(timeout);
+          ]).finally(() => timeout && clearTimeout(timeout));
+
+          const usableAds = result.ads.filter(ad =>
+            usableText(ad?.id) && usableText(ad.externalId) &&
+            usableText(ad.advertiser?.id) && usableText(ad.advertiser?.name)
+          );
+
+          if (usableAds.length === 0) {
+            attempts.push({ provider: provider.name, error: "NO_USABLE_RESULTS" });
+            console.info(JSON.stringify({
+              event: "ads_provider_empty",
+              requestId: opts?.requestId,
+              provider: provider.name,
+              operation: "searchAds",
+              status: "empty",
+              duration: Date.now() - startTime,
+              resultCount: result.ads.length,
+              errorCode: "NO_USABLE_RESULTS",
+              fallbackUsed: true
+            }));
+            continue;
+          }
           
           this.recordSuccess(provider.name);
 
@@ -203,13 +229,17 @@ export class AdsProviderOrchestrator {
             event: "ads_provider_success",
             requestId: opts?.requestId,
             provider: provider.name,
-            durationMs: Date.now() - startTime,
-            resultCount: result.ads.length,
-            attempt: 1
+            operation: "searchAds",
+            status: "success",
+            duration: Date.now() - startTime,
+            resultCount: usableAds.length,
+            errorCode: null,
+            fallbackUsed: attempts.length > 0
           }));
 
           return {
             ...result,
+            ads: usableAds,
             providerMeta: {
               provider: provider.name,
               fallbackUsed: attempts.length > 0,
@@ -230,11 +260,12 @@ export class AdsProviderOrchestrator {
             event: "ads_provider_failure",
             requestId: opts?.requestId,
             provider: provider.name,
-            code: providerError.code,
+            operation: "searchAds",
             status: providerError.status,
-            durationMs: Date.now() - startTime,
-            isTransient,
-            attempt: 1
+            duration: Date.now() - startTime,
+            resultCount: 0,
+            errorCode: providerError.code,
+            fallbackUsed: true
           }));
 
           attempts.push({
@@ -253,6 +284,15 @@ export class AdsProviderOrchestrator {
           }
         }
       }
+
+    const emptyAttempts = attempts.filter(attempt => attempt.error === "NO_USABLE_RESULTS");
+    if (emptyAttempts.length > 0 && emptyAttempts.length === attempts.length) {
+      const lastProvider = emptyAttempts[emptyAttempts.length - 1].provider as ProviderName;
+      return {
+        ads: [], nextCursor: null, total: 0, source: "provider",
+        providerMeta: { provider: lastProvider, fallbackUsed: emptyAttempts.length > 1, fallbackReason: "NO_USABLE_RESULTS" }
+      };
+    }
 
     throw new ProviderError("PROVIDER_UNAVAILABLE", "Search is temporarily unavailable. All configured providers failed.", 503);
   }

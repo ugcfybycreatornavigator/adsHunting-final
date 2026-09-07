@@ -71,8 +71,55 @@ export async function POST(request: NextRequest) {
   const auth = await requireUser();
   if (auth.error || !auth.userId) return auth.error || NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const body = await request.json();
-  const { name, message, contentType, swipeFileId, expiresAt, allowSave, allowDownload, adIds, visibility } = body;
+  const body = await request.json().catch(() => ({}));
+  const { name, message, swipeFileId, expiresAt, allowSave, allowDownload, adIds } = body;
+  const visibility = body.visibility === "public" ? "public" : "private";
+
+  if (typeof name !== "string" || !name.trim() || name.length > 120) {
+    return NextResponse.json({ error: "INVALID_SHARE", message: "A valid share name is required." }, { status: 400 });
+  }
+  let resolvedAdIds: string[] = [];
+  if (swipeFileId) {
+    const { data: ownedFile } = await auth.supabase.from("swipe_files").select("id")
+      .eq("id", swipeFileId).eq("user_id", auth.userId).maybeSingle();
+    if (!ownedFile) return NextResponse.json({ error: "SWIPE_FILE_NOT_FOUND", message: "Swipe File not found." }, { status: 404 });
+
+    const { data: fileItems, error: fileItemsError } = await auth.supabase
+      .from("swipe_file_items")
+      .select("ad_id")
+      .eq("swipe_file_id", swipeFileId)
+      .order("created_at", { ascending: true })
+      .limit(100);
+    if (fileItemsError) {
+      return NextResponse.json({ error: "SHARE_ITEMS_FAILED", message: "Couldn't load this Swipe File." }, { status: 500 });
+    }
+    resolvedAdIds = [...new Set((fileItems || []).map((item) => item.ad_id).filter(Boolean))];
+    if (!resolvedAdIds.length) {
+      return NextResponse.json({ error: "EMPTY_SWIPE_FILE", message: "Add at least one ad before sharing this Swipe File." }, { status: 400 });
+    }
+  }
+
+  const requestedAdIds = Array.isArray(adIds)
+    ? [...new Set(adIds.filter((id): id is string => typeof id === "string" && id.length > 0))].slice(0, 100)
+    : [];
+  if (!swipeFileId && !requestedAdIds.length) {
+    return NextResponse.json({ error: "ADS_REQUIRED", message: "Select at least one ad to share." }, { status: 400 });
+  }
+  if (!swipeFileId && requestedAdIds.length) {
+    const uuidIds = requestedAdIds.filter(id => /^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(id));
+    const [byInternal, byCanonical, byExternal] = await Promise.all([
+      uuidIds.length ? auth.supabase.from("ads").select("id").in("id", uuidIds) : Promise.resolve({ data: [] }),
+      auth.supabase.from("ads").select("id").in("canonical_ad_id", requestedAdIds),
+      auth.supabase.from("ads").select("id").in("external_ad_id", requestedAdIds),
+    ]);
+    resolvedAdIds = [...new Set([
+      ...(byInternal.data || []), ...(byCanonical.data || []), ...(byExternal.data || []),
+    ].map(row => row.id))];
+    if (resolvedAdIds.length !== requestedAdIds.length) {
+      return NextResponse.json({ error: "ADS_NOT_FOUND", message: "The selected ads are not available to share." }, { status: 404 });
+    }
+  }
+  const contentType = swipeFileId ? "swipe_file" : resolvedAdIds.length > 1 ? "multiple" : "single";
 
   const token = "rlt_" + crypto.randomBytes(32).toString("hex");
 
@@ -80,7 +127,7 @@ export async function POST(request: NextRequest) {
     .from("shared_ad_links")
     .insert({
       owner_user_id: auth.userId,
-      name,
+      name: name.trim(),
       message,
       token_hash: token,
       content_type: contentType,
@@ -103,8 +150,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "SHARE_CREATE_FAILED", message: error.message || "Couldn't create share." }, { status: 500 });
   }
 
-  if (adIds && adIds.length > 0) {
-    const items = adIds.map((adId: string, index: number) => ({
+  if (resolvedAdIds.length > 0) {
+    const items = resolvedAdIds.map((adId: string, index: number) => ({
       shared_link_id: link.id,
       ad_id: adId,
       position: index
@@ -117,6 +164,8 @@ export async function POST(request: NextRequest) {
         details: itemsError?.details,
         hint: itemsError?.hint,
       });
+      await auth.supabase.from("shared_ad_links").delete().eq("id", link.id).eq("owner_user_id", auth.userId);
+      return NextResponse.json({ error: "SHARE_ITEMS_FAILED", message: "Couldn't attach the selected ads to this share." }, { status: 500 });
     }
   }
 

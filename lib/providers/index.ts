@@ -112,9 +112,8 @@ export function getAdProviders(filters: AdSearchFilters = {}): NamedAdProvider[]
     return null;
   });
 
-  // Deduplicate and resolve order
-  // Launch policy: legacy configuration must not bypass Meta or activate dormant providers.
-  const order = ["meta", "foreplay"];
+  // Keep the legacy setting as an alias, but prefer ADS_PROVIDER_PRIORITY.
+  const order = [...new Set(env.adsProviderOrder)];
   
   for (const providerName of order) {
     if (!["spyglass", "meta", "foreplay", "searchapi"].includes(providerName)) {
@@ -131,7 +130,8 @@ export function getAdProviders(filters: AdSearchFilters = {}): NamedAdProvider[]
   if (!configured.length) throw new ProviderError("PROVIDER_NOT_CONFIGURED", "No providers configured or authorized.", 503);
 
   const capable = configured.filter(({ provider, name }) =>
-    (!filters.brand || (name === "meta" ? !filters.selectedBrand || filters.selectedBrand.provider === "meta" : filters.selectedBrand?.provider === name)) &&
+    (!filters.brand || !filters.selectedBrand ||
+      (filters.selectedBrand.provider === "meta" ? name === "meta" || name === "searchapi" : name === "foreplay")) &&
     canSatisfy(provider, filters) && !circuitOpen(name));
   if (capable.length) return capable;
 

@@ -13,7 +13,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <OwnerWelcomeModal />
       <Sidebar />
       <MobileHeader />
-      <main className="min-h-screen lg:pl-[236px]">
+      <main className="min-h-screen min-w-0 lg:pl-[236px]">
         {isPreviewMode ? (
           <div className="border-b border-amber-200 bg-amber-50 px-5 py-2.5 text-center text-xs font-medium text-amber-900">
             Guest preview — login is temporarily disabled. Live discovery works; user saves require Supabase tables and authentication.
@@ -23,7 +23,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             Configuration mode — add valid environment values to enable {(!isAnyAdsProviderConfigured && !isSupabaseConfigured) ? "live search and persistence" : !isAnyAdsProviderConfigured ? "live provider search" : "authentication and persistence"}.
           </div>
         )}
-        <div className="mx-auto w-full max-w-[1680px] p-4 sm:p-6 lg:p-8">{children}</div>
+        <div className="mx-auto min-w-0 w-full max-w-[1680px] p-4 sm:p-6 lg:p-8">{children}</div>
       </main>
       <SupportModal />
     </div>

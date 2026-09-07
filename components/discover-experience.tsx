@@ -333,12 +333,19 @@ export function DiscoverExperience({ brandId, hideHeader = false }: { brandId?: 
   }
 
   function handleSwipeFileAdded(ad: NormalizedAd, result: SwipeFileResult) {
-    setSavedAdIds((current) => new Set([...current, (ad.externalId || ad.id)]));
+    setSavedAdIds((current) => {
+      const updated = new Set(current);
+      if (result.collectionIds.length) updated.add(ad.externalId || ad.id);
+      else updated.delete(ad.externalId || ad.id);
+      return updated;
+    });
     setAdCollectionIds((current) => ({
       ...current,
       [(ad.externalId || ad.id)]: [...new Set([...(current[(ad.externalId || ad.id)] ?? []), ...result.collectionIds])],
     }));
-    setToast({ message: result.collectionNames.length > 1 ? `Added to ${result.collectionNames.length} Swipe Files` : `Added to ${result.collectionNames[0] || "Swipe File"}` });
+    setToast({ message: result.added
+      ? result.collectionNames.length > 1 ? `Added to ${result.collectionNames.length} Swipe Files` : `Added to ${result.collectionNames[0] || "Swipe File"}`
+      : `Removed from ${result.collectionNames[0] || "Swipe File"}` });
   }
 
   const isBrandsView = filters.view === "brands";
@@ -348,7 +355,7 @@ export function DiscoverExperience({ brandId, hideHeader = false }: { brandId?: 
       {!hideHeader && (
         <div className="mb-6 mt-1 flex flex-col md:flex-row md:items-end justify-between gap-4">
           <div>
-            <h1 className="text-3xl md:text-[32px] font-extrabold tracking-tight text-zinc-900 flex items-center gap-3">
+            <h1 className="flex flex-wrap items-center gap-x-3 gap-y-2 text-3xl font-extrabold tracking-tight text-zinc-900 md:text-[32px]">
               Discover {isBrandsView ? "Brands" : "Ads"}
               <span className="inline-flex items-center justify-center rounded-full bg-zinc-100 px-2.5 py-0.5 text-[13px] font-semibold text-zinc-600 tabular-nums shadow-sm border border-zinc-200/50">
                 {loading || brandsLoading ? (
@@ -480,7 +487,7 @@ export function DiscoverExperience({ brandId, hideHeader = false }: { brandId?: 
           ) : error ? (
             <EmptyState
               icon={<Filter className="text-signal" />}
-              title={error.code === "NOT_CONFIGURED" ? "No Ads Provider Configured" : "Search Temporarily Unavailable"}
+              title={error.code === "PROVIDER_NOT_CONFIGURED" ? "No Ads Provider Configured" : error.code === "PROVIDER_UNAVAILABLE" ? "All Ad Providers Unavailable" : "Search Temporarily Unavailable"}
               body={error.message}
               action={
                 <Button variant="secondary" onClick={() => search(filters)}>

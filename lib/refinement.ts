@@ -72,6 +72,7 @@ export function refineAd(ad: Partial<NormalizedAd>): NormalizedAd {
 
   const fps = computeAdFingerprints(refined);
   refined.fingerprint = fps.creativeFingerprint;
+  refined.id = fps.canonicalAdId;
   
   return refined;
 }

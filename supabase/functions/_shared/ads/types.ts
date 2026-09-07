@@ -44,6 +44,10 @@ export type RefinedAd = {
   id: string;
   externalId: string | null;
   rawData?: Record<string, unknown> | null;
+  fingerprint?: string;
+  variants?: number;
+  creativeRepetition?: number;
+  brandActiveAds?: number | null;
 
   provider: {
     discoveryProvider: "searchapi" | "metaapi_io" | "meta_official" | "foreplay" | "spyglass" | "catalog";

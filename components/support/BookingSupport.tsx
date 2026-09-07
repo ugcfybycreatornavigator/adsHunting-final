@@ -53,15 +53,15 @@ export function BookingSupport() {
         <p className="mt-2 text-sm text-muted max-w-sm">
           There might be a connection issue with our scheduling provider.
         </p>
-        <div className="mt-6 flex items-center gap-3">
-          <Button variant="secondary" onClick={() => { setLoading(true); setError(false); }}>
+        <div className="mt-6 flex w-full flex-col items-stretch gap-3 sm:w-auto sm:flex-row sm:items-center">
+          <Button variant="secondary" className="w-full sm:w-auto" onClick={() => { setLoading(true); setError(false); }}>
             Try again
           </Button>
           <a
             href={bookingUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex h-10 items-center justify-center gap-2 rounded-lg bg-brand px-4 text-sm font-semibold text-white transition hover:bg-brand-strong"
+            className="flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-brand px-4 text-sm font-semibold text-white transition hover:bg-brand-strong sm:w-auto"
           >
             Open booking page
             <ExternalLink size={16} />

@@ -66,7 +66,7 @@ export default async function BrandsPage({
 
       <div className="mt-8">
         {brands.length ? (
-          <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-5">
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,280px),1fr))] gap-5">
             {brands.map((brand) => (
               <BrandCard key={brand.id} brand={brand} />
             ))}

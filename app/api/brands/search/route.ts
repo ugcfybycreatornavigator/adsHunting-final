@@ -2,15 +2,16 @@ import { requirePaidWorkspaceAccess } from "@/lib/billing/entitlement";
 import { NextResponse } from "next/server";
 import { getBrands, BrandSummary } from "@/lib/brand-data";
 import { requireUser } from "@/lib/auth";
-import { getServerEnv, isSearchConfigured } from "@/lib/env/server";
-import { SearchApiProvider } from "@/lib/providers/searchapi";
+import { getAdProviders } from "@/lib/providers";
+import { realAdvertiserName } from "@/lib/advertiser-identity";
 
 export async function POST(request: Request) {
   const accessError = await requirePaidWorkspaceAccess();
   if (accessError) return accessError;
 
   try {
-    await requireUser();
+    const auth = await requireUser();
+    if (auth.error) return auth.error;
 
     const { query } = await request.json();
     let externalCandidates: BrandSummary[] = [];
@@ -18,34 +19,29 @@ export async function POST(request: Request) {
     // If there is a query, attempt to find live candidates from SearchAPI
     // This solves the problem where a user searches for an advertiser that has active ads
     // but isn't fully propagated in the catalog yet.
-    if (query && query.trim() && isSearchConfigured) {
+    if (query && query.trim()) {
       try {
-        const searchApi = new SearchApiProvider(getServerEnv().searchApiKeys);
-        // Only fetch a small number of ads to extract brand information efficiently
-        const result = await searchApi.searchAds({ query, status: "all" });
-        
-        // Extract distinct advertisers
         const advertiserMap = new Map<string, BrandSummary>();
-        
-        // Limit to 5 results to prevent massive loops since we only need a few brand candidates
-        const adsToProcess = result.ads.slice(0, 5);
-        
-        for (const ad of adsToProcess) {
-          const advId = ad.advertiser?.id;
-          if (!advId) continue;
-          
-          if (!advertiserMap.has(advId)) {
-            advertiserMap.set(advId, {
-              id: advId,
-              name: ad.advertiser?.name || "Unknown",
-              avatar: ad.advertiser?.logoUrl || null,
-              platforms: ad.delivery?.platforms || [],
-              totalUnique: null, // To be filled by getBrandStats if needed
-              activeUnique: null,
-              previewMedia: ad.creative?.videoUrl ? [ad.creative.videoUrl] : ad.creative?.imageUrl ? [ad.creative.imageUrl] : [],
-              previewThumbs: ad.creative?.thumbnailUrl ? [ad.creative.thumbnailUrl] : []
-            });
+        for (const { provider } of getAdProviders({ query, status: "all" })) {
+          const result = await provider.searchAds({ query, status: "all" });
+          for (const ad of result.ads.slice(0, 10)) {
+            const advId = ad.advertiser?.id;
+            const advertiserName = realAdvertiserName(ad.advertiser?.name, advId);
+            if (!advId || !advertiserName) continue;
+            if (!advertiserMap.has(advId)) {
+              advertiserMap.set(advId, {
+                id: advId,
+                name: advertiserName,
+                avatar: ad.advertiser?.logoUrl || null,
+                platforms: ad.delivery?.platforms || [],
+                totalUnique: null,
+                activeUnique: null,
+                previewMedia: ad.creative?.videoUrl ? [ad.creative.videoUrl] : ad.creative?.imageUrl ? [ad.creative.imageUrl] : [],
+                previewThumbs: ad.creative?.thumbnailUrl ? [ad.creative.thumbnailUrl] : []
+              });
+            }
           }
+          if (advertiserMap.size) break;
         }
         externalCandidates = Array.from(advertiserMap.values());
       } catch (err) {

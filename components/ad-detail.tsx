@@ -132,12 +132,16 @@ export function AdDetailDrawer({
   ad,
   saved = false,
   isPublicShare = false,
+  allowSharedSave = false,
+  allowSharedDownload = false,
   onClose,
   onSave,
 }: {
   ad: NormalizedAd;
   saved?: boolean;
   isPublicShare?: boolean;
+  allowSharedSave?: boolean;
+  allowSharedDownload?: boolean;
   onClose: () => void;
   onSave?: () => Promise<void> | void;
 }) {
@@ -232,7 +236,9 @@ export function AdDetailDrawer({
 
   const media = resolveAdMedia(ad);
   const TABS = ["Overview", "Creative", "Copy", "Delivery", "Landing Page", "Advertiser"];
-  const hasDownload = !!(media.videoUrl || media.imageUrl || media.carouselAssets?.length);
+  const canDownload = !isPublicShare || allowSharedDownload;
+  const canSave = !isPublicShare || allowSharedSave;
+  const hasDownload = canDownload && !!(media.videoUrl || media.imageUrl || media.carouselAssets?.length);
 
   // Computed display values
   const normalizedPlatforms = ad.delivery.platforms ? Array.from(new Set(ad.delivery.platforms.map(normalizePlatform))) : [];
@@ -395,13 +401,15 @@ export function AdDetailDrawer({
               {!isPublicShare && (
                 <>
                   <HeaderButton icon={<Share size={16} />} label="Share" onClick={() => setShowShare(true)} />
-                  <HeaderButton 
-                    ref={swipeBtnRef} 
-                    icon={<LayoutTemplate size={16} />} 
-                    label="Add to Swipe File" 
-                    onClick={() => setShowSwipePicker(true)} 
-                  />
                 </>
+              )}
+              {canSave && (
+                <HeaderButton
+                  ref={swipeBtnRef}
+                  icon={<LayoutTemplate size={16} />}
+                  label="Add to Swipe File"
+                  onClick={() => setShowSwipePicker(true)}
+                />
               )}
             </div>
             
@@ -415,9 +423,9 @@ export function AdDetailDrawer({
                     {!isPublicShare && (
                       <>
                         <MobileMenuButton icon={<Share size={16} />} label="Share" onClick={() => { setShowShare(true); close(); }} />
-                        <MobileMenuButton icon={<LayoutTemplate size={16} />} label="Swipe File" onClick={() => { setShowSwipePicker(true); close(); }} />
                       </>
                     )}
+                    {canSave && <MobileMenuButton icon={<LayoutTemplate size={16} />} label="Swipe File" onClick={() => { setShowSwipePicker(true); close(); }} />}
                   </div>
                 )}
               >
@@ -427,19 +435,19 @@ export function AdDetailDrawer({
               </MetadataPopover>
             </div>
             
-            {!isPublicShare && (
+            {canSave && (
               <button 
-                onClick={handleSave} 
-                disabled={isSaved || saving} 
+                onClick={() => setShowSwipePicker(true)}
+                disabled={saving}
                 className={cn(
                   "flex items-center gap-2 h-9 px-3 sm:px-4 rounded-[8px] text-[13px] font-[600] transition-colors ml-1 sm:ml-2 shadow-sm",
                   isSaved || saving 
-                    ? "bg-zinc-100 text-muted cursor-not-allowed border border-line" 
+                    ? "bg-zinc-100 text-muted border border-line"
                     : "bg-brand text-white hover:bg-brand-strong border border-transparent hover:shadow-md"
                 )}
               >
                 {saving ? <Loader2 size={15} className="animate-spin" /> : isSaved ? <Check size={15} /> : <Bookmark size={15} />}
-                <span className="hidden sm:inline">{isSaved ? "Saved" : "Save"}</span>
+                <span className="hidden sm:inline">{isSaved ? "Organize" : "Save"}</span>
               </button>
             )}
             <div className="w-px h-6 bg-line/60 mx-1 sm:mx-2" />
@@ -630,13 +638,14 @@ export function AdDetailDrawer({
         defaultName={`Ad from ${ad.advertiser.name}`} 
       />
       
-      {showSwipePicker && (
+      {showSwipePicker && canSave && (
         <SwipeFilePicker
           ad={ad}
           saved={isSaved}
           anchorRef={swipeBtnRef}
           onClose={() => setShowSwipePicker(false)}
           onAdded={() => setShowSwipePicker(false)}
+          onSaveDefault={handleSave}
         />
       )}
     </div>

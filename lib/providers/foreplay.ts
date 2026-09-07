@@ -10,15 +10,16 @@ import type {
 import { computeAdIntelligence } from "@/lib/intelligence";
 import { daysBetween, safeExternalUrl, sanitizeAdCopy } from "@/lib/utils";
 import { ProviderError, providerErrorFromStatus } from "@/lib/providers/errors";
+import { refineAd } from "@/lib/refinement";
 
 type UnknownRecord = Record<string, unknown>;
 
 function cyrb53(str: string, seed = 0) {
   let h1 = 0xdeadbeef ^ seed, h2 = 0x41c6ce57 ^ seed;
   for (let i = 0, ch; i < str.length; i++) {
-      ch = str.charCodeAt(i);
-      h1 = Math.imul(h1 ^ ch, 2654435761);
-      h2 = Math.imul(h2 ^ ch, 1597334677);
+    ch = str.charCodeAt(i);
+    h1 = Math.imul(h1 ^ ch, 2654435761);
+    h2 = Math.imul(h2 ^ ch, 1597334677);
   }
   h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
   h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
@@ -88,22 +89,22 @@ export function normalizeForeplayAd(input: UnknownRecord): NormalizedAd {
     creativeRepetition: 0, platforms, mediaType, headline, body, cta,
     landingPageUrl, sourceMediaUrl, advertiserId,
   });
-  
+
   const externalAdId = text(input.ad_id) || text(input.id) || `fp_${cyrb53(sourceMediaUrl || headline || now)}`;
-  
+
   let fingerprintInput = "";
   if (cards.length > 0) {
     fingerprintInput = cards.map(c => safeExternalUrl(text(c.image)) || safeExternalUrl(text(c.video)) || "").join("|");
   } else {
     fingerprintInput = sourceMediaUrl || externalAdId;
   }
-  
+
   try {
     const url = new URL(fingerprintInput.split("|")[0]);
     url.searchParams.delete("fbclid");
     url.searchParams.delete("timestamp");
     fingerprintInput = url.toString() + (cards.length > 1 ? "|..." : "");
-  } catch {}
+  } catch { }
 
   const creativeFingerprint = cyrb53(fingerprintInput).toString(36);
   const canonicalCreativeId = `foreplay:${externalAdId}:${creativeFingerprint}`;
@@ -177,9 +178,7 @@ export function normalizeForeplayAd(input: UnknownRecord): NormalizedAd {
     rawData: input,
   };
 
-  return {
-    ...baseAd,
-  } as NormalizedAd;
+  return refineAd(baseAd);
 }
 
 export class ForeplayProvider implements AdProvider {
@@ -196,7 +195,7 @@ export class ForeplayProvider implements AdProvider {
     videoLength: "UNSUPPORTED",
   };
 
-  constructor(private apiKey: string) {}
+  constructor(private apiKey: string) { }
 
   private async request(path: string, parameters?: URLSearchParams) {
     const url = `${OFFICIAL_BASE_URL}${path}${parameters?.size ? `?${parameters}` : ""}`;
@@ -228,7 +227,7 @@ export class ForeplayProvider implements AdProvider {
       }
       params.set("brand_ids", filters.selectedBrand.providerAdvertiserId);
     } else if (filters.query?.trim()) params.set("query", filters.query.trim());
-    
+
     let activeStatus = filters.status;
     if (filters.statuses && filters.statuses.length > 0) {
       if (filters.statuses.includes("active") && !filters.statuses.includes("inactive")) activeStatus = "active";
@@ -236,7 +235,7 @@ export class ForeplayProvider implements AdProvider {
       else activeStatus = "all";
     }
     if (activeStatus && activeStatus !== "all") params.set("live", activeStatus === "active" ? "true" : "false");
-    
+
     const mediaType = filters.mediaType;
     if (filters.formats && filters.formats.length > 0) {
       filters.formats.forEach(f => {
@@ -245,20 +244,20 @@ export class ForeplayProvider implements AdProvider {
     } else if (mediaType && String(mediaType) !== "all" && mediaType !== "unknown") {
       params.append("display_format", mediaType);
     }
-    
+
     filters.platforms?.forEach((platform) => params.append("publisher_platform", platform));
-    
+
     if (filters.languages && filters.languages.length > 0) {
       filters.languages.forEach(l => params.append("languages", l));
     } else if (filters.language) {
       params.append("languages", filters.language);
     }
-    
+
     if (filters.startDate) params.set("start_date", filters.startDate);
     if (filters.endDate) params.set("end_date", filters.endDate);
     if (filters.cursor) params.set("cursor", filters.cursor);
     params.set("order", filters.sort === "oldest" ? "oldest" : filters.sort === "longest" ? "longest_running" : filters.sort === "relevant" ? "most_relevant" : "newest");
-    
+
     if (filters.runtime) {
       if (filters.runtime.minDays !== undefined) params.set("running_duration_min_days", String(filters.runtime.minDays));
       if (filters.runtime.maxDays !== undefined) params.set("running_duration_max_days", String(filters.runtime.maxDays));
@@ -270,11 +269,13 @@ export class ForeplayProvider implements AdProvider {
 
     const { payload } = await this.request(filters.brand ? "/api/brand/getAdsByBrandId" : "/api/discovery/ads", params);
     const data = Array.isArray(payload.data) ? payload.data.map(record) : [];
-    
+
     let ads = data.map(d => normalizeForeplayAd(d));
     if (filters.brand) ads = ads.filter(ad => Boolean(matchingBrand(filters.selectedBrand, "foreplay", filters.brand, ad.advertiser.id)));
-    ads = ads.map(ad => ({ ...ad, advertiser: resolveAdvertiser(ad.advertiser, undefined,
-      matchingBrand(filters.selectedBrand, "foreplay", filters.brand, ad.advertiser.id)) }));
+    ads = ads.map(ad => ({
+      ...ad, advertiser: resolveAdvertiser(ad.advertiser, undefined,
+        matchingBrand(filters.selectedBrand, "foreplay", filters.brand, ad.advertiser.id))
+    }));
     if (filters.cta) ads = ads.filter((ad) => ad.copy.cta?.toLowerCase() === filters.cta?.toLowerCase());
     const metadata = record(payload.metadata);
     const cursor = typeof metadata.cursor === "string" || typeof metadata.cursor === "number" ? String(metadata.cursor) : null;

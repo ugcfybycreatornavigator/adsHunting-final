@@ -25,8 +25,15 @@ export async function GET(req: NextRequest) {
   }
 
   if (!resolvedAdId) {
+    if (adId) {
+      const { data: canonicalRow } = await auth.supabase!.from("ads").select("id").eq("canonical_ad_id", adId).maybeSingle();
+      resolvedAdId = canonicalRow?.id ?? null;
+    }
+  }
+
+  if (!resolvedAdId) {
     const externalCandidate = externalAdId || adId;
-    const { data: adRow } = await auth.supabase!.from("ads").select("id").eq("external_ad_id", externalCandidate).maybeSingle();
+    const { data: adRow } = await auth.supabase!.from("ads").select("id").eq("external_ad_id", externalCandidate).limit(1).maybeSingle();
     resolvedAdId = adRow?.id ?? null;
   }
 

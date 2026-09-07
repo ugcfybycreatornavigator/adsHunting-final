@@ -134,14 +134,14 @@ export function SettingsBilling({ entitlement, planConfig, creditBalance }: Sett
           <h3 className="text-[15px] font-semibold text-[#18181B]">Usage</h3>
           
           <div className="mt-4 border border-[#E1E1E1] rounded-[10px] p-5">
-            <div className="flex justify-between items-end mb-3">
-              <div>
+            <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+              <div className="min-w-0">
                 <p className="text-[14px] font-semibold text-[#18181B]">Credits Used</p>
                 <p className="text-[13px] text-[#71717A] mt-1">
                   Resets on {creditBalance.cycleEnd ? new Date(creditBalance.cycleEnd).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : "next cycle"}
                 </p>
               </div>
-              <div className="text-right">
+              <div className="text-left sm:text-right">
                 <p className="text-[15px] font-semibold text-[#18181B]">
                   {creditBalance.creditsAllocated >= 999999999 ? (
                     <span className="text-[#68B32F] font-semibold">Unlimited</span>

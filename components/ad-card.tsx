@@ -56,7 +56,6 @@ export function AdCard({
   }, [ad.id]);
   
   const mediaInfo = resolveAdMedia(ad);
-  const advertiserProfile = safeExternalUrl(ad.advertiser.pageUrl);
   const landingPage = safeExternalUrl(ad.destination.url);
   const advertiserName = ad.advertiser.displayName || ad.advertiser.name || "Advertiser";
   const initial = advertiserName.slice(0, 1).toUpperCase() || "A";
@@ -254,18 +253,17 @@ export function AdCard({
       <div className="relative z-10 flex w-full h-[38px] border-t border-line" ref={saveBtnRef}>
         <button 
           type="button"
-          disabled={isSaved || saving}
-          onClick={async () => {
-             if (saving || isSaved) return;
-             setOptimisticSaved(true);
-             setSaving(true);
-             try { await onSave(); } catch { setOptimisticSaved(false); } finally { setSaving(false); }
+          disabled={saving}
+          onClick={(event) => {
+             event.preventDefault();
+             event.stopPropagation();
+             setShowPicker(true);
           }}
           className={cn("flex flex-1 items-center justify-center gap-1.5 text-[12px] font-semibold transition disabled:opacity-100", (isSaved || swipeFileCount > 0) ? "text-[#68B32F]" : "text-muted hover:bg-zinc-50 hover:text-ink")}
-          aria-label={isSaved ? "Saved" : "Save"}
+          aria-label={isSaved ? "Organize saved ad" : "Choose where to save"}
         >
           {saving ? <Loader2 size={14} className="shrink-0 animate-spin" /> : (isSaved || swipeFileCount > 0) ? <Check size={14} className="shrink-0" /> : <FolderPlus size={14} className="shrink-0" />}
-          <span>{saving ? "Saving..." : (isSaved || swipeFileCount > 0) ? "Saved" : "Save"}</span>
+          <span>{saving ? "Saving..." : (isSaved || swipeFileCount > 0) ? "Organize" : "Save"}</span>
         </button>
 
         <div className="w-[1px] bg-line" />
@@ -329,11 +327,23 @@ export function AdCard({
       {showPicker && (
         <SwipeFilePicker
           ad={ad}
-          saved={saved}
+          saved={isSaved}
           initialCollectionIds={initialCollectionIds}
           anchorRef={saveBtnRef}
           onClose={() => setShowPicker(false)}
           onAdded={onSwipeFileAdded}
+          onSaveDefault={async () => {
+            setSaving(true);
+            try {
+              await onSave();
+              setOptimisticSaved(true);
+            } catch (error) {
+              setOptimisticSaved(false);
+              throw error;
+            } finally {
+              setSaving(false);
+            }
+          }}
         />
       )}
     </article>

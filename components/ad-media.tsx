@@ -32,33 +32,8 @@ export function AdMedia({
   
   if (type === "video") {
     const videoSources: string[] = [];
-    
-    // Try to get video URL from multiple sources
-    let effectiveVideoUrl = videoUrl;
-    if (!effectiveVideoUrl && ad.rawData) {
-      // Fallback: try to extract from rawData if not in normalized form
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const raw = ad.rawData as any;
-      const snap = raw.snapshot || raw;
-      effectiveVideoUrl = snap.video_hd_url || snap.video_sd_url || snap.videos?.[0]?.video_hd_url;
-    }
-    
-    if (ad.enrichment?.archiveStatus === "archived" && ad.creative.videoUrl) {
-      const ext = ad.creative.videoUrl.includes(".webm") ? "webm" : "mp4";
-      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://ctvmjxpblfdrxvvyjebw.supabase.co";
-      videoSources.push(`${supabaseUrl}/storage/v1/object/public/ad-creatives/${ad.provider.discoveryProvider}/${ad.id}/source.${ext}`);
-    }
-    if (effectiveVideoUrl) {
-      videoSources.push(effectiveVideoUrl);
-    }
-    
-    // Get effective poster/thumbnail
-    let effectivePoster = thumbnailUrl || imageUrl;
-    if (!effectivePoster && ad.rawData) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const raw = ad.rawData as any;
-      const snap = raw.snapshot || raw;
-      effectivePoster = snap.video_preview_image_url || snap.videos?.[0]?.video_preview_image_url;
+    if (videoUrl) {
+      videoSources.push(videoUrl);
     }
     
     if (videoSources.length > 0) {
@@ -66,7 +41,7 @@ export function AdMedia({
         <div className={`h-full w-full bg-zinc-950 flex items-center justify-center relative ${className}`}>
           <VideoPreview
             src={videoSources}
-            poster={effectivePoster}
+            poster={thumbnailUrl || imageUrl}
             controls={variant === "detail"}
             objectFit={objectFit}
             className="h-full w-full"
@@ -81,6 +56,7 @@ export function AdMedia({
       <div className={`h-full w-full bg-zinc-900 flex items-center justify-center relative ${className}`}>
         <CarouselPreview 
           assets={media.carouselAssets} 
+          cards={media.cards}
           alt={`Creative from ${advertiserName}`} 
           className="h-full w-full" 
         />
@@ -89,20 +65,7 @@ export function AdMedia({
   }
 
   // Fallback to image if it's explicitly an image, OR if video/carousel failed to have valid URLs
-  let fallbackImage = imageUrl || thumbnailUrl || (media.carouselAssets?.[0]);
-  
-  // Try to get image URL from rawData if not found in normalized form
-  if (!fallbackImage && ad.rawData) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const raw = ad.rawData as any;
-    const snap = raw.snapshot || raw;
-    fallbackImage = 
-      snap.original_image_url || snap.resized_image_url ||
-      snap.image_url || snap.url ||
-      snap.images?.[0]?.original_image_url || snap.images?.[0]?.resized_image_url ||
-      snap.cards?.[0]?.original_image_url || snap.cards?.[0]?.resized_image_url ||
-      snap.thumbnail_url || snap.video_preview_image_url;
-  }
+  const fallbackImage = imageUrl || thumbnailUrl || (media.carouselAssets?.[0]);
   
   if (fallbackImage && !imageFailed) {
     return (

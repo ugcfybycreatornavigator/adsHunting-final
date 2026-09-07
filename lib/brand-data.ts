@@ -7,6 +7,7 @@ import { brandFromRow, realAdvertiserName, resolveAdIdentities } from "@/lib/adv
 import type { AdSearchFilters, BrandIdentity } from "@/lib/types";
 import { dbAdToNormalized } from "@/lib/catalog";
 import { resolveAdMedia } from "@/lib/media";
+import { signArchivedMediaUrls } from "@/lib/media-access";
 
 export type CreativePreview = { id: string; url: string; type: string };
 
@@ -112,15 +113,30 @@ export async function syncCompetitorAds(advertiserId: string): Promise<number> {
       return -1;
     }
 
-    const provider = providers[0].provider;
-
-    console.info(`${logPrefix} Syncing ads via ${providers[0].name}...`);
-    const result = await provider.searchAds(filters);
-    
-    const ads = resolveAdIdentities(result.ads, brandContext ? [brandContext] : [], brandContext, advertiserId);
+    let ads: import("@/lib/types").NormalizedAd[] = [];
+    let lastProviderError: unknown = null;
+    let providerResponded = false;
+    for (const { provider, name } of providers) {
+      const providerStartedAt = Date.now();
+      try {
+        const result = await provider.searchAds(filters);
+        providerResponded = true;
+        ads = resolveAdIdentities(result.ads, brandContext ? [brandContext] : [], brandContext, advertiserId);
+        console.info(JSON.stringify({ provider: name, operation: "syncCompetitorAds", status: "success",
+          duration: Date.now() - providerStartedAt, resultCount: ads.length, errorCode: null,
+          fallbackUsed: name !== providers[0].name }));
+        if (ads.length) break;
+      } catch (error) {
+        lastProviderError = error;
+        console.warn(JSON.stringify({ provider: name, operation: "syncCompetitorAds", status: "failure",
+          duration: Date.now() - providerStartedAt, resultCount: 0,
+          errorCode: error instanceof Error ? error.name : "PROVIDER_FAILURE", fallbackUsed: true }));
+      }
+    }
 
     if (ads.length === 0) {
-      console.info(`${logPrefix} Provider returned 0 ads`);
+      if (lastProviderError && !providerResponded) throw lastProviderError;
+      console.info(`${logPrefix} Configured providers returned 0 ads`);
       return 0;
     }
 
@@ -453,7 +469,13 @@ export async function getCompetitorIntelligence(id: string, allowSync = true, us
     } catch { }
   }
 
-  return buildCompetitorIntelligence(id, ads, fallbackRecord);
+  const intelligence = buildCompetitorIntelligence(id, ads, fallbackRecord);
+  const signedUrls = await signArchivedMediaUrls(intelligence.latestCreatives.map(({ url }) => url));
+  intelligence.latestCreatives = intelligence.latestCreatives.map((creative) => ({
+    ...creative,
+    url: signedUrls.get(creative.url) || creative.url,
+  }));
+  return intelligence;
 }
 
 /**
@@ -482,11 +504,21 @@ export async function getCompetitorSummaries(trackedRecords: TrackedRecord[]): P
     groupedAds.get(row.advertiser_id)!.push(row);
   }
 
-  return trackedRecords.map(record => {
+  const summaries = trackedRecords.map(record => {
     const id = record.advertiser_id;
     const advertiserAds = groupedAds.get(id) || [];
     return buildCompetitorIntelligence(id, advertiserAds, record);
   });
+  const signedUrls = await signArchivedMediaUrls(
+    summaries.flatMap((summary) => summary.latestCreatives.map(({ url }) => url))
+  );
+  return summaries.map((summary) => ({
+    ...summary,
+    latestCreatives: summary.latestCreatives.map((creative) => ({
+      ...creative,
+      url: signedUrls.get(creative.url) || creative.url,
+    })),
+  }));
 }
 
 function countBy(items: string[]) {
@@ -594,7 +626,14 @@ export async function getBrands(query?: string, externalCandidates: BrandSummary
   // Sort by total unique ads
   merged.sort((a, b) => (b.totalUnique || 0) - (a.totalUnique || 0));
 
-  return merged;
+  const signedUrls = await signArchivedMediaUrls(
+    merged.flatMap((brand) => [...brand.previewMedia, ...brand.previewThumbs])
+  );
+  return merged.map((brand) => ({
+    ...brand,
+    previewMedia: brand.previewMedia.map((url) => signedUrls.get(url) || url),
+    previewThumbs: brand.previewThumbs.map((url) => signedUrls.get(url) || url),
+  }));
 }
 
 export async function getBrandData(id: string): Promise<BrandData> {

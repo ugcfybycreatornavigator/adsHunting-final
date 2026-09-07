@@ -8,7 +8,7 @@ import type {
   ProviderCapabilities,
 } from "../types.ts";
 import { computeAdIntelligence } from "../intelligence.ts";
-import { computeAdFingerprints } from "../fingerprint.ts";
+import { refineAd } from "../refinement/index.ts";
 import { daysBetween, safeExternalUrl, sanitizeAdCopy } from "../utils.ts";
 import { ProviderError, providerErrorFromStatus } from "./errors.ts";
 
@@ -148,11 +148,7 @@ export function normalizeForeplayAd(input: UnknownRecord): NormalizedAd {
     rawData: input,
   };
 
-  const fps = computeAdFingerprints(baseAd);
-
-  return {
-    ...baseAd,
-  } as NormalizedAd;
+  return refineAd(baseAd);
 }
 
 export class ForeplayProvider implements AdProvider {

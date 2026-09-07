@@ -17,6 +17,7 @@ import { brandFromRow, realAdvertiserName, resolveAdIdentities } from "@/lib/adv
 import { getAdProviders } from "@/lib/providers";
 import { resolveAdMedia } from "@/lib/media";
 import { calculateWinnerScore } from "@/lib/intelligence";
+import { signArchivedAdMedia } from "@/lib/media-access";
 
 const schema = z.object({
   query: z.string().trim().max(160).optional(),
@@ -64,13 +65,12 @@ const schema = z.object({
   }).optional(),
 });
 
-type CacheEntry = { expires: number; payload: unknown };
+type CacheEntry = { expires: number; payload: AdSearchResult };
 const cache = new Map<string, CacheEntry>();
 const inFlight = new Map<string, Promise<AdSearchResult>>();
 
 export async function POST(request: NextRequest) {
   const requestId = crypto.randomUUID();
-  cache.clear();
   const accessError = await requirePaidWorkspaceAccess();
   if (accessError) return accessError;
 
@@ -146,7 +146,13 @@ export async function POST(request: NextRequest) {
   
   const key = JSON.stringify(normalizedFilters);
   const isDefaultDiscoverFeed = !filters.query && !filters.brand;
-  cache.delete(key);
+  const cached = cache.get(key);
+  if (!isDefaultDiscoverFeed && cached && cached.expires > Date.now()) {
+    return NextResponse.json({ ...cached.payload, requestId, source: "cache" }, {
+      headers: { "Cache-Control": "no-store" }
+    });
+  }
+  if (cached) cache.delete(key);
 
   try {
     let payload: AdSearchResult | null = null;
@@ -238,7 +244,7 @@ export async function POST(request: NextRequest) {
         const { data, error } = await query;
 
         if (!error && data) {
-          let sampleRows = data;
+          const sampleRows = data;
           if (defaultFeed && !filters.cursor && !hasActiveFilters && sampleRows.length) {
             const seen = new Set(sampleRows.map(row => row.canonical_ad_id || row.id));
             const { count } = await catalogClient!.from("ads").select("id", { count: "exact", head: true })
@@ -257,17 +263,18 @@ export async function POST(request: NextRequest) {
                   seen.add(id);
                   sampleRows.push(row);
                 }
-              }
+            }
             }
           }
           const hasMore = sampleRows.length > limit;
           const sourceData = defaultFeed
             ? takeDefaultFeed(sampleRows, limit, filters)
             : (hasMore ? data.slice(0, limit) : data).map(dbAdToNormalized);
+          const renderableSourceData = sourceData.filter(hasRenderableMedia);
           const pagedData = hasMore ? data.slice(0, limit) : data;
           
           const canonical = data.map(brandFromRow).filter((brand): brand is NonNullable<typeof brand> => Boolean(brand));
-          const ads = ensureWinnerScores(resolveAdIdentities(sourceData, canonical, filters.selectedBrand, filters.brand));
+          const ads = ensureWinnerScores(resolveAdIdentities(renderableSourceData, canonical, filters.selectedBrand, filters.brand));
           
           // No longer deduplicating aggressively by ad.id because canonical_ad_id is unique per creative variant.
           // The UI will group them if needed, but the search API returns all variants.
@@ -325,7 +332,7 @@ export async function POST(request: NextRequest) {
                 "Content-Type": "application/json"
               },
               body: JSON.stringify(edgePayload),
-              signal: AbortSignal.timeout(12_000)
+              signal: AbortSignal.timeout(28_000)
             }).then(async (res) => {
               if (!res.ok) {
                 const errData = await res.json().catch(() => ({}));
@@ -416,8 +423,9 @@ export async function POST(request: NextRequest) {
             const { data } = await query;
             if (data && data.length > 0) {
               const canonical = data.map(brandFromRow).filter((brand): brand is NonNullable<typeof brand> => Boolean(brand));
-              const resolved = ensureWinnerScores(resolveAdIdentities(data.map(dbAdToNormalized), canonical, filters.selectedBrand, filters.brand));
+              const resolved = ensureWinnerScores(resolveAdIdentities(data.map(dbAdToNormalized).filter(hasRenderableMedia), canonical, filters.selectedBrand, filters.brand));
               const deduplicated = Array.from(new Map(resolved.map(ad => [ad.id, ad])).values());
+              if (deduplicated.length) {
                 payload = { 
                   ads: adsForClient(deduplicated), 
                   nextCursor: data.length === 25 ? (offset + 25).toString() : null, 
@@ -427,17 +435,7 @@ export async function POST(request: NextRequest) {
                   degraded: true,
                   requestId
                 } as AdSearchResult & { stale: boolean; degraded: boolean; requestId: string };
-              } else {
-                // Return an empty success array if cache has no results either, rather than failing the whole UI
-                payload = {
-                  ads: [],
-                  nextCursor: null,
-                  total: 0,
-                  source: "cache",
-                  stale: true,
-                  degraded: true,
-                  requestId
-                } as AdSearchResult & { stale: boolean; degraded: boolean; requestId: string };
+              }
               }
           } catch (cacheErr) {
             console.error(`[AdsSearch][requestId=${requestId}] Cache fallback error:`, cacheErr);
@@ -452,8 +450,9 @@ export async function POST(request: NextRequest) {
 
     if (payload) {
       payload.ads = ensureWinnerScores(resolveAdIdentities(payload.ads, [], filters.selectedBrand, filters.brand));
+      payload.ads = await signArchivedAdMedia(payload.ads);
       payload.brand = filters.selectedBrand;
-      cache.delete(key);
+      if (!isDefaultDiscoverFeed) cache.set(key, { expires: Date.now() + 60_000, payload });
       payload.resolvedIntent = resolvedIntent;
       payload.requestId = requestId;
 
@@ -481,6 +480,7 @@ export async function POST(request: NextRequest) {
     }
 
     payload = { ads: [], nextCursor: null, total: 0, source: "catalog", brand: filters.selectedBrand, resolvedIntent, requestId };
+    if (!isDefaultDiscoverFeed) cache.set(key, { expires: Date.now() + 30_000, payload });
     if (cache.size > 200) cache.delete(cache.keys().next().value as string);
     return NextResponse.json(payload, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
@@ -494,57 +494,6 @@ export async function POST(request: NextRequest) {
   }
 }
 
-
-function rankDiscoveryFeed(ads: NormalizedAd[], applyDiversityLimit: boolean) {
-  const ranked = [...ads].sort((a, b) => {
-    // Relevance score proxies
-    const aScore = (a.intelligence.winnerScore ?? 0) + (a.delivery.status === "active" ? 10 : 0) + Math.min(a.delivery.daysRunning || 0, 120) / 6 + Math.min(a.variants ?? 0, 10) * 2;
-    const bScore = (b.intelligence.winnerScore ?? 0) + (b.delivery.status === "active" ? 10 : 0) + Math.min(b.delivery.daysRunning || 0, 120) / 6 + Math.min(b.variants ?? 0, 10) * 2;
-    
-
-    if (bScore !== aScore) return bScore - aScore;
-    return a.id.localeCompare(b.id);
-  });
-  
-  if (!applyDiversityLimit) return ranked;
-
-  const advertiserCounts = new Map<string, number>();
-  const seenIdentities = new Set<string>();
-
-  return ranked.filter((ad) => {
-    const advName = ad.advertiser?.name?.trim() || "";
-    const advLower = advName.toLowerCase();
-    
-    // 1. Remove Frido from default preview
-    if (advLower === "frido" || advLower === "frido india") {
-      return false;
-    }
-
-    // 4. Safe deduplication ONLY for default preview
-    const providerId = ad.externalId || ad.id;
-    const mediaUrl = ad.creative?.videoUrl || ad.creative?.imageUrl || ad.creative?.thumbnailUrl || "";
-    const mediaIdentity = mediaUrl ? `${advLower}::${mediaUrl}` : null;
-    const fingerprint = ad.fingerprint;
-
-    if (seenIdentities.has(providerId)) return false;
-    if (mediaIdentity && seenIdentities.has(mediaIdentity)) return false;
-    if (fingerprint && seenIdentities.has(fingerprint)) return false;
-
-    // Mark as seen
-    seenIdentities.add(providerId);
-    if (mediaIdentity) seenIdentities.add(mediaIdentity);
-    if (fingerprint) seenIdentities.add(fingerprint);
-
-    // 3. Make diverse by limiting to 2 per brand
-    const key = ad.advertiser?.id ?? ad.id;
-    const currentCount = advertiserCounts.get(key) || 0;
-    
-    if (currentCount >= 2) return false;
-    
-    advertiserCounts.set(key, currentCount + 1);
-    return true;
-  });
-}
 
 function takeDefaultFeed(rows: Parameters<typeof dbAdToNormalized>[0][], limit: number, filters: AdSearchFilters) {
   const counts = new Map<string, number>();

@@ -1,5 +1,6 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 import "server-only";
+import { signArchivedMediaUrls } from "@/lib/media-access";
 
 type SupabaseError = {
   code?: string;
@@ -95,7 +96,7 @@ export async function getSwipeFiles(supabase: SupabaseClient, userId: string) {
     return getSwipeFiles(supabase, userId);
   }
 
-  return data.map(d => {
+  const files = data.map(d => {
     // Extract up to 3 preview images
     const items = d.items as unknown as { ads: { thumbnail_url?: string; source_media_url?: string } }[] | null;
     const previewMedia = items
@@ -115,6 +116,12 @@ export async function getSwipeFiles(supabase: SupabaseClient, userId: string) {
       updatedAt: d.updated_at
     };
   });
+
+  const signedUrls = await signArchivedMediaUrls(files.flatMap((file) => file.previewMedia));
+  return files.map((file) => ({
+    ...file,
+    previewMedia: file.previewMedia.map((url) => signedUrls.get(url) || url),
+  }));
 }
 
 export async function getSwipeFile(supabase: SupabaseClient, id: string) {

@@ -9,6 +9,7 @@ import type { SwipeFile, NormalizedAd } from "@/lib/types";
 
 export type SwipeFileResult = {
   savedAdId: string;
+  added: boolean;
   collectionIds: string[];
   collectionNames: string[];
 };
@@ -20,6 +21,7 @@ export function SwipeFilePicker({
   anchorRef,
   onClose,
   onAdded,
+  onSaveDefault,
 }: {
   ad: NormalizedAd;
   saved?: boolean;
@@ -27,6 +29,7 @@ export function SwipeFilePicker({
   anchorRef?: React.RefObject<HTMLElement | null>;
   onClose: () => void;
   onAdded?: (result: SwipeFileResult) => void;
+  onSaveDefault?: () => Promise<void> | void;
 }) {
   const [collections, setCollections] = useState<SwipeFile[]>([]);
   const [selected, setSelected] = useState<string[]>(initialCollectionIds);
@@ -148,7 +151,8 @@ export function SwipeFilePicker({
       setName("");
       setCreating(false);
       
-      await addToSwipeFiles(newSelected, [collection.name]);
+      const added = await addToSwipeFiles(newSelected, [collection.name], collection.id);
+      if (added) onClose();
     } catch {
       setError("Couldn't create that Swipe File. Try again.");
     } finally {
@@ -157,23 +161,25 @@ export function SwipeFilePicker({
   }
 
   async function addToSwipeFiles(ids = selected, names?: string[], justToggledId?: string) {
-    if (!justToggledId) return; // we now do individual toggles
+    if (!justToggledId) return false; // we now do individual toggles
     setBusy(true);
     setError("");
     try {
       const response = await apiFetch("/api/swipe-files/items", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ externalAdId: ad.externalId || ad.id, swipeFileId: justToggledId }),
+        body: JSON.stringify({ adId: ad.id, externalAdId: ad.externalId || ad.id, swipeFileId: justToggledId }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error);
       
       const collectionNames = names ?? collections.filter((collection) => ids.includes(collection.id)).map((collection) => collection.name);
-      onAdded?.({ savedAdId: data.savedAdId || ad.id, collectionIds: ids, collectionNames });
+      onAdded?.({ savedAdId: data.savedAdId || ad.id, added: data.added !== false, collectionIds: ids, collectionNames });
+      return true;
     } catch {
       setError("Couldn't add this ad to a Swipe File. Try again.");
       setSelected(initialCollectionIds);
+      return false;
     } finally {
       setBusy(false);
     }
@@ -195,6 +201,20 @@ export function SwipeFilePicker({
     await addToSwipeFiles(newSelected, [collectionName], collectionId);
   };
 
+  async function saveToDefault() {
+    if (saved || busy || !onSaveDefault) return;
+    setBusy(true);
+    setError("");
+    try {
+      await onSaveDefault();
+      onClose();
+    } catch {
+      setError("Couldn't save this ad to Saved Ads. Try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const content = (
     <div 
       ref={popoverRef}
@@ -203,7 +223,8 @@ export function SwipeFilePicker({
     >
       <div className="flex shrink-0 items-center justify-between border-b border-line px-4 py-3">
         <div>
-          <h2 className="text-[13px] font-semibold text-ink">Save to Swipe File</h2>
+          <h2 className="text-[13px] font-semibold text-ink">Save creative</h2>
+          <p className="mt-0.5 text-[11px] text-muted">Use Saved Ads or choose a Swipe File.</p>
         </div>
         <button type="button" onClick={onClose} className="grid size-7 shrink-0 place-items-center rounded-md text-muted hover:bg-zinc-50" aria-label="Close">
           <X size={15} />
@@ -232,16 +253,15 @@ export function SwipeFilePicker({
             <div className="flex flex-col gap-0.5">
               {/* Pinned Default Folder */}
               {(!query || "saved ads".includes(query.trim().toLowerCase())) && (
-                <div className="flex min-h-10 items-center gap-2.5 rounded-md px-2 opacity-80 cursor-default">
-                  <div className="relative flex size-4 items-center justify-center">
-                    <input type="checkbox" className="peer size-4 appearance-none rounded-[4px] border border-zinc-300 bg-white checked:border-signal checked:bg-signal transition" checked={saved} readOnly />
-                    <Check size={12} className="pointer-events-none absolute text-white opacity-0 peer-checked:opacity-100" strokeWidth={3} />
-                  </div>
+                <button type="button" onClick={saveToDefault} disabled={saved || busy || !onSaveDefault} className="flex min-h-11 w-full items-center gap-2.5 rounded-md px-2 text-left transition hover:bg-zinc-50 disabled:cursor-default disabled:opacity-80">
+                  <span className={`relative flex size-4 items-center justify-center rounded-[4px] border transition ${saved ? "border-signal bg-signal" : "border-zinc-300 bg-white"}`}>
+                    {saved && <Check size={12} className="text-white" strokeWidth={3} />}
+                  </span>
                   <span className="min-w-0 flex-1 flex items-center justify-between gap-2">
                     <span className="truncate text-[13px] font-semibold text-ink">Saved Ads</span>
-                    <span className="text-[10px] font-semibold text-muted uppercase tracking-wider">Default</span>
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-muted">{saved ? "Saved" : busy ? "Saving…" : "Default"}</span>
                   </span>
-                </div>
+                </button>
               )}
               {filtered.length > 0 && <div className="my-1.5 h-px bg-line" />}
               {filtered.map((collection) => {
@@ -293,7 +313,7 @@ export function SwipeFilePicker({
           ) : (
             <button type="button" onClick={() => setCreating(true)} className="flex min-h-8 w-full items-center gap-2 rounded-md px-2 text-[13px] font-medium text-ink hover:bg-zinc-50 transition">
               <Plus size={15} className="text-zinc-400" />
-              Create new folder
+              Create new Swipe File
             </button>
           )}
           {error && <p className="mt-2 text-[11px] text-red-500 font-medium px-1">{error}</p>}
@@ -314,7 +334,7 @@ export function SwipeFilePicker({
         </div>
       </div>
       
-      <div className="hidden sm:block absolute z-[70]" style={position ? {
+      <div className="hidden sm:block fixed z-[70]" style={position ? {
         top: position.top,
         bottom: position.bottom,
         left: position.left,

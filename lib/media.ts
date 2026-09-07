@@ -15,51 +15,35 @@ export type ResolvedMedia = {
   }>;
 };
 
-export function resolveAdMedia(ad: NormalizedAd): ResolvedMedia {
-  // Base check for rawData to handle unmapped but present media in provider payloads
-  let resolvedImageUrl = safeExternalUrl(ad.creative.imageUrl);
-  let resolvedVideoUrl = safeExternalUrl(ad.creative.videoUrl);
-  let resolvedThumbnailUrl = safeExternalUrl(ad.creative.thumbnailUrl);
-  let resolvedCards = ad.creative.carouselItems || [];
-
-  if (!resolvedImageUrl || !resolvedVideoUrl || !resolvedThumbnailUrl || resolvedCards.length === 0) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const raw = ad.rawData as any;
-    if (raw) {
-      const snap = raw.snapshot || raw;
-      const rawMediaType = String(snap.mediaType || snap.media_type || raw.mediaType || raw.media_type || ad.creative.type || "").toLowerCase();
-      const rawMediaUrl = snap.mediaUrl || raw.mediaUrl || snap.media_url || raw.media_url;
-      const rawMediaLooksVideo = rawMediaType.includes("video");
-      const rawMediaLooksImage = rawMediaType.includes("image") || rawMediaType.includes("photo") || rawMediaType.includes("carousel");
-      
-      const vhd = snap.video_hd_url || raw.video_hd_url || snap.video || raw.video || snap.videoUrl || raw.videoUrl || (snap.videos?.[0]?.video_hd_url) || (snap.videos?.[0]?.video_url);
-      const vsd = snap.video_sd_url || raw.video_sd_url || raw.video_url || snap.video_url || (rawMediaLooksVideo ? rawMediaUrl : undefined) || (snap.videos?.[0]?.video_sd_url);
-      if (!resolvedVideoUrl) {
-        resolvedVideoUrl = safeExternalUrl(vhd || vsd);
-      }
-
-      const imgOrig = snap.original_image_url || raw.original_image_url || snap.image || raw.image || snap.imageUrl || raw.imageUrl || snap.image_url || raw.image_url || (rawMediaLooksImage || !rawMediaLooksVideo ? rawMediaUrl : undefined) || (snap.images?.[0]?.original_image_url);
-      const imgResized = snap.resized_image_url || raw.resized_image_url || (snap.images?.[0]?.resized_image_url);
-      if (!resolvedImageUrl) {
-        resolvedImageUrl = safeExternalUrl(imgOrig || imgResized);
-      }
-
-      const thumb = snap.video_preview_image_url || raw.video_preview_image_url || snap.thumbnail || raw.thumbnail || snap.thumbnailUrl || raw.thumbnailUrl || snap.thumbnail_url || raw.thumbnail_url || (snap.videos?.[0]?.video_preview_image_url);
-      if (!resolvedThumbnailUrl) {
-        resolvedThumbnailUrl = safeExternalUrl(thumb || resolvedImageUrl || resolvedVideoUrl);
-      }
-      
-      const cards = snap.cards || raw.cards;
-      if (Array.isArray(cards) && cards.length > 0) {
-        resolvedCards = cards.map(c => ({
-          headline: c.title || c.headline || undefined,
-          imageUrl: safeExternalUrl(c.original_image_url || c.resized_image_url || c.image_url || c.image || c.imageUrl || c.mediaUrl) || undefined,
-          videoUrl: safeExternalUrl(c.video_hd_url || c.video_sd_url || c.video_url || c.video || c.videoUrl) || undefined,
-          destinationUrl: safeExternalUrl(c.link_url || c.destination_url) || undefined
-        }));
+export function isUsableAdMediaUrl(value?: string | null) {
+  const url = safeExternalUrl(value);
+  if (!url) return null;
+  try {
+    const parsed = new URL(url);
+    const host = parsed.hostname.toLowerCase();
+    if (host.endsWith("fbcdn.net")) {
+      const expiry = parsed.searchParams.get("oe");
+      if (expiry && /^[0-9a-f]+$/i.test(expiry)) {
+        const expiresAt = Number.parseInt(expiry, 16) * 1_000;
+        if (Number.isFinite(expiresAt) && expiresAt <= Date.now()) return null;
       }
     }
+    return url;
+  } catch {
+    return null;
   }
+}
+
+export function resolveAdMedia(ad: NormalizedAd): ResolvedMedia {
+  const resolvedImageUrl = isUsableAdMediaUrl(ad.creative.imageUrl);
+  const resolvedVideoUrl = isUsableAdMediaUrl(ad.creative.videoUrl);
+  const resolvedThumbnailUrl = isUsableAdMediaUrl(ad.creative.thumbnailUrl);
+  const resolvedCards = (ad.creative.carouselItems || []).map(card => ({
+    ...card,
+    imageUrl: isUsableAdMediaUrl(card.imageUrl) || undefined,
+    videoUrl: isUsableAdMediaUrl(card.videoUrl) || undefined,
+    destinationUrl: safeExternalUrl(card.destinationUrl) || undefined,
+  })).filter(card => card.imageUrl || card.videoUrl);
 
   const carouselAssets = resolvedCards
     .map(c => c.videoUrl || c.imageUrl)

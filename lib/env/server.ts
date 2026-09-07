@@ -19,7 +19,8 @@ const schema = z.object({
   FOREPLAY_API_KEY: optionalSecret,
   SPYGLASS_API_KEY: optionalSecret,
   SPYGLASS_ENABLED: z.enum(["true", "false"]).default("false"),
-  ADS_PROVIDER_ORDER: z.string().default("spyglass,foreplay,searchapi"),
+  ADS_PROVIDER_PRIORITY: optionalSecret,
+  ADS_PROVIDER_ORDER: optionalSecret,
   // Legacy single provider option (kept for backwards compatibility or override)
   ADS_PROVIDER: z.enum(["auto", "searchapi", "meta", "foreplay", "spyglass"]).default("auto"),
   META_APP_ID: optionalSecret,
@@ -81,7 +82,8 @@ export function getServerEnv(): ServerEnv {
     foreplayApiKey: env.FOREPLAY_API_KEY,
     spyglassApiKey: env.SPYGLASS_API_KEY,
     spyglassEnabled: env.SPYGLASS_ENABLED === "true",
-    adsProviderOrder: env.ADS_PROVIDER_ORDER.split(",").map((s) => s.trim().toLowerCase()).filter(Boolean),
+    adsProviderOrder: (env.ADS_PROVIDER_PRIORITY || env.ADS_PROVIDER_ORDER || "meta,foreplay,searchapi")
+      .split(",").map((s) => s.trim().toLowerCase()).filter(Boolean),
     adsProvider: env.ADS_PROVIDER,
     metaAppId: env.META_APP_ID,
     metaAppSecret: env.META_APP_SECRET,

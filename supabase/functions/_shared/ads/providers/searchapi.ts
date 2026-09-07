@@ -505,7 +505,9 @@ export class SearchApiProvider implements AdProvider {
           start_date: filters.startDate || undefined,
           end_date: filters.endDate || undefined,
           sort_by: filters.sort === "newest" ? "most_recent" : "impressions_high_to_low",
-          page_id: filters.brand || undefined,
+          page_id: filters.selectedBrand?.provider === "meta"
+            ? filters.selectedBrand.providerAdvertiserId
+            : filters.brand || undefined,
           next_page_token: currentToken,
         };
         Object.keys(body).forEach((key) => body[key] === undefined && delete body[key]);

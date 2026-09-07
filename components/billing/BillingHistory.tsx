@@ -19,7 +19,7 @@ export function BillingHistory({ payments }: { payments: Payment[] }) {
   }
 
   return (
-    <div className="overflow-hidden rounded-md border border-border/50 bg-background">
+    <div className="max-w-full overflow-x-auto rounded-md border border-border/50 bg-background">
       <table className="min-w-full divide-y divide-border">
         <thead className="bg-muted/50">
           <tr>

@@ -63,8 +63,8 @@ export function SettingsTeam({ limits, usage, planKey, members }: SettingsTeamPr
         {limits.canInviteMembers ? (
           <div className="mt-6 pt-6 border-t border-[#E1E1E1]">
             <h4 className="text-[14px] font-semibold text-[#18181B] mb-3">Invite users</h4>
-            <form onSubmit={handleInvite} className="flex items-start gap-3">
-              <div className="flex-1">
+            <form onSubmit={handleInvite} className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-start">
+              <div className="min-w-0 flex-1">
                 <input
                   type="email"
                   required
@@ -77,7 +77,7 @@ export function SettingsTeam({ limits, usage, planKey, members }: SettingsTeamPr
                 {status.error && <p className="text-red-600 text-[12px] mt-1.5">{status.error}</p>}
                 {status.success && <p className="text-green-600 text-[12px] mt-1.5">{status.success}</p>}
               </div>
-              <Button type="submit" variant="secondary" className="h-[36px] px-4 shrink-0" disabled={status.loading}>
+              <Button type="submit" variant="secondary" className="h-[36px] w-full px-4 sm:w-auto sm:shrink-0" disabled={status.loading}>
                 {status.loading ? "Sending..." : "Send invite"}
               </Button>
             </form>

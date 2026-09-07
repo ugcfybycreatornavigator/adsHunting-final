@@ -2,8 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { NICHES, CONTENT_STYLES, LANGUAGES, MARKETS } from "@/lib/taxonomy";
 import type { BrandIdentity } from "@/lib/types";
-import { brandFromRow, realAdvertiserName } from "@/lib/advertiser-identity";
+import { brandFromRow, identityProvider, realAdvertiserName } from "@/lib/advertiser-identity";
 import { getAdProviders } from "@/lib/providers";
+import { requirePaidWorkspaceAccess } from "@/lib/billing/entitlement";
+import { requireUser } from "@/lib/auth";
 
 // Short-lived memory cache for external provider lookups to prevent rate limit pressure
 const externalProviderCache = new Map<string, { timestamp: number; results: SearchSuggestion[] }>();
@@ -23,11 +25,10 @@ export type SearchSuggestion = {
 };
 
 export async function GET(request: NextRequest) {
-  // const accessError = await requirePaidWorkspaceAccess();
-  // if (accessError) return accessError;
-
-  // const auth = await requireUser();
-  // if (auth.error) return auth.error;
+  const accessError = await requirePaidWorkspaceAccess();
+  if (accessError) return accessError;
+  const auth = await requireUser();
+  if (auth.error) return auth.error;
 
   const { searchParams } = new URL(request.url);
   const rawQuery = searchParams.get("q") || "";
@@ -120,7 +121,6 @@ export async function GET(request: NextRequest) {
 
     if (dbError) {
       console.error("Suggestion fetch DB error:", dbError);
-      return NextResponse.json({ error: "Failed to load suggestions" }, { status: 500 });
     }
 
     if (dbBrands?.length) {
@@ -142,20 +142,23 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Identity lookup is DB/cache first. Never spend Foreplay credits on autocomplete.
+    // Identity lookup is DB/cache first, then the configured provider chain.
     if (!suggestions.some(s => s.type === "brand") && query.length >= 3) {
       const cached = externalProviderCache.get(query);
       if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) suggestions.push(...cached.results);
       else {
         try {
-          const provider = getAdProviders({ query }).find(p => p.name === "meta");
-          if (provider) {
-            const result = await provider.provider.searchAds({ query, status: "all" });
+          const providers = getAdProviders({ query });
+          for (const { provider, name: providerName } of providers) {
+            const providerStartedAt = Date.now();
+            try {
+              const result = await provider.searchAds({ query, status: "all" });
             const brands = new Map<string, SearchSuggestion>();
             for (const ad of result.ads) {
               const name = realAdvertiserName(ad.advertiser.name, ad.advertiser.id);
-              if (!name || !ad.advertiser.id) continue;
-              const brand: BrandIdentity = { id: ad.advertiser.id, name, provider: "meta",
+              const provider = identityProvider(ad.provider.discoveryProvider);
+              if (!name || !ad.advertiser.id || !provider) continue;
+              const brand: BrandIdentity = { id: ad.advertiser.id, name, provider,
                 providerAdvertiserId: ad.advertiser.id, logoUrl: ad.advertiser.logoUrl,
                 profileUrl: ad.advertiser.pageUrl, domain: ad.advertiser.domain };
               brands.set(brand.id, { id: brand.id, type: "brand", label: name,
@@ -163,9 +166,20 @@ export async function GET(request: NextRequest) {
                 imageUrl: brand.logoUrl, brand });
             }
             const results = [...brands.values()];
-            externalProviderCache.set(query, { timestamp: Date.now(), results });
-            if (externalProviderCache.size > 200) externalProviderCache.delete(externalProviderCache.keys().next().value!);
-            suggestions.push(...results);
+              console.info(JSON.stringify({ provider: providerName, operation: "searchBrands", status: "success",
+                duration: Date.now() - providerStartedAt, resultCount: results.length, errorCode: null,
+                fallbackUsed: providers[0]?.name !== providerName }));
+              if (results.length) {
+                externalProviderCache.set(query, { timestamp: Date.now(), results });
+                if (externalProviderCache.size > 200) externalProviderCache.delete(externalProviderCache.keys().next().value!);
+                suggestions.push(...results);
+                break;
+              }
+            } catch (error) {
+              console.warn(JSON.stringify({ provider: providerName, operation: "searchBrands", status: "failure",
+                duration: Date.now() - providerStartedAt, resultCount: 0,
+                errorCode: error instanceof Error ? error.name : "PROVIDER_FAILURE", fallbackUsed: true }));
+            }
           }
         } catch { /* Keep the DB/category results if Meta is unavailable. */ }
       }
@@ -237,7 +251,7 @@ export async function GET(request: NextRequest) {
 
   return NextResponse.json({ query: rawQuery, suggestions: finalSuggestions }, {
     headers: {
-      "Cache-Control": "public, s-maxage=60, stale-while-revalidate=120"
+      "Cache-Control": "private, max-age=60"
     }
   });
 }

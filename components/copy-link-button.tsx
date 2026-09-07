@@ -23,10 +23,11 @@ export function CopyLinkButton({ token }: { token: string }) {
           // fallback
         }
       }}
-      className="flex items-center gap-1.5 text-sm font-medium text-muted hover:text-ink transition bg-white border border-line rounded-md px-3 py-1.5 shadow-sm"
+      className="flex items-center gap-1.5 rounded-md border border-line bg-white px-2.5 py-1.5 text-sm font-medium text-muted shadow-sm transition hover:text-ink sm:px-3"
+      aria-label={copied ? "Link copied" : "Copy link"}
     >
       <Share2 size={14} />
-      {copied ? "Copied!" : "Copy link"}
+      <span className="hidden sm:inline">{copied ? "Copied!" : "Copy link"}</span>
     </button>
   );
 }

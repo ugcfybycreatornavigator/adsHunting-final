@@ -33,10 +33,19 @@ async function resolveCatalogAdId(supabase: NonNullable<Awaited<ReturnType<typeo
     if (data?.id) return data.id;
   }
 
+  if (adId) {
+    const { data, error } = await supabase.from("ads").select("id").eq("canonical_ad_id", adId).maybeSingle();
+    if (error) {
+      logAdResolutionError(error, "resolveCatalogAdId.byCanonicalId", adId);
+      throw new Error("Unable to resolve creative.");
+    }
+    if (data?.id) return data.id;
+  }
+
   const candidateExternalId = externalAdId || adId;
   if (!candidateExternalId) return null;
 
-  const { data, error } = await supabase.from("ads").select("id").eq("external_ad_id", candidateExternalId).maybeSingle();
+  const { data, error } = await supabase.from("ads").select("id").eq("external_ad_id", candidateExternalId).limit(1).maybeSingle();
   if (error) {
     logAdResolutionError(error, "resolveCatalogAdId.byExternalId", candidateExternalId);
     throw new Error("Unable to resolve creative.");

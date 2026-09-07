@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { refineAd } from "../lib/refinement";
 import type { NormalizedAd } from "../lib/types";
 
@@ -33,4 +34,20 @@ test("Contract: duplicate canonical ads generate stable IDs", () => {
   
   // Fingerprints should match and provide a stable ID
   assert.equal(ad1.id, ad2.id);
+});
+
+test("Contract: creative variants sharing a provider ad ID remain distinct", () => {
+  const first = refineAd({ externalId: "parent-ad", advertiser: { id: "adv-1", name: "Nike" } as never,
+    creative: { type: "image", imageUrl: "https://example.com/one.jpg" } as never });
+  const second = refineAd({ externalId: "parent-ad", advertiser: { id: "adv-1", name: "Nike" } as never,
+    creative: { type: "image", imageUrl: "https://example.com/two.jpg" } as never });
+  assert.notEqual(first.id, second.id);
+});
+
+test("Contract: edge provider chain is configurable and falls through empty results", () => {
+  const source = readFileSync("supabase/functions/_shared/ads/orchestrator.ts", "utf8");
+  assert.match(source, /ADS_PROVIDER_PRIORITY/);
+  assert.match(source, /meta,foreplay,searchapi/);
+  assert.match(source, /NO_USABLE_RESULTS/);
+  assert.doesNotMatch(source, /configuredOrder\s*=\s*\["meta",\s*"foreplay"\]/);
 });

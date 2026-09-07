@@ -8,6 +8,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { BrandMark } from "@/components/brand-mark";
 import { Metadata } from "next";
 import { createMetadata } from "@/lib/seo";
+import { signArchivedAdMedia } from "@/lib/media-access";
 
 export async function generateMetadata({ params }: { params: Promise<{ token: string }> }): Promise<Metadata> {
   const { token } = await params;
@@ -52,7 +53,7 @@ export default async function SharedAdPage({ params }: { params: Promise<{ token
   const { data: link, error: linkError } = await admin
     .from("shared_ad_links")
     .select(`
-      id, name, message, expires_at, revoked_at, visibility, created_at,
+      id, name, message, expires_at, revoked_at, visibility, allow_save, allow_download, created_at,
       items:shared_ad_items(ad_id, position)
     `)
     .eq("token_hash", token)
@@ -119,22 +120,23 @@ export default async function SharedAdPage({ params }: { params: Promise<{ token
     .in("id", adIds);
 
   const { dbAdToNormalized } = await import("@/lib/catalog");
-  const safeAds = (ads || []).map(row => {
+  const normalizedAds = (ads || []).map(row => {
     const normalized = dbAdToNormalized(row);
     // Strip raw data to prevent leaking private provider intelligence
     delete normalized.rawData;
     return normalized;
   });
+  const safeAds = await signArchivedAdMedia(normalizedAds);
 
   return (
     <div className="flex min-h-[100dvh] flex-col bg-[#F6F7F9]">
-      <header className="flex h-16 items-center justify-between border-b border-line bg-white px-4 md:px-6">
-        <div className="flex items-center gap-4">
+      <header className="flex h-16 min-w-0 items-center justify-between gap-3 border-b border-line bg-white px-4 md:px-6">
+        <div className="flex min-w-0 items-center gap-2 sm:gap-4">
           <BrandMark />
-          <div className="h-5 w-px bg-line" />
+          <div className="hidden h-5 w-px bg-line sm:block" />
           <span className="text-sm font-semibold text-ink hidden sm:inline">Shared Creative</span>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex shrink-0 items-center gap-2 sm:gap-3">
           <CopyLinkButton token={token} />
           <Badge tone={isPrivate ? "dark" : "brand"}>{isPrivate ? "Private" : "Public"}</Badge>
         </div>
@@ -154,7 +156,7 @@ export default async function SharedAdPage({ params }: { params: Promise<{ token
               body="This share does not contain any creatives or they were deleted."
             />
           ) : (
-            <SharedAdsViewer ads={safeAds} isPrivate={isPrivate} />
+            <SharedAdsViewer ads={safeAds} allowSave={Boolean(link.allow_save)} allowDownload={Boolean(link.allow_download)} />
           )}
 
           {!isPrivate && (

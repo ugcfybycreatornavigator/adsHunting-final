@@ -3,6 +3,8 @@ import { dbAdToNormalized, type DatabaseAdRow } from "@/lib/catalog";
 import type { NormalizedAd } from "@/lib/types";
 import { requireUser } from "@/lib/auth";
 import { ensureDefaultSwipeFile } from "@/lib/swipe-files";
+import { signArchivedAdMedia } from "@/lib/media-access";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 import { currentUser } from "@clerk/nextjs/server";
 
@@ -30,10 +32,10 @@ export async function getDashboardData(): Promise<DashboardData> {
   const clerkUser = await currentUser();
   const user = clerkUser ? { firstName: clerkUser.firstName, email: clerkUser.primaryEmailAddress?.emailAddress || null, imageUrl: clerkUser.imageUrl } : null;
   if (auth.error || !auth.userId || !auth.supabase) return empty;
-  const { supabase, userId } = auth;
+  const { userId } = auth;
   const now = new Date().toISOString();
 
-  const adminSupabase = require("@/lib/supabase/admin").createAdminClient();
+  const adminSupabase = createAdminClient();
   const savedAdsFileId = await safeValue("Home.defaultSavedAds", () => ensureDefaultSwipeFile(adminSupabase, userId));
   const savedAdsHref = savedAdsFileId ? `/swipe-files/${savedAdsFileId}` : "/swipe-files";
 
@@ -57,7 +59,24 @@ export async function getDashboardData(): Promise<DashboardData> {
   }));
   const mostSaved = savedRows.flatMap((row) => row.ads ? [dbAdToNormalized(Array.isArray(row.ads) ? row.ads[0] : row.ads)] : []);
 
-  return { user, actions: { discoverAds, brands: competitorCount, savedAds, sharedAds, competitors: competitorCount, savedAdsHref }, topRunning: top.map(dbAdToNormalized), trending, recent: recent.map(dbAdToNormalized), mostSaved, competitors: tracked };
+  const signedAds = await signArchivedAdMedia([
+    ...top.map(dbAdToNormalized),
+    ...trending,
+    ...recent.map(dbAdToNormalized),
+    ...mostSaved,
+  ]);
+  let signedIndex = 0;
+  const takeSigned = (length: number) => {
+    const start = signedIndex;
+    signedIndex += length;
+    return signedAds.slice(start, signedIndex);
+  };
+  const signedTopRunning = takeSigned(top.length);
+  const signedTrending = takeSigned(trending.length);
+  const signedRecent = takeSigned(recent.length);
+  const signedMostSaved = takeSigned(mostSaved.length);
+
+  return { user, actions: { discoverAds, brands: competitorCount, savedAds, sharedAds, competitors: competitorCount, savedAdsHref }, topRunning: signedTopRunning, trending: signedTrending, recent: signedRecent, mostSaved: signedMostSaved, competitors: tracked };
 }
 
 async function countRows(operation: string, query: () => PromiseLike<{ count: number | null; error: { message?: string; code?: string; details?: string; hint?: string } | null }>) {

@@ -89,7 +89,7 @@ export function ShareModal({ isOpen, onClose, adIds, swipeFileId, defaultName }:
             <CheckCircle2 className="text-green-600" size={24} />
           </div>
           <h3 className="text-base font-semibold text-zinc-900 mb-1">Link created!</h3>
-          <p className="text-sm text-zinc-500 mb-6">Anyone with this link can view the shared ads after logging in.</p>
+          <p className="text-sm text-zinc-500 mb-6">{visibility === "public" ? "Anyone with this link can view the shared ads." : "People with this link can view the shared ads after signing in."}</p>
           <div className="flex w-full items-center gap-2 bg-zinc-50 p-2 rounded-xl border border-zinc-200 mb-4">
             <input type="text" readOnly value={sharedLink} className="flex-1 bg-transparent text-sm text-zinc-900 outline-none px-2 min-w-0" />
             <Button variant={copied ? "primary" : "secondary"} onClick={copyToClipboard} className="shrink-0 gap-1.5 px-3 py-1.5 min-h-[auto] text-xs">
@@ -153,4 +153,3 @@ export function ShareModal({ isOpen, onClose, adIds, swipeFileId, defaultName }:
     </ModalShell>
   );
 }
-
