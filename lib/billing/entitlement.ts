@@ -48,6 +48,19 @@ export async function getWorkspaceEntitlement(workspaceId: string): Promise<Work
         reason: "active_subscription",
      };
   }
+
+  if (process.env.EARLY_ACCESS_BYPASS === "true") {
+    return {
+      hasAccess: true,
+      accessSource: "legacy_grace",
+      billingStatus: "active",
+      trialEndsAt: null,
+      currentPeriodEnd: null,
+      nextChargeAt: null,
+      legacyGraceEndsAt: null,
+      reason: "legacy_grace",
+    };
+  }
   
   const admin = createAdminClient();
   const [subResponse, grantResponse] = await Promise.all([

@@ -70,6 +70,16 @@ export async function getWorkspaceCreditBalance(workspaceId: string): Promise<Wo
     };
   }
 
+  if (process.env.EARLY_ACCESS_BYPASS === "true") {
+    return {
+      creditsAllocated: 999999999,
+      creditsUsed: 0,
+      creditsRemaining: 999999999,
+      cycleStart: null,
+      cycleEnd: null,
+    };
+  }
+
   const admin = createAdminClient();
   const now = new Date().toISOString();
 
