@@ -95,7 +95,7 @@ export function DiscoverExperience({ brandId, hideHeader = false }: { brandId?: 
     setError(null);
 
     try {
-      const response = await apiFetch("/api/ads/search", {
+      const response = await apiFetch("/api/search", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(nextFilters),
