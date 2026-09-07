@@ -39,7 +39,7 @@ next-env.d.ts
 
 # scripts and unwanted
 rebrand.sh
-ads/
+/ads/
 *.py
 logs.txt
 test-*.ts
