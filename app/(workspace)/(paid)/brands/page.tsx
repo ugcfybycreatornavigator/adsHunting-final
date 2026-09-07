@@ -3,6 +3,7 @@ import { EmptyState, PageHeader } from "@/components/ui";
 import { BrandCard } from "@/components/brand-card";
 import { getCompetitorSummaries, type BrandSummary } from "@/lib/brand-data";
 import { requireUser } from "@/lib/auth";
+import { redirect } from "next/navigation";
 
 export const metadata = { title: "Brands" };
 
@@ -14,6 +15,7 @@ export default async function BrandsPage({
   const { q } = await searchParams;
   const query = q?.trim() || "";
   const auth = await requireUser();
+  if (!auth.userId || !auth.supabase) redirect("/login");
 
   // Fetch only the explicit tracked brands for this user
   const { data: competitors } = await auth.supabase!
