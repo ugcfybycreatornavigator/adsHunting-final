@@ -101,7 +101,16 @@ export function DiscoverExperience({ brandId, hideHeader = false }: { brandId?: 
         body: JSON.stringify(nextFilters),
         signal: controller.signal,
       });
-      const data = await response.json();
+
+      let data;
+      const contentType = response.headers.get("content-type");
+      if (contentType && contentType.includes("application/json")) {
+        data = await response.json();
+      } else {
+        const text = await response.text();
+        throw { message: `Server returned an unexpected response (Status: ${response.status}).`, code: "SERVER_ERROR" };
+      }
+
       if (!response.ok) {
         throw { message: data.message || data.error || "Search failed.", code: data.code };
       }

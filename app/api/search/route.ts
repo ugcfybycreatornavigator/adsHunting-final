@@ -71,10 +71,11 @@ const inFlight = new Map<string, Promise<AdSearchResult>>();
 
 export async function POST(request: NextRequest) {
   const requestId = crypto.randomUUID();
-  const accessError = await requirePaidWorkspaceAccess();
-  if (accessError) return accessError;
+  try {
+    const accessError = await requirePaidWorkspaceAccess();
+    if (accessError) return accessError;
 
-  let catalogClient: Awaited<ReturnType<typeof requireUser>>["supabase"] = null;
+    let catalogClient: Awaited<ReturnType<typeof requireUser>>["supabase"] = null;
   const authRes = await requireUser();
   if (authRes.error || !authRes.user) return authRes.error || NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   catalogClient = authRes.supabase;
@@ -154,10 +155,9 @@ export async function POST(request: NextRequest) {
   }
   if (cached) cache.delete(key);
 
-  try {
-    let payload: AdSearchResult | null = null;
+  let payload: AdSearchResult | null = null;
 
-    // 1. Check Supabase preload/cache first if query is empty or requesting discovery feed
+  // 1. Check Supabase preload/cache first if query is empty or requesting discovery feed
     // For competitors, ALWAYS use the DB because their ads are synced manually.
     if (isSupabaseConfigured && (!filters.cursor || /^\d+$/.test(filters.cursor))) {
       try {
