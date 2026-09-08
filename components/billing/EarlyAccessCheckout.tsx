@@ -57,17 +57,25 @@ function loadCashfreeCheckout() {
 }
 
 async function getFunctionError(error: unknown, fallback: string) {
-  if (error instanceof Error && "context" in error) {
-    const response = (error as Error & { context?: unknown }).context;
-    if (response instanceof Response) {
+  if (error && typeof error === "object" && "context" in error) {
+    const context = (error as { context?: unknown }).context;
+    if (context instanceof Response) {
       try {
-        const body = await response.clone().json().catch(() => null) as { message?: string; code?: string } | null;
-        if (body?.message) return { message: body.message, code: body.code };
+        const text = await context.text().catch(() => "");
+        if (text) {
+          const body = JSON.parse(text);
+          if (body?.message) return { message: body.message, code: body.code };
+        }
       } catch {
-        // safe fallback if response.clone() throws
+        // safe fallback if JSON.parse throws
       }
     }
   }
+
+  const name = error instanceof Error ? error.name : "";
+  if (name === "FunctionsFetchError") return { message: "Unable to reach the payment service. Please retry.", code: "NETWORK_UNREACHABLE" };
+  if (name === "FunctionsRelayError") return { message: "Payment checkout is temporarily unavailable.", code: "EDGE_RUNTIME_ERROR" };
+
   return { message: error instanceof Error ? error.message : fallback, code: undefined };
 }
 

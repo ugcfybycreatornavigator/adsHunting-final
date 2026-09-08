@@ -7,7 +7,7 @@ declare const Deno: { env: { get(key: string): string | undefined } };
 
 import { EARLY_ACCESS, inrAmountToPaise } from "../_shared/early-access.ts";
 import { CashfreeApiError, type CashfreeOrder, createCashfreeOrder, getCashfreeConfig, getCashfreeOrder } from "../_shared/cashfree.ts";
-import { corsHeaders } from "../_shared/cors.ts";
+import { corsHeaders, handleCors } from "../_shared/cors.ts";
 import { verifyClerkToken } from "../_shared/clerk.ts";
 
 function json(body: Record<string, unknown>, status = 200) {
