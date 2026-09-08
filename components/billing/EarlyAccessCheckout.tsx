@@ -58,10 +58,14 @@ function loadCashfreeCheckout() {
 
 async function getFunctionError(error: unknown, fallback: string) {
   if (error instanceof Error && "context" in error) {
-    const response = (error as Error & { context?: Response }).context;
-    if (response) {
-      const body = await response.clone().json().catch(() => null) as { message?: string; code?: string } | null;
-      if (body?.message) return { message: body.message, code: body.code };
+    const response = (error as Error & { context?: unknown }).context;
+    if (response instanceof Response) {
+      try {
+        const body = await response.clone().json().catch(() => null) as { message?: string; code?: string } | null;
+        if (body?.message) return { message: body.message, code: body.code };
+      } catch {
+        // safe fallback if response.clone() throws
+      }
     }
   }
   return { message: error instanceof Error ? error.message : fallback, code: undefined };
@@ -171,6 +175,15 @@ export function EarlyAccessCheckout({
         headers: { Authorization: `Bearer ${token}` },
         body: { customerPhone: phone },
       });
+      console.log("Cashfree checkout diagnostics:", {
+        hasError: !!error,
+        dataOk: data?.ok,
+        orderIdType: typeof data?.orderId,
+        paymentSessionIdType: typeof data?.paymentSessionId,
+        hasSession: !!data?.paymentSessionId,
+        mode: data?.mode,
+      });
+
       if (error || !data?.ok) {
         const parsed = await getFunctionError(error, data?.message || "Checkout could not be created.");
         if (parsed.code === "EARLY_ACCESS_ALREADY_ACTIVE") {
@@ -183,20 +196,33 @@ export function EarlyAccessCheckout({
         return;
       }
 
-      const orderId = typeof data.orderId === "string" ? data.orderId : null;
+      const orderId = typeof data?.orderId === "string" && data.orderId.trim() ? data.orderId.trim() : null;
       if (!orderId) throw new Error("Cashfree returned an invalid order.");
+      
       setPendingOrderId(orderId);
-      if (data.paymentPendingVerification || !data.paymentSessionId) {
+      
+      if (data.paymentPendingVerification) {
         await verifyPayment(orderId, token);
         return;
       }
+
+      const paymentSessionId = typeof data?.paymentSessionId === "string" && data.paymentSessionId.trim() ? data.paymentSessionId.trim() : null;
+      if (!paymentSessionId) {
+        throw new Error("Cashfree order was created but no valid payment session was returned.");
+      }
+
       if (data.mode !== "sandbox" && data.mode !== "production") throw new Error("Cashfree returned an invalid environment.");
 
       setState("checkout_opening");
       await loadCashfreeCheckout();
+      
+      if (typeof (window as unknown as CashfreeWindow).Cashfree !== "function") {
+        throw new Error("Cashfree checkout could not be initialized.");
+      }
+      
       const cashfree = (window as unknown as CashfreeWindow).Cashfree({ mode: data.mode });
       setState("checkout_open");
-      const result = await cashfree.checkout({ paymentSessionId: data.paymentSessionId, redirectTarget: "_modal" });
+      const result = await cashfree.checkout({ paymentSessionId, redirectTarget: "_modal" });
 
       // The browser result is only a prompt to reconcile. Access is granted only
       // after the server fetches Cashfree's order and payment resources.

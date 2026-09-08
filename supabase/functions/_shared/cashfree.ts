@@ -1,4 +1,4 @@
-export const CASHFREE_API_VERSION = "2026-01-01";
+export const CASHFREE_API_VERSION = "2023-08-01";
 
 declare const Deno: { env: { get(key: string): string | undefined } };
 
