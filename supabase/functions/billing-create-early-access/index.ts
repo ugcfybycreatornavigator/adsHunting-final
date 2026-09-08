@@ -31,7 +31,7 @@ function getAppBaseUrl() {
   let url: URL;
   try {
     url = new URL(value.includes("://") ? value : `https://${value}`);
-  } catch (e) {
+  } catch {
     throw new Error("APP_BASE_URL is not a valid URL.");
   }
 
@@ -52,7 +52,9 @@ function orderMatchesIntent(order: CashfreeOrder, orderId: string, workspaceId: 
 }
 
 serve(async (req: Request) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+  const corsResponse = handleCors(req);
+  if (corsResponse) return corsResponse;
+
   if (req.method !== "POST") return json({ ok: false, code: "METHOD_NOT_ALLOWED", message: "Method not allowed." }, 405);
 
   const requestId = `cashfree_create_${crypto.randomUUID()}`;
