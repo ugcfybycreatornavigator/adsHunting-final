@@ -110,15 +110,21 @@ serve(async (req: Request) => {
     }, 409);
   } catch (error: unknown) {
     if (error instanceof CashfreeApiError) {
-      console.error(`[${requestId}] cashfree_verify_provider_error`, error.status, error.code, error.errorType);
-    } else {
-      console.error(`[${requestId}] cashfree_verify_error`, error instanceof Error ? error.message : String(error));
+      console.error(`[${requestId}] cashfree_verify_provider_error`, error.status, error.code, error.errorType, error.message);
+      return json({
+        ok: false,
+        code: "VERIFICATION_UNAVAILABLE",
+        message: "Payment verification is temporarily unavailable. Please retry; do not pay again.",
+        requestId,
+      }, 503);
     }
+    
+    console.error(`[${requestId}] cashfree_verify_error`, error instanceof Error ? error.message : String(error));
     const mismatch = error instanceof Error && error.message.includes("EVIDENCE_MISMATCH");
     return json({
       ok: false,
       code: mismatch ? "PAYMENT_EVIDENCE_MISMATCH" : "VERIFICATION_UNAVAILABLE",
-      message: mismatch ? "Cashfree payment details did not match this purchase." : "Payment verification is temporarily unavailable. Please retry; do not pay again.",
+      message: mismatch ? "Cashfree payment details did not match this purchase." : "An unexpected error occurred during verification. Please retry; do not pay again.",
       requestId,
     }, mismatch ? 409 : 503);
   }

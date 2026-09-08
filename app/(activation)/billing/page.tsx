@@ -17,10 +17,29 @@ export default async function BillingGatePage({
 
   const params = await searchParams;
   const rawOrderId = Array.isArray(params.order_id) ? params.order_id[0] : params.order_id;
-  const returnOrderId = rawOrderId && /^ea_[a-f0-9]{32}$/.test(rawOrderId) ? rawOrderId : null;
+  let returnOrderId = rawOrderId && /^ea_[a-f0-9]{32}$/.test(rawOrderId) ? rawOrderId : null;
+
+  const admin = createAdminClient();
+
+  if (!returnOrderId) {
+    const { data: recentPayment } = await admin
+      .from("billing_payments")
+      .select("provider_order_id")
+      .eq("workspace_id", userId)
+      .eq("provider", "cashfree")
+      .eq("payment_type", "early_access")
+      .in("status", ["creating", "active", "pending", "attempted"])
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+      
+    if (recentPayment) {
+      returnOrderId = recentPayment.provider_order_id;
+    }
+  }
 
   const entitlement = await getWorkspaceEntitlement(userId);
-  const admin = createAdminClient();
+
   const { data: profile } = await admin
     .from("profiles")
     .select("onboarding_completed")
