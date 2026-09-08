@@ -2,7 +2,7 @@ import "server-only";
 import { currentUser } from "@clerk/nextjs/server";
 
 // TEMPORARY: Payment-provider reviewer access.
-// Remove/disable after Razorpay/Cashfree production verification.
+// Remove/disable after the active payment provider has passed production verification.
 export async function isPaymentReviewer(workspaceId: string): Promise<boolean> {
   if (process.env.ENABLE_PAYMENT_REVIEWER_LOGIN !== "true") {
     return false;

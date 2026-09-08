@@ -8,6 +8,7 @@ import { useState } from "react";
 import { cancelSubscription } from "@/app/(workspace)/settings/billing/actions";
 import { AppDialog } from "@/components/app-dialog";
 import { Rocket, AlertTriangle } from "lucide-react";
+import { EARLY_ACCESS, formatPaise } from "@/supabase/functions/_shared/early-access";
 
 interface SettingsBillingProps {
   entitlement: WorkspaceEntitlement;
@@ -23,6 +24,7 @@ export function SettingsBilling({ entitlement, planConfig, creditBalance }: Sett
 
   const displayPlanName = planConfig?.name || "No active plan";
   const isTrial = entitlement.accessSource === "trial";
+  const isEarlyAccess = entitlement.accessSource === "early_access";
   
   const renewsDate = entitlement.currentPeriodEnd 
     ? new Date(entitlement.currentPeriodEnd).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) 
@@ -95,8 +97,8 @@ export function SettingsBilling({ entitlement, planConfig, creditBalance }: Sett
           <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
              <div className="flex-1">
                <h4 className="text-[18px] font-semibold text-[#18181B]">{displayPlanName}</h4>
-               <p className="text-[13px] text-[#71717A] mt-1">Status: <span className="font-medium text-[#18181B]">{entitlement.billingStatus === "active" && !isTrial ? "Active" : isTrial ? "Trial" : entitlement.billingStatus === "cancelled" ? "Cancelled" : "Inactive"}</span></p>
-               <p className="text-[13px] text-[#71717A] mt-1">Price: {planConfig ? (planConfig.currentPrice ? `₹${planConfig.currentPrice} / month` : planConfig.priceLabel || "Free") : "-"}</p>
+               <p className="text-[13px] text-[#71717A] mt-1">Status: <span className="font-medium text-[#18181B]">{isEarlyAccess || (entitlement.billingStatus === "active" && !isTrial) ? "Active" : isTrial ? "Trial" : entitlement.billingStatus === "cancelled" ? "Cancelled" : "Inactive"}</span></p>
+               <p className="text-[13px] text-[#71717A] mt-1">Price: {isEarlyAccess ? `${formatPaise(EARLY_ACCESS.totalPaise)} one-time (including GST)` : planConfig ? (planConfig.currentPrice ? `₹${planConfig.currentPrice} / month` : planConfig.priceLabel || "Free") : "-"}</p>
                
                {renewsDate && entitlement.billingStatus === "active" && (
                  <p className="text-[13px] text-[#71717A] mt-1">Next billing date: {renewsDate}</p>
@@ -138,7 +140,7 @@ export function SettingsBilling({ entitlement, planConfig, creditBalance }: Sett
               <div className="min-w-0">
                 <p className="text-[14px] font-semibold text-[#18181B]">Credits Used</p>
                 <p className="text-[13px] text-[#71717A] mt-1">
-                  Resets on {creditBalance.cycleEnd ? new Date(creditBalance.cycleEnd).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : "next cycle"}
+                  {isEarlyAccess ? "Included with your one-time purchase" : <>Resets on {creditBalance.cycleEnd ? new Date(creditBalance.cycleEnd).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : "next cycle"}</>}
                 </p>
               </div>
               <div className="text-left sm:text-right">
@@ -164,7 +166,7 @@ export function SettingsBilling({ entitlement, planConfig, creditBalance }: Sett
             
             {creditBalance.creditsRemaining <= 0 && (
               <p className="text-[13px] text-red-600 font-medium mt-3">
-                You have run out of credits for this billing cycle. Wait until it resets to continue searching.
+                {isEarlyAccess ? "You have used all included Early Access credits." : "You have run out of credits for this billing cycle. Wait until it resets to continue searching."}
               </p>
             )}
           </div>
@@ -173,7 +175,7 @@ export function SettingsBilling({ entitlement, planConfig, creditBalance }: Sett
 
 
 
-      <Card className="p-6 shadow-sm border border-[#E1E1E1] rounded-[12px]">
+      {!isEarlyAccess && <Card className="p-6 shadow-sm border border-[#E1E1E1] rounded-[12px]">
         <h3 className="text-[15px] font-semibold text-[#18181B]">Subscription</h3>
         <div className="mt-4 flex flex-col gap-3">
           <Button variant="secondary" className="justify-center h-[36px] w-full sm:w-auto text-[13px] font-medium bg-white" onClick={() => setShowComingSoon(true)}>
@@ -185,7 +187,7 @@ export function SettingsBilling({ entitlement, planConfig, creditBalance }: Sett
             </Button>
           )}
         </div>
-      </Card>
+      </Card>}
     </div>
   );
 }

@@ -107,7 +107,7 @@ export function DiscoverExperience({ brandId, hideHeader = false }: { brandId?: 
       if (contentType && contentType.includes("application/json")) {
         data = await response.json();
       } else {
-        const text = await response.text();
+        await response.text();
         throw { message: `Server returned an unexpected response (Status: ${response.status}).`, code: "SERVER_ERROR" };
       }
 

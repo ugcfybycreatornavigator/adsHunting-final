@@ -1,12 +1,11 @@
 export type PlanConfig = {
-  id: "scout" | "hunter" | "agency";
+  id: "early_access" | "scout" | "hunter" | "agency";
   name: string;
   audience: string;
   regularPrice?: number | null;
   currentPrice?: number | null;
   priceLabel?: string;
   status: "available" | "coming_soon";
-  razorpayPlanId?: string | null;
   features: string[];
   limits: {
     teamMembers: number | "unlimited";
@@ -68,6 +67,27 @@ export const BILLING_CONFIG: Record<string, PlanConfig> = {
     }
   },
 } as const;
+
+export const EARLY_ACCESS_PLAN_CONFIG: PlanConfig = {
+  id: "early_access",
+  name: "Early Access",
+  audience: "One-time access while subscription checkout is being finalized.",
+  currentPrice: 588.82,
+  status: "available",
+  features: [
+    "Search & Discover Ads",
+    "Ad Intelligence",
+    "Winner Score",
+    "Swipe Files",
+    "Brand Research",
+    "3,000 Early Access Credits",
+  ],
+  limits: {
+    teamMembers: 1,
+    swipeFiles: 5,
+    sharedAds: 10,
+  },
+};
 
 export type PlanKey = keyof typeof BILLING_CONFIG;
 

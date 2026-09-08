@@ -63,13 +63,15 @@ export async function getWorkspaceEntitlement(workspaceId: string): Promise<Work
   }
   
   const admin = createAdminClient();
-  const [subResponse, grantResponse] = await Promise.all([
+  const [subResponse, grantResponse, earlyAccessResponse] = await Promise.all([
     admin.from("billing_subscriptions").select("*").eq("workspace_id", workspaceId).maybeSingle(),
-    admin.from("billing_access_grants").select("*").eq("workspace_id", workspaceId).eq("grant_type", "legacy_grace").maybeSingle()
+    admin.from("billing_access_grants").select("*").eq("workspace_id", workspaceId).eq("grant_type", "legacy_grace").maybeSingle(),
+    admin.from("billing_access_grants").select("*").eq("workspace_id", workspaceId).eq("grant_type", "early_access").maybeSingle(),
   ]);
 
   const sub = subResponse.data;
   const legacyGrant = grantResponse.data;
+  const earlyAccessGrant = earlyAccessResponse.data;
 
   const now = new Date();
   let hasAccess = false;
@@ -95,6 +97,10 @@ export async function getWorkspaceEntitlement(workspaceId: string): Promise<Work
     hasAccess = true;
     accessSource = "subscription";
     reason = "active_subscription";
+  } else if (earlyAccessGrant && (!earlyAccessGrant.ends_at || now < new Date(earlyAccessGrant.ends_at))) {
+    hasAccess = true;
+    accessSource = "early_access";
+    reason = "early_access";
   } else if (isLegacyGraceActive) {
     hasAccess = true;
     accessSource = "legacy_grace";

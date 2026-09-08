@@ -88,13 +88,14 @@ export async function getWorkspaceCreditBalance(workspaceId: string): Promise<Wo
     .select("*")
     .eq("workspace_id", workspaceId)
     .gt("cycle_end", now)
-    .order("cycle_end", { ascending: false })
+    .order("cycle_start", { ascending: false })
     .limit(1)
     .maybeSingle();
 
   if (error || !data) {
     // Attempt lazy reconciliation if they have an active entitlement but no balance row.
     const entitlement = await getWorkspaceEntitlement(workspaceId);
+    if (entitlement.accessSource === "early_access") return null;
     if (entitlement.hasAccess) {
       const cycleStart = now;
       const cycleEnd = entitlement.currentPeriodEnd 
@@ -136,4 +137,3 @@ export async function getWorkspaceCreditBalance(workspaceId: string): Promise<Wo
     cycleEnd: data.cycle_end,
   };
 }
-

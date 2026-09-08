@@ -4,6 +4,7 @@ import { auth } from "@clerk/nextjs/server";
 import { isPreviewMode } from "@/lib/preview";
 import { getWorkspaceCreditBalance } from "@/lib/billing/usage";
 import { CreditsProvider, CreditsState } from "@/components/billing/CreditsContext";
+import { getWorkspaceEntitlement } from "@/lib/billing/entitlement";
 
 export default async function PaidRoutesLayout({ children }: { children: React.ReactNode }) {
   if (isPreviewMode) return <>{children}</>;
@@ -12,11 +13,8 @@ export default async function PaidRoutesLayout({ children }: { children: React.R
   if (!userId) redirect("/sign-in");
 
 
-  
-  // Bypass billing redirect
-  // if (!entitlement.hasAccess) {
-  //   redirect(`/settings/billing?reason=subscription_required`);
-  // }
+  const entitlement = await getWorkspaceEntitlement(userId);
+  if (!entitlement.hasAccess) redirect("/billing");
 
   const balance = await getWorkspaceCreditBalance(userId);
   

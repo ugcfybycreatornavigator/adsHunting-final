@@ -1,15 +1,12 @@
 project_id = "ads_intelligence"
 
-[functions.billing-create-subscription]
+[functions.billing-create-early-access]
 verify_jwt = false
 
-[functions.billing-cancel-subscription]
+[functions.billing-verify-early-access]
 verify_jwt = false
 
-[functions.billing-reconcile-subscription]
-verify_jwt = false
-
-[functions.razorpay-webhook]
+[functions.cashfree-webhook]
 verify_jwt = false
 
 [functions.ads-search]

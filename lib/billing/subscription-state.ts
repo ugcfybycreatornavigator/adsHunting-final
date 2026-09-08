@@ -16,13 +16,14 @@ export type BillingStatus =
 export type EntitlementReason =
   | "trial"
   | "active_subscription"
+  | "early_access"
   | "legacy_grace"
   | "payment_required"
   | "payment_failed"
   | "cancelled"
   | null;
 
-export type AccessSource = "subscription" | "trial" | "legacy_grace" | null;
+export type AccessSource = "subscription" | "trial" | "legacy_grace" | "early_access" | null;
 
 export interface WorkspaceEntitlement {
   hasAccess: boolean;

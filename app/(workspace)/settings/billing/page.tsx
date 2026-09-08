@@ -1,6 +1,6 @@
 import { SettingsBilling } from "@/components/settings-billing";
 import { getWorkspaceEntitlement } from "@/lib/billing/entitlement";
-import { BILLING_CONFIG, resolvePlanKey, type PlanConfig } from "@/lib/billing/billing-config";
+import { BILLING_CONFIG, EARLY_ACCESS_PLAN_CONFIG, resolvePlanKey, type PlanConfig } from "@/lib/billing/billing-config";
 import { getWorkspaceCreditBalance } from "@/lib/billing/usage";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { auth } from "@clerk/nextjs/server";
@@ -42,6 +42,8 @@ export default async function BillingSettingsPage() {
           sharedAds: "unlimited",
         },
       }
+    : entitlement.accessSource === "early_access"
+    ? EARLY_ACCESS_PLAN_CONFIG
     : (planKey && BILLING_CONFIG[planKey])
     ? BILLING_CONFIG[planKey]
     : BILLING_CONFIG.scout;

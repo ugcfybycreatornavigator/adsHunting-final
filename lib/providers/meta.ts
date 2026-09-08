@@ -1,6 +1,6 @@
 import { matchingBrand, realAdvertiserName, resolveAdvertiser } from "../../supabase/functions/_shared/ads/advertiser-identity";
 import type { AdProvider, AdSearchFilters, AdSearchResult, NormalizedAd, ProviderCapabilities } from "@/lib/types";
-import { daysBetween, sanitizeAdCopy, extractAdvertiserName } from "@/lib/utils";
+import { daysBetween, sanitizeAdCopy } from "@/lib/utils";
 import { ProviderError, providerErrorFromStatus } from "@/lib/providers/errors";
 import { computeAdIntelligence } from "@/lib/intelligence";
 
