@@ -70,11 +70,17 @@ export class CashfreeApiError extends Error {
 export function getCashfreeConfig(): CashfreeConfig {
   const appId = Deno.env.get("CASHFREE_APP_ID");
   const secretKey = Deno.env.get("CASHFREE_SECRET_KEY");
-  const environment = Deno.env.get("CASHFREE_ENV");
+  let environment = Deno.env.get("CASHFREE_ENV") as CashfreeEnvironment | undefined;
+  
   if (!appId || !secretKey) throw new Error("Cashfree credentials are not configured.");
-  if (environment !== "sandbox" && environment !== "production") {
-    throw new Error("CASHFREE_ENV must be sandbox or production.");
+  
+  // Auto-detect environment if it's mismatched or missing, since Sandbox IDs always start with TEST
+  const detectedEnv = appId.startsWith("TEST") ? "sandbox" : "production";
+  if (environment !== detectedEnv) {
+    console.log(`[Cashfree Config] Auto-correcting environment to ${detectedEnv} based on App ID prefix.`);
+    environment = detectedEnv;
   }
+
   return {
     appId,
     secretKey,
