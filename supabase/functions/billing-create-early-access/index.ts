@@ -27,7 +27,14 @@ function normalizePhone(value: unknown) {
 function getAppBaseUrl() {
   const value = Deno.env.get("APP_BASE_URL");
   if (!value) throw new Error("APP_BASE_URL is not configured.");
-  const url = new URL(value);
+  
+  let url: URL;
+  try {
+    url = new URL(value.includes("://") ? value : `https://${value}`);
+  } catch (e) {
+    throw new Error("APP_BASE_URL is not a valid URL.");
+  }
+
   if (getCashfreeConfig().environment === "production" && url.protocol !== "https:") {
     throw new Error("APP_BASE_URL must use HTTPS in production.");
   }
@@ -170,13 +177,26 @@ serve(async (req: Request) => {
         notify_url: `${supabaseUrl}/functions/v1/cashfree-webhook`,
       },
       order_note: "AdsHunting Early Access",
-      order_tags: {
-        product: EARLY_ACCESS.paymentType,
-        workspace_id: userId,
-        internal_payment_id: paymentId,
-        credits: String(EARLY_ACCESS.credits),
-        checkout_context: "AdsHunting Early Access — ₹499 + 18% GST",
-      },
+      order_tags: (function buildOrderTags() {
+        const tags: Record<string, string> = {
+          product: EARLY_ACCESS.paymentType,
+          workspace_id: userId,
+          internal_payment_id: paymentId,
+          credits: String(EARLY_ACCESS.credits),
+          checkout_context: "AdsHunting Early Access Payment",
+        };
+
+        try {
+          const brandImage = new URL("/logo.png", appBaseUrl);
+          if (brandImage.protocol === "https:" && brandImage.hostname !== "localhost") {
+            tags.brand_image_url = brandImage.toString();
+          }
+        } catch {
+          // Omit optionally if URL is invalid or local
+        }
+        
+        return tags;
+      })(),
       products: {
         one_click_checkout: {
           enabled: true,
