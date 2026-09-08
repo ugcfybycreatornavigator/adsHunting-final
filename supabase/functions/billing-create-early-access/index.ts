@@ -151,6 +151,10 @@ serve(async (req: Request) => {
       orderId = createdIntent.provider_order_id;
     }
 
+    if (!paymentId || !orderId) {
+      throw new Error("Invariant failed: paymentId or orderId is missing.");
+    }
+
     const orderPayload = {
       order_id: orderId,
       order_amount: Number(EARLY_ACCESS.totalAmountInr),
