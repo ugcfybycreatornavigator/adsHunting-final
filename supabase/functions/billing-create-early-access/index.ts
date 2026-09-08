@@ -20,7 +20,8 @@ function json(body: Record<string, unknown>, status = 200) {
 function normalizePhone(value: unknown) {
   if (typeof value !== "string") return null;
   const phone = value.replace(/[\s()-]/g, "");
-  return /^\+?[1-9]\d{9,14}$/.test(phone) ? phone : null;
+  const match = phone.match(/(\d{10})$/);
+  return match ? match[1] : null;
 }
 
 function getAppBaseUrl() {
@@ -144,7 +145,7 @@ serve(async (req: Request) => {
       if (intentError || !createdIntent) {
         if (intentError?.code === "23505") return json({ ok: false, code: "CHECKOUT_IN_PROGRESS", message: "A checkout is already in progress for this account.", requestId }, 409);
         console.error(`[${requestId}] cashfree_intent_failed`, intentError?.message);
-        return json({ ok: false, code: "CHECKOUT_CREATE_FAILED", message: "Unable to prepare checkout. Please try again.", requestId }, 500);
+        return json({ ok: false, code: "CHECKOUT_CREATE_FAILED", message: "Unable to prepare checkout. Please try again.", requestId, errorDetails: intentError }, 500);
       }
       paymentId = createdIntent.id;
       orderId = createdIntent.provider_order_id;
@@ -211,17 +212,19 @@ serve(async (req: Request) => {
       return json({ ok: true, orderId, paymentSessionId: order.payment_session_id, mode: cashfreeConfig.environment, requestId });
     } catch (error: unknown) {
       if (error instanceof CashfreeApiError) {
-        console.error(`[${requestId}] cashfree_create_failed`, paymentId, userId, orderId, error.status, error.code, error.errorType);
+        console.error(`[${requestId}] cashfree_create_failed`, paymentId, userId, orderId, error.status, error.code, error.errorType, error.message);
         if (error.status > 0 && error.status < 500) {
           await admin.from("billing_payments").update({ status: "failed", failed_at: new Date().toISOString() }).eq("id", paymentId);
         } else {
           await admin.from("billing_payments").update({ status: "pending" }).eq("id", paymentId);
         }
-        const occUnavailable = error.status === 400 || error.status === 422;
         return json({
           ok: false,
-          code: occUnavailable ? "CASHFREE_OCC_NOT_ENABLED" : "CASHFREE_UNAVAILABLE",
-          message: occUnavailable ? "Cashfree One Click Checkout is not enabled or accepted for this merchant account." : "Cashfree is temporarily unavailable. Please retry safely.",
+          code: "CASHFREE_ORDER_CREATE_FAILED",
+          providerStatus: error.status,
+          providerCode: error.code,
+          providerType: error.errorType,
+          message: error.message || "Cashfree rejected the checkout request.",
           requestId,
         }, error.status >= 400 && error.status < 600 ? error.status : 503);
       }
