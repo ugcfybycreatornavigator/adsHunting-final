@@ -37,6 +37,8 @@ export function FeedbackSupport() {
   const [errorMessage, setErrorMessage] = useState("");
   const [validationError, setValidationError] = useState("");
   const [referenceId, setReferenceId] = useState("");
+  const [dispatched, setDispatched] = useState<boolean | null>(null);
+  const [successNotice, setSuccessNotice] = useState("");
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -116,6 +118,8 @@ export function FeedbackSupport() {
       }
 
       setReferenceId(data.id || "");
+      setDispatched(data.dispatched ?? true);
+      setSuccessNotice(data.message || (data.dispatched === false ? "Your feedback has been recorded locally. Support notification will be synchronized." : ""));
       setStatus("success");
     } catch (err) {
       setStatus("error");
@@ -134,6 +138,8 @@ export function FeedbackSupport() {
     setErrorMessage("");
     setValidationError("");
     setReferenceId("");
+    setDispatched(null);
+    setSuccessNotice("");
   };
 
   if (status === "success") {
@@ -142,7 +148,14 @@ export function FeedbackSupport() {
         <div className="flex size-16 items-center justify-center rounded-full bg-brand/10 text-brand mb-6">
           <CheckCircle2 size={32} strokeWidth={1.5} />
         </div>
-        <h3 className="text-xl font-semibold text-ink">Thanks — your feedback has been sent.</h3>
+        <h3 className="text-xl font-semibold text-ink">
+          {dispatched === false ? "Feedback saved locally" : "Thanks — your feedback has been sent."}
+        </h3>
+        {dispatched === false && (
+          <p className="mt-2 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-3 py-1.5 max-w-sm mx-auto">
+            {successNotice || "Your feedback was securely recorded. External dispatch is queued or delayed."}
+          </p>
+        )}
         {referenceId && (
           <p className="mt-2 text-sm text-muted">
             Reference #{referenceId.slice(0, 8).toUpperCase()}

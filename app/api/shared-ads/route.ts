@@ -2,6 +2,7 @@ import { requirePaidWorkspaceAccess } from "@/lib/billing/entitlement";
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import crypto from "crypto";
+import { hashShareToken } from "@/lib/shared-ads";
 
 export async function GET() {
   const accessError = await requirePaidWorkspaceAccess();
@@ -122,6 +123,7 @@ export async function POST(request: NextRequest) {
   const contentType = swipeFileId ? "swipe_file" : resolvedAdIds.length > 1 ? "multiple" : "single";
 
   const token = "rlt_" + crypto.randomBytes(32).toString("hex");
+  const tokenHash = hashShareToken(token);
 
   const { data: link, error } = await auth.supabase
     .from("shared_ad_links")
@@ -129,7 +131,7 @@ export async function POST(request: NextRequest) {
       owner_user_id: auth.userId,
       name: name.trim(),
       message,
-      token_hash: token,
+      token_hash: tokenHash,
       content_type: contentType,
       swipe_file_id: swipeFileId,
       expires_at: expiresAt,

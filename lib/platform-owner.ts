@@ -1,14 +1,24 @@
 import { currentUser } from "@clerk/nextjs/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-export const PLATFORM_OWNER_EMAIL = "creatornavigator@gmail.com";
+export function getPlatformOwnerEmail(): string | null {
+  const email = process.env.PLATFORM_OWNER_EMAIL?.trim();
+  return email ? email.toLowerCase() : null;
+}
+
+export const PLATFORM_OWNER_EMAIL = process.env.PLATFORM_OWNER_EMAIL?.trim() || "";
+
+const SAFE_ID_REGEX = /^[A-Za-z0-9_-]+$/;
 
 /**
  * Normalizes an email for reliable comparison against the platform owner email.
+ * Fails safely (returns false) if PLATFORM_OWNER_EMAIL is not explicitly configured in environment.
  */
 export function isPlatformOwnerEmail(email?: string | null): boolean {
   if (!email || typeof email !== "string") return false;
-  return email.trim().toLowerCase() === PLATFORM_OWNER_EMAIL.toLowerCase();
+  const ownerEmail = getPlatformOwnerEmail();
+  if (!ownerEmail) return false;
+  return email.trim().toLowerCase() === ownerEmail;
 }
 
 /**
@@ -16,14 +26,17 @@ export function isPlatformOwnerEmail(email?: string | null): boolean {
  * First checks local Supabase profile cache, or checks Clerk user email.
  */
 export async function isPlatformOwner(userId?: string | null): Promise<boolean> {
-  if (!userId) return false;
+  if (!userId || typeof userId !== "string" || !SAFE_ID_REGEX.test(userId.trim())) {
+    return false;
+  }
+  const cleanId = userId.trim();
 
   try {
     const supabase = createAdminClient();
     const { data: profile } = await supabase
       .from("profiles")
       .select("email, is_platform_owner, role")
-      .or(`id.eq.${userId},clerk_user_id.eq.${userId}`)
+      .or(`id.eq."${cleanId}",clerk_user_id.eq."${cleanId}"`)
       .maybeSingle();
 
     if (profile) {
@@ -41,10 +54,10 @@ export async function isPlatformOwner(userId?: string | null): Promise<boolean> 
   // Check current Clerk session user if matches userId
   try {
     const user = await currentUser();
-    if (user && (user.id === userId || !userId)) {
-      const primaryEmail = user.emailAddresses.find(
+    if (user && (user.id === cleanId || !userId)) {
+      const primaryEmail = user.emailAddresses?.find(
         (e) => e.id === user.primaryEmailAddressId
-      )?.emailAddress || user.emailAddresses[0]?.emailAddress;
+      )?.emailAddress || user.emailAddresses?.[0]?.emailAddress;
 
       if (isPlatformOwnerEmail(primaryEmail)) {
         return true;
@@ -64,7 +77,7 @@ export async function getPlatformAccessContext(userId: string) {
   const isOwner = await isPlatformOwner(userId);
   return {
     isPlatformOwner: isOwner,
-    email: PLATFORM_OWNER_EMAIL,
+    email: getPlatformOwnerEmail() || "",
     role: isOwner ? ("OWNER" as const) : ("MEMBER" as const),
     unlimited: isOwner,
     hasPaidAccess: isOwner,
@@ -75,14 +88,15 @@ export async function getPlatformAccessContext(userId: string) {
  * Self-healing bootstrap: ensures platform owner account has full access and flags set.
  */
 export async function ensurePlatformOwner(userId?: string | null): Promise<void> {
-  if (!userId) return;
+  if (!userId || typeof userId !== "string" || !SAFE_ID_REGEX.test(userId.trim())) return;
+  const cleanId = userId.trim();
 
   try {
     const supabase = createAdminClient();
     const { data: profile } = await supabase
       .from("profiles")
       .select("id, email, is_platform_owner, role")
-      .or(`id.eq.${userId},clerk_user_id.eq.${userId}`)
+      .or(`id.eq."${cleanId}",clerk_user_id.eq."${cleanId}"`)
       .maybeSingle();
 
     if (profile && isPlatformOwnerEmail(profile.email)) {

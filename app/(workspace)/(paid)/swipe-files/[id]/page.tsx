@@ -3,17 +3,18 @@ import { ArrowLeft } from "lucide-react";
 import { SavedAdsView } from "@/components/saved-ads-view";
 import { PageHeader } from "@/components/ui";
 import { requireUser } from "@/lib/auth";
+import { getSwipeFile } from "@/lib/swipe-files";
 
 export default async function SwipeFilePage({params}: {params: Promise<{id: string}>}) {
   const { id } = await params;
   let name = "Swipe File";
   let description = "Review and annotate the creative references collected in this folder.";
   const auth = await requireUser();
-  if (!auth.error && auth.supabase) {
-    const { data } = await auth.supabase.from("swipe_files").select("name, description").eq("id", id).maybeSingle();
-    if (data) {
-      name = data.name;
-      description = data.description || description;
+  if (!auth.error && auth.supabase && auth.userId) {
+    const file = await getSwipeFile(auth.supabase, id, auth.userId);
+    if (file) {
+      name = file.name;
+      description = file.description || description;
     }
   }
   return (

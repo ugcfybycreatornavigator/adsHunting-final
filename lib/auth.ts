@@ -81,8 +81,7 @@ export async function requireUser() {
     }
   }
 
-  // Bypass Clerk JWT requirement by returning admin client for now
-  // const supabase = await createClerkSupabaseServerClient();
-  const supabase = admin;
+  // Return scoped Supabase client operating under Clerk JWT / RLS constraints
+  const supabase = await createClerkSupabaseServerClient();
   return { userId: authObj.userId, user: await currentUser(), supabase, error: null, sessionReplaced: false };
 }

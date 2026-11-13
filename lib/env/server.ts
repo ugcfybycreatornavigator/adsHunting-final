@@ -33,6 +33,9 @@ const schema = z.object({
   GOOGLE_API_KEY: optionalSecret,
   GOOGLE_SEARCH_ENGINE_ID: optionalSecret,
   ALLOW_MEDIA_ARCHIVAL: z.enum(["true", "false"]).default("false"),
+  DEFTFORM_API_TOKEN: optionalSecret,
+  DEFTFORM_FORM_ID: optionalSecret,
+  PLATFORM_OWNER_EMAIL: optionalSecret,
 });
 
 export type ServerEnv = {
@@ -56,6 +59,9 @@ export type ServerEnv = {
   googleApiKey?: string;
   googleSearchEngineId?: string;
   allowMediaArchival: boolean;
+  deftformApiToken?: string;
+  deftformFormId?: string;
+  platformOwnerEmail?: string;
 };
 
 export function getServerEnv(): ServerEnv {
@@ -95,6 +101,9 @@ export function getServerEnv(): ServerEnv {
     googleApiKey: env.GOOGLE_API_KEY,
     googleSearchEngineId: env.GOOGLE_SEARCH_ENGINE_ID,
     allowMediaArchival: env.ALLOW_MEDIA_ARCHIVAL === "true",
+    deftformApiToken: env.DEFTFORM_API_TOKEN,
+    deftformFormId: env.DEFTFORM_FORM_ID,
+    platformOwnerEmail: env.PLATFORM_OWNER_EMAIL,
   };
 }
 
@@ -108,6 +117,7 @@ export function integrationConfig() {
     meta: Boolean(env.metaAccessToken && env.metaApiVersion && env.metaEnabled),
     googleSearch: Boolean(env.googleApiKey && env.googleSearchEngineId),
     mediaArchival: env.allowMediaArchival,
+    deftform: Boolean(env.deftformApiToken),
   };
 }
 
@@ -123,6 +133,7 @@ export const isForeplayConfigured = Boolean(process.env.FOREPLAY_API_KEY);
 export const isSpyglassConfigured = Boolean(process.env.SPYGLASS_API_KEY && process.env.SPYGLASS_ENABLED === "true");
 export const isMetaConfigured = Boolean(process.env.META_AD_LIBRARY_ACCESS_TOKEN && process.env.META_API_VERSION);
 export const isGoogleSearchConfigured = Boolean(process.env.GOOGLE_API_KEY && process.env.GOOGLE_SEARCH_ENGINE_ID);
+export const isDeftformConfigured = Boolean(process.env.DEFTFORM_API_TOKEN);
 export const isAnyAdsProviderConfigured = isSearchConfigured || isMetaConfigured || isForeplayConfigured || isSpyglassConfigured;
 
 function normalizeCountry(value?: string) {

@@ -124,7 +124,9 @@ export async function getSwipeFiles(supabase: SupabaseClient, userId: string) {
   }));
 }
 
-export async function getSwipeFile(supabase: SupabaseClient, id: string) {
+export async function getSwipeFile(supabase: SupabaseClient, id: string, userId: string) {
+  if (!id || !userId) return null;
+
   const { data, error } = await supabase
     .from("swipe_files")
     .select(`
@@ -132,7 +134,8 @@ export async function getSwipeFile(supabase: SupabaseClient, id: string) {
       adCount:swipe_file_items(count)
     `)
     .eq("id", id)
-    .single();
+    .eq("user_id", userId)
+    .maybeSingle();
 
   if (error || !data) return null;
 
@@ -148,8 +151,24 @@ export async function getSwipeFile(supabase: SupabaseClient, id: string) {
   };
 }
 
+export async function verifySwipeFileOwnership(supabase: SupabaseClient, swipeFileId: string, userId: string): Promise<string> {
+  const { data: file, error } = await supabase
+    .from("swipe_files")
+    .select("id")
+    .eq("id", swipeFileId)
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error || !file) {
+    throw new Error("Swipe file not found or unauthorized.");
+  }
+  return file.id;
+}
+
 export async function addAdToSwipeFile(supabase: SupabaseClient, userId: string, adId: string, swipeFileId?: string) {
-  const targetFileId = swipeFileId || await ensureDefaultSwipeFile(supabase, userId);
+  const targetFileId = swipeFileId
+    ? await verifySwipeFileOwnership(supabase, swipeFileId, userId)
+    : await ensureDefaultSwipeFile(supabase, userId);
   const { data, error } = await supabase
     .from("swipe_file_items")
     .insert({ swipe_file_id: targetFileId, ad_id: adId })
@@ -185,11 +204,9 @@ export async function saveAdToDefaultSwipeFile(supabase: SupabaseClient, userId:
 }
 
 export async function toggleAdInSwipeFile(supabase: SupabaseClient, userId: string, adId: string, swipeFileId?: string) {
-  
-  let targetFileId = swipeFileId;
-  if (!targetFileId) {
-    targetFileId = await ensureDefaultSwipeFile(supabase, userId);
-  }
+  const targetFileId = swipeFileId
+    ? await verifySwipeFileOwnership(supabase, swipeFileId, userId)
+    : await ensureDefaultSwipeFile(supabase, userId);
 
   // Check if exists
   const { data: existing } = await supabase

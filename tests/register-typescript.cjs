@@ -3,6 +3,17 @@ const ts = require('typescript');
 const Module = require('node:module');
 const path = require('node:path');
 const fs = require('node:fs');
+
+try {
+  const serverOnlyPath = require.resolve('server-only');
+  require.cache[serverOnlyPath] = {
+    id: serverOnlyPath,
+    filename: serverOnlyPath,
+    loaded: true,
+    exports: {},
+  };
+} catch {}
+
 const resolve = Module._resolveFilename;
 Module._resolveFilename = function(id, parent, ...rest) {
   if (id.startsWith('@/')) id = path.join(__dirname, '..', id.slice(2));

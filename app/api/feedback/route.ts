@@ -87,7 +87,76 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    return NextResponse.json({ success: true, id: feedbackId });
+    // Submit to Deftform
+    let externalDispatched = false;
+    let externalError: string | null = null;
+    const deftformToken = process.env.DEFTFORM_API_TOKEN?.trim();
+    const deftformFormId = process.env.DEFTFORM_FORM_ID?.trim() || "mMbYhG";
+
+    if (deftformToken) {
+      try {
+        const deftformPayload = new FormData();
+        // What kind of feedback is this?
+        deftformPayload.append("data[3afafb42-936b-465a-899a-78b7644e5950]", type);
+        // Message
+        deftformPayload.append("data[49ac865a-1f55-462f-bc30-d43e259198d4]", message);
+        // Screenshots
+        if (attachment) {
+          deftformPayload.append("data[cfaafa70-b4cb-42d1-9edf-5ae052ac3dca]", attachment);
+        }
+
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 8000);
+
+        const deftformRes = await fetch(`https://deftform.com/api/v1/forms/${encodeURIComponent(deftformFormId)}/response`, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${deftformToken}`,
+            "Accept": "application/json"
+          },
+          body: deftformPayload,
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+
+        if (!deftformRes.ok) {
+          const errorText = await deftformRes.text().catch(() => "");
+          console.error("[Feedback] Deftform API error status:", deftformRes.status, errorText.slice(0, 200));
+          externalError = `Deftform responded with status ${deftformRes.status}`;
+        } else {
+          externalDispatched = true;
+        }
+      } catch (e: unknown) {
+        const errorMessage = e instanceof Error ? e.message : String(e);
+        console.error("[Feedback] Failed to submit to Deftform:", errorMessage);
+        externalError = errorMessage;
+      }
+    } else {
+      externalError = "Deftform integration not configured";
+    }
+
+    // Try recording dispatch status in database (safe fallback if migration not yet applied)
+    try {
+      await supabase
+        .from("support_feedback")
+        .update({
+          dispatch_status: externalDispatched ? "delivered" : "failed",
+          dispatch_error: externalError,
+          updated_at: new Date().toISOString(),
+        } as Record<string, unknown>)
+        .eq("id", feedbackId);
+    } catch {
+      // Safely ignore if dispatch_status column is not yet present
+    }
+
+    return NextResponse.json({
+      success: true,
+      id: feedbackId,
+      dispatched: externalDispatched,
+      message: externalDispatched
+        ? "Your feedback has been received and sent to support."
+        : "Your feedback has been recorded locally. Support notification will be synchronized."
+    });
 
   } catch (error) {
     console.error("Feedback API error:", error);

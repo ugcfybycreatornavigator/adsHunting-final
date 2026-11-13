@@ -9,15 +9,16 @@ import { BrandMark } from "@/components/brand-mark";
 import { Metadata } from "next";
 import { createMetadata } from "@/lib/seo";
 import { signArchivedAdMedia } from "@/lib/media-access";
+import { findSharedAdLinkByToken } from "@/lib/shared-ads";
 
 export async function generateMetadata({ params }: { params: Promise<{ token: string }> }): Promise<Metadata> {
   const { token } = await params;
   const admin = createAdminClient();
-  const { data: link } = await admin
-    .from("shared_ad_links")
-    .select("visibility, name")
-    .eq("token_hash", token)
-    .single();
+  const { data: link } = await findSharedAdLinkByToken<{ visibility: string | null; name: string | null }>(
+    admin,
+    token,
+    "visibility, name"
+  );
 
   if (!link) {
     return createMetadata({
@@ -50,14 +51,25 @@ export default async function SharedAdPage({ params }: { params: Promise<{ token
   
   // Use admin client to look up the token safely since RLS protects the table from non-owners
   const admin = createAdminClient();
-  const { data: link, error: linkError } = await admin
-    .from("shared_ad_links")
-    .select(`
+  const { data: link, error: linkError } = await findSharedAdLinkByToken<{
+    id: string;
+    name: string;
+    message: string | null;
+    expires_at: string | null;
+    revoked_at: string | null;
+    visibility: "public" | "private" | null;
+    allow_save: boolean;
+    allow_download: boolean;
+    created_at: string;
+    items: Array<{ ad_id: string; position: number }>;
+  }>(
+    admin,
+    token,
+    `
       id, name, message, expires_at, revoked_at, visibility, allow_save, allow_download, created_at,
       items:shared_ad_items(ad_id, position)
-    `)
-    .eq("token_hash", token)
-    .single();
+    `
+  );
 
   if (linkError || !link) {
     return <InvalidShareState title="This shared link doesn't exist." />;

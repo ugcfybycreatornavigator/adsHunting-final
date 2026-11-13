@@ -79,7 +79,11 @@ export async function POST(req: NextRequest) {
         : await saveAdToDefaultSwipeFile(auth.supabase!, auth.userId, resolvedAdId);
 
       return NextResponse.json(result);
-    } catch {
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "";
+      if (message.includes("not found or unauthorized")) {
+        return NextResponse.json({ error: "Swipe file not found or unauthorized." }, { status: 404 });
+      }
       return NextResponse.json({ error: "Couldn't save ad. Try again." }, { status: 500 });
     }
   } catch (err) {
