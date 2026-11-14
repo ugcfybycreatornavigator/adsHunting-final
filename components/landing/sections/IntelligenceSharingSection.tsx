@@ -74,7 +74,7 @@ export function IntelligenceSharingSection() {
           {/* Desktop CTA */}
           <div className="hidden md:block flex-shrink-0 pb-1">
             <CTAButton href={authLinks.signUp} className="h-[48px] rounded-[12px] text-[15px] font-[600] px-6 shadow-sm hover:shadow-md transition-all hover:bg-brand-strong group">
-              Start 7-Day Free Trial <ArrowRight size={16} className="ml-1.5 transition-transform group-hover:translate-x-0.5 inline-block" />
+              Get Early Access <ArrowRight size={16} className="ml-1.5 transition-transform group-hover:translate-x-0.5 inline-block" />
             </CTAButton>
           </div>
         </div>
@@ -204,7 +204,7 @@ export function IntelligenceSharingSection() {
         {/* Mobile CTA */}
         <div className="md:hidden mt-8 flex justify-center">
           <CTAButton href={authLinks.signUp} className="w-full h-[48px] rounded-[14px] text-[15px] font-[600] shadow-sm flex items-center justify-center group">
-            Start 7-Day Free Trial <ArrowRight size={16} className="ml-1.5 transition-transform group-hover:translate-x-0.5 inline-block" />
+            Get Early Access <ArrowRight size={16} className="ml-1.5 transition-transform group-hover:translate-x-0.5 inline-block" />
           </CTAButton>
         </div>
 

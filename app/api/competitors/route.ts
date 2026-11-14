@@ -4,11 +4,42 @@ import { z } from "zod";
 import { requireUser } from "@/lib/auth";
 import { syncCompetitorAds } from "@/lib/brand-data";
 
+function competitorResponse(body: unknown, requestId: string, startedAt: number, init: ResponseInit = {}) {
+  const headers = new Headers(init.headers);
+  headers.set("X-Request-Id", requestId);
+  headers.set("Server-Timing", `total;dur=${Math.round(performance.now() - startedAt)}`);
+  return NextResponse.json({ ...(body as Record<string, unknown>), requestId }, { ...init, headers });
+}
+
 export async function GET() {
   const auth = await requireUser(); if (auth.error) return auth.error;
   const accessError = await requirePaidWorkspaceAccess(); if (accessError) return accessError;
   const { data, error } = await auth.supabase!.from("competitors").select("*").eq("user_id", auth.user!.id).order("created_at", { ascending: false });
-  return error ? NextResponse.json({ error: error.message }, { status: 500 }) : NextResponse.json({ competitors: data ?? [] });
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  const competitors = data ?? [];
+  const twoMinutesAgo = Date.now() - 2 * 60 * 1000;
+  const staleSyncing = competitors.filter(c => c.sync_status === "syncing" && c.sync_started_at && new Date(c.sync_started_at).getTime() < twoMinutesAgo);
+
+  if (staleSyncing.length > 0) {
+    const staleIds = staleSyncing.map(c => c.id);
+    await auth.supabase!
+      .from("competitors")
+      .update({
+        sync_status: "error",
+        sync_error: "Sync timed out. Please retry.",
+        sync_started_at: null
+      })
+      .in("id", staleIds);
+
+    for (const comp of staleSyncing) {
+      comp.sync_status = "error";
+      comp.sync_error = "Sync timed out. Please retry.";
+      comp.sync_started_at = null;
+    }
+  }
+
+  return NextResponse.json({ competitors });
 }
 
 export async function POST(request: NextRequest) {
@@ -52,6 +83,7 @@ export async function POST(request: NextRequest) {
       advertiser_name: parsed.data.advertiserName,
       advertiser_avatar_url: parsed.data.advertiserAvatarUrl,
       sync_status: "syncing",
+      sync_started_at: new Date().toISOString(),
       ads_count: -1
     })
     .select()
@@ -80,7 +112,7 @@ export async function POST(request: NextRequest) {
       .from("competitors")
       .select("*")
       .eq("id", competitor.id)
-      .single();
+      .maybeSingle();
     
     // Update sync status to success
     await auth.supabase!
@@ -88,6 +120,7 @@ export async function POST(request: NextRequest) {
       .update({
         sync_status: "success",
         sync_error: null,
+        sync_started_at: null,
         ads_count: adsCount,
         first_sync_completed_at: new Date().toISOString(),
         last_synced_at: new Date().toISOString(),
@@ -117,7 +150,7 @@ export async function POST(request: NextRequest) {
         .update({
           sync_status: "error",
           sync_error: syncError,
-          ads_count: 0
+          sync_started_at: null
         })
         .eq("id", competitor.id);
     } catch (updateErr) {
@@ -125,7 +158,7 @@ export async function POST(request: NextRequest) {
     }
     
     return NextResponse.json({ 
-      competitor: { ...competitor, sync_status: "error", ads_count: 0 },
+      competitor: { ...competitor, sync_status: "error" },
       isNew: true,
       syncStatus: "error",
       adsCount: 0,
@@ -138,6 +171,8 @@ export async function POST(request: NextRequest) {
  * PATCH — Competitor actions: refresh, pause, resume
  */
 export async function PATCH(request: NextRequest) {
+  const requestId = crypto.randomUUID();
+  const startedAt = performance.now();
   const auth = await requireUser();
   if (auth.error) return auth.error;
   const accessError = await requirePaidWorkspaceAccess();
@@ -149,7 +184,7 @@ export async function PATCH(request: NextRequest) {
   }).safeParse(await request.json().catch(() => ({})));
   
   if (!parsed.success) {
-    return NextResponse.json({ error: "Invalid action." }, { status: 400 });
+    return competitorResponse({ error: "Invalid action." }, requestId, startedAt, { status: 400 });
   }
   
   const { id, action } = parsed.data;
@@ -160,10 +195,10 @@ export async function PATCH(request: NextRequest) {
     .select("*")
     .eq("id", id)
     .eq("user_id", auth.user!.id)
-    .single();
+    .maybeSingle();
   
   if (!competitor) {
-    return NextResponse.json({ error: "Competitor not found." }, { status: 404 });
+    return competitorResponse({ error: "Competitor not found." }, requestId, startedAt, { status: 404 });
   }
   
   if (action === "pause") {
@@ -171,7 +206,7 @@ export async function PATCH(request: NextRequest) {
       .from("competitors")
       .update({ status: "paused" })
       .eq("id", id);
-    return NextResponse.json({ ok: true, status: "paused" });
+    return competitorResponse({ ok: true, status: "paused" }, requestId, startedAt);
   }
   
   if (action === "resume") {
@@ -179,18 +214,21 @@ export async function PATCH(request: NextRequest) {
       .from("competitors")
       .update({ status: "tracking" })
       .eq("id", id);
-    return NextResponse.json({ ok: true, status: "tracking" });
+    return competitorResponse({ ok: true, status: "tracking" }, requestId, startedAt);
   }
   
   if (action === "refresh") {
-    // Prevent concurrent syncs
-    if (competitor.sync_status === "syncing") {
-      return NextResponse.json({ error: "Sync already in progress." }, { status: 409 });
+    // Prevent concurrent syncs unless previous sync timed out (> 2 minutes)
+    const twoMinutesAgo = Date.now() - 2 * 60 * 1000;
+    const isStale = competitor.sync_status === "syncing" && competitor.sync_started_at && new Date(competitor.sync_started_at).getTime() < twoMinutesAgo;
+
+    if (competitor.sync_status === "syncing" && !isStale) {
+      return competitorResponse({ error: "Sync already in progress." }, requestId, startedAt, { status: 409 });
     }
     
     await auth.supabase!
       .from("competitors")
-      .update({ sync_status: "syncing" })
+      .update({ sync_status: "syncing", sync_error: null, sync_started_at: new Date().toISOString() })
       .eq("id", id);
     
     try {
@@ -208,23 +246,24 @@ export async function PATCH(request: NextRequest) {
         .update({
           sync_status: "success",
           sync_error: null,
+          sync_started_at: null,
           ads_count: adsCount,
           last_synced_at: new Date().toISOString(),
         })
         .eq("id", id);
       
-      return NextResponse.json({ ok: true, adsCount, syncStatus: "success" });
+      return competitorResponse({ ok: true, adsCount, syncStatus: "success" }, requestId, startedAt);
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : "Refresh failed.";
       await auth.supabase!
         .from("competitors")
-        .update({ sync_status: "error", sync_error: errMsg })
+        .update({ sync_status: "error", sync_error: errMsg, sync_started_at: null })
         .eq("id", id);
-      return NextResponse.json({ error: errMsg }, { status: 502 });
+      return competitorResponse({ error: errMsg }, requestId, startedAt, { status: 502 });
     }
   }
   
-  return NextResponse.json({ error: "Unknown action." }, { status: 400 });
+  return competitorResponse({ error: "Unknown action." }, requestId, startedAt, { status: 400 });
 }
 
 export async function DELETE(request: NextRequest) {

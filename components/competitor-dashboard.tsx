@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState, useEffect, useRef, useCallback } from "react";
+import { mutate } from "swr";
 import {
   ChevronRight,
   Loader2,
@@ -59,36 +60,61 @@ export function CompetitorDashboard({ initialBrands }: { initialBrands: Competit
         // Reload page to get fresh server-rendered data
         window.location.reload();
       } else {
+        const data = await res.json().catch(() => ({}));
         setBrands(prev =>
-          prev.map(b => b.advertiserId === advertiserId ? { ...b, syncStatus: "error" } : b)
+          prev.map(b => b.advertiserId === advertiserId ? { ...b, syncStatus: "error", syncError: data.error || "Refresh failed." } : b)
         );
       }
     } catch {
       setBrands(prev =>
-        prev.map(b => b.advertiserId === advertiserId ? { ...b, syncStatus: "error" } : b)
+        prev.map(b => b.advertiserId === advertiserId ? { ...b, syncStatus: "error", syncError: "Refresh failed. Check your connection and retry." } : b)
       );
     }
   }, []);
 
   const handlePauseResume = useCallback(async (advertiserId: string, competitorId: string, isPaused: boolean) => {
     const action = isPaused ? "resume" : "pause";
-    setBrands(prev =>
-      prev.map(b => b.advertiserId === advertiserId
+    let previousBrands: CompetitorIntelligence[] = [];
+    setBrands(prev => {
+      previousBrands = prev;
+      return prev.map(b => b.advertiserId === advertiserId
         ? { ...b, competitorStatus: isPaused ? "tracking" : "paused" }
         : b
-      )
-    );
-    await fetch("/api/competitors", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: competitorId, action }),
+      );
     });
+
+    try {
+      const res = await fetch("/api/competitors", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: competitorId, action }),
+      });
+      if (!res.ok) throw new Error("Failed to update status");
+      mutate("/api/competitors");
+    } catch (err) {
+      console.error("[CompetitorDashboard] Pause/Resume error, rolling back:", err);
+      setBrands(previousBrands);
+    }
   }, []);
 
   const handleRemove = useCallback(async (advertiserId: string, competitorId: string) => {
     if (!confirm("Stop tracking this competitor? Their saved ads will remain in your library.")) return;
-    setBrands(prev => prev.filter(b => b.advertiserId !== advertiserId));
-    await fetch(`/api/competitors?id=${competitorId}`, { method: "DELETE" });
+
+    let previousBrands: CompetitorIntelligence[] = [];
+    setBrands(prev => {
+      previousBrands = prev;
+      return prev.filter(b => b.advertiserId !== advertiserId);
+    });
+
+    try {
+      const res = await fetch(`/api/competitors?id=${competitorId}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Failed to delete competitor");
+      mutate("/api/competitors");
+    } catch (err) {
+      console.error("[CompetitorDashboard] Remove error, rolling back:", err);
+      setBrands(previousBrands);
+      alert("Failed to remove competitor. Please try again.");
+    }
   }, []);
 
   return (
@@ -243,7 +269,7 @@ function CompetitorCard({ brand, onRefresh, onPauseResume, onRemove }: CardProps
                       <ChevronRight size={14} className="text-muted" /> View Intelligence
                     </Link>
                     <button
-                      onClick={() => { setMenuOpen(false); onRefresh(brand.advertiserId, brand.advertiserId); }}
+                      onClick={() => { setMenuOpen(false); onRefresh(brand.advertiserId, brand.competitorId); }}
                       disabled={isSyncing}
                       className="flex items-center gap-2.5 px-3.5 py-2.5 text-[13px] font-medium text-ink hover:bg-zinc-50 transition w-full disabled:opacity-50"
                     >
@@ -251,7 +277,7 @@ function CompetitorCard({ brand, onRefresh, onPauseResume, onRemove }: CardProps
                       {isSyncing ? "Syncing…" : "Refresh Now"}
                     </button>
                     <button
-                      onClick={() => { setMenuOpen(false); onPauseResume(brand.advertiserId, brand.advertiserId, isPaused); }}
+                      onClick={() => { setMenuOpen(false); onPauseResume(brand.advertiserId, brand.competitorId, isPaused); }}
                       className="flex items-center gap-2.5 px-3.5 py-2.5 text-[13px] font-medium text-ink hover:bg-zinc-50 transition w-full"
                     >
                       {isPaused ? <Play size={14} className="text-muted" /> : <Pause size={14} className="text-muted" />}
@@ -259,7 +285,7 @@ function CompetitorCard({ brand, onRefresh, onPauseResume, onRemove }: CardProps
                     </button>
                     <div className="border-t border-line my-1" />
                     <button
-                      onClick={() => { setMenuOpen(false); onRemove(brand.advertiserId, brand.advertiserId); }}
+                      onClick={() => { setMenuOpen(false); onRemove(brand.advertiserId, brand.competitorId); }}
                       className="flex items-center gap-2.5 px-3.5 py-2.5 text-[13px] font-medium text-red-600 hover:bg-red-50 transition w-full"
                     >
                       <Trash2 size={14} /> Remove Competitor
@@ -320,7 +346,7 @@ function CompetitorCard({ brand, onRefresh, onPauseResume, onRemove }: CardProps
               >
                 <img
                   src={preview.url}
-                  alt=""
+                  alt={`${brand.brandName} creative preview ${i + 1}`}
                   className="absolute inset-0 w-full h-full object-cover"
                   loading="lazy"
                 />
@@ -340,9 +366,9 @@ function CompetitorCard({ brand, onRefresh, onPauseResume, onRemove }: CardProps
         ) : isSyncError ? (
           <div className="flex items-center gap-2 p-3 bg-red-50 rounded-lg border border-red-100 mb-4">
             <AlertCircle size={14} className="text-red-500 shrink-0" />
-            <span className="text-xs text-red-600 font-medium">Couldn&apos;t fetch creatives.</span>
+            <span className="text-xs text-red-600 font-medium" title={brand.syncError || undefined}>Couldn&apos;t fetch creatives.</span>
             <button
-              onClick={() => onRefresh(brand.advertiserId, brand.advertiserId)}
+              onClick={() => onRefresh(brand.advertiserId, brand.competitorId)}
               className="ml-auto text-xs font-semibold text-red-600 hover:text-red-700"
             >
               Retry
@@ -568,7 +594,7 @@ function AddCompetitorModal({
                 {candidate.avatar && !failedLogos.has(candidate.id) ? (
                   <img
                     src={candidate.avatar}
-                    alt=""
+                    alt={`${candidate.name} logo`}
                     onError={() => setFailedLogos(prev => new Set(prev).add(candidate.id))}
                     className="size-10 flex-shrink-0 rounded-full border border-line/50 object-cover bg-zinc-50"
                   />

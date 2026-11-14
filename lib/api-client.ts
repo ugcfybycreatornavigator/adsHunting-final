@@ -7,8 +7,7 @@ export class SessionReplacedError extends Error {
 
 export async function apiFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
   if (typeof window !== "undefined" && sessionStorage.getItem("session_invalidated") === "true") {
-    // Return a never-resolving promise to stop the request waterfall
-    return new Promise(() => {});
+    throw new SessionReplacedError();
   }
 
   const response = await fetch(input, init);

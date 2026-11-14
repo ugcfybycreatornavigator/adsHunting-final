@@ -25,7 +25,7 @@ export function DashboardView({ data }: { data: DashboardData }) {
     { title: "Saved Ads", count: actions.savedAds, href: actions.savedAdsHref, icon: Bookmark },
     { title: "Shared Links", count: actions.sharedAds, href: "/shared-ads", icon: Link2 },
     { title: "Tracked Competitors", count: actions.competitors, href: "/competitors", icon: Users },
-    { title: "Brands", count: actions.brands, href: "/brands", icon: Store },
+    { title: "Discover", count: actions.brands, href: "/discover", icon: Store },
   ];
 
   const continueResearchItems = [...mostSaved, ...recent]

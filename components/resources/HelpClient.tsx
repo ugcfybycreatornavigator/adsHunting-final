@@ -25,7 +25,6 @@ export function HelpClient() {
   };
 
   const scoutPlan = pricingPlans.find(p => p.id === 'scout');
-  const trialDays = scoutPlan?.trialDays || 7;
   const scoutPrice = `${scoutPlan?.currency || '₹'}${scoutPlan?.price || 499}`;
   const scoutPeriod = scoutPlan?.period || 'month';
 
@@ -43,8 +42,8 @@ export function HelpClient() {
           answer: 'It is built for performance marketers, creative strategists, agencies, and D2C teams who need to research advertising creatives systematically.'
         },
         {
-          question: `How does the ${trialDays}-day free trial work?`,
-          answer: `You get full access to the core AdsHunting research workflow for ${trialDays} days. You can explore the search capabilities, build Swipe Files, and share ads with your team.`
+          question: 'How does Early Access access work?',
+          answer: 'Early Access members get immediate access to the core AdsHunting research workflow, with 3,000 monthly search and delivery credits to explore ads, build Swipe Files, and share creatives.'
         }
       ]
     },
@@ -121,8 +120,8 @@ export function HelpClient() {
       title: 'Billing',
       items: [
         {
-          question: 'How long is the free trial?',
-          answer: `The free trial lasts for ${trialDays} days.`
+          question: 'How does billing work for Early Access?',
+          answer: 'Early Access is a one-time onboarding payment that unlocks immediate access to all Scout intelligence features and your credit allocation.'
         },
         {
           question: 'What does Scout cost?',

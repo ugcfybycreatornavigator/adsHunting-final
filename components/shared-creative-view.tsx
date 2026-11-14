@@ -59,7 +59,7 @@ export function SharedCreativeView({ ad, onOpen }: { ad: NormalizedAd; onOpen?: 
           {ad.advertiser.logoUrl ? (
             <img 
               src={ad.advertiser.logoUrl} 
-              alt="" 
+              alt={`${advertiserName} logo`}
               className="size-10 shrink-0 rounded-full border border-line object-cover bg-zinc-50" 
               loading="lazy"
             />

@@ -49,7 +49,7 @@ export function FAQSection() {
               <h3 className="font-bold text-[16px] text-text-primary mb-2">Still have questions?</h3>
               <p className="text-[14px] text-text-muted mb-5">Start experiencing the platform for yourself with full access.</p>
               <CTAButton href={authLinks.signUp} size="md" className="w-full justify-center">
-                Start 7-Day Free Trial
+                Get Early Access
               </CTAButton>
             </div>
           </div>

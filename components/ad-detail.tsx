@@ -2,9 +2,9 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { 
-  Bookmark, Check, ExternalLink, ImageIcon, Info, Loader2, 
-  Copy, ArrowRight, Globe, Share, LayoutTemplate, X, Download, 
+import {
+  Bookmark, Check, ExternalLink, ImageIcon, Info, Loader2,
+  Copy, ArrowRight, Globe, Share, LayoutTemplate, X, Download,
   MoreHorizontal
 } from "lucide-react";
 import { AdMedia } from "@/components/ad-media";
@@ -12,14 +12,14 @@ import { SwipeFilePicker } from "@/components/swipe-file-picker";
 import { ShareModal } from "@/components/share-modal";
 import type { NormalizedAd } from "@/lib/types";
 import { resolveAdMedia } from "@/lib/media";
-import { cn, formatDate, safeExternalUrl, sanitizeAdCopy } from "@/lib/utils";
+import { cn, formatDate, safeExternalUrl } from "@/lib/utils";
 
 // --------------------------------------------------------------------------------
 // Data Normalization Helpers
 // --------------------------------------------------------------------------------
 
-function titleCase(value: string) { 
-  return value.replaceAll("_", " ").replace(/\b\w/g, char => char.toUpperCase()); 
+function titleCase(value: string) {
+  return value.replaceAll("_", " ").replace(/\b\w/g, char => char.toUpperCase());
 }
 
 function cleanUrl(url: string) {
@@ -67,18 +67,18 @@ function getScoreTheme(rawScore: number) {
 // Popover Primitive
 // --------------------------------------------------------------------------------
 
-function MetadataPopover({ 
-  children, 
+function MetadataPopover({
+  children,
   content,
   align = "center"
-}: { 
-  children: React.ReactNode; 
+}: {
+  children: React.ReactNode;
   content: React.ReactNode | ((close: () => void) => React.ReactNode);
   align?: "left" | "center" | "right";
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
-  
+
   useEffect(() => {
     if (!isOpen) return;
     const handleClickOutside = (e: MouseEvent) => {
@@ -104,7 +104,7 @@ function MetadataPopover({
 
   return (
     <div className="relative inline-block" ref={containerRef}>
-      <div 
+      <div
         onClick={(e) => { e.stopPropagation(); setIsOpen(!isOpen); }}
         onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); setIsOpen(!isOpen); } }}
         role="button"
@@ -113,7 +113,7 @@ function MetadataPopover({
         {children}
       </div>
       {isOpen && (
-        <div 
+        <div
           className={cn("absolute top-[calc(100%+8px)] z-[70] bg-white rounded-xl shadow-lg border border-line/80 min-w-[260px] max-w-[340px] max-h-[400px] overflow-y-auto animate-in fade-in zoom-in-95 duration-100", alignClass)}
           onClick={(e) => e.stopPropagation()}
         >
@@ -148,24 +148,17 @@ export function AdDetailDrawer({
   const [optimisticSaved, setOptimisticSaved] = useState(saved);
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState("Overview");
-  
+
   // Modals
   const [showShare, setShowShare] = useState(false);
   const [showSwipePicker, setShowSwipePicker] = useState(false);
   const swipeBtnRef = useRef<HTMLButtonElement>(null);
-  
+
   // Download
   const [downloading, setDownloading] = useState(false);
   const [activeSlideIndex, setActiveSlideIndex] = useState(0);
 
   const isSaved = saved || optimisticSaved;
-  
-  // Use canonical score from the ad payload
-  const rawScore = ad.intelligence.winnerScore;
-  const hasValidScore = rawScore !== undefined && rawScore !== null && !isNaN(rawScore);
-  const clampedScore = hasValidScore ? Math.max(0, Math.min(100, rawScore || 0)) : null;
-  const scoreTheme = clampedScore !== null ? getScoreTheme(clampedScore) : null;
-
 
   async function handleSave() {
     if (isSaved || saving) return;
@@ -184,7 +177,7 @@ export function AdDetailDrawer({
 
   const handleDownload = async () => {
     let currentMediaUrl = safeExternalUrl(media.videoUrl || media.imageUrl);
-    
+
     if (media.kind === "carousel" && media.cards?.length) {
        const slide = media.cards[activeSlideIndex];
        if (slide) {
@@ -217,7 +210,7 @@ export function AdDetailDrawer({
   useEffect(() => {
     const originalOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    
+
     const handleKeyDown = (e: KeyboardEvent) => {
       // Don't close if a nested modal is open
       if (e.key === "Escape" && !showShare && !showSwipePicker) {
@@ -227,7 +220,7 @@ export function AdDetailDrawer({
       }
     };
     window.addEventListener("keydown", handleKeyDown);
-    
+
     return () => {
       document.body.style.overflow = originalOverflow;
       window.removeEventListener("keydown", handleKeyDown);
@@ -242,177 +235,90 @@ export function AdDetailDrawer({
 
   // Computed display values
   const normalizedPlatforms = ad.delivery.platforms ? Array.from(new Set(ad.delivery.platforms.map(normalizePlatform))) : [];
-  const platformsDisplay = normalizedPlatforms.length > 0 
+  const platformsDisplay = normalizedPlatforms.length > 0
     ? (normalizedPlatforms.length <= 2 ? normalizedPlatforms.join(" + ") : `${normalizedPlatforms[0]} +${normalizedPlatforms.length - 1}`)
     : null;
 
+
   return (
-    <div 
-      className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm sm:p-6 transition-all duration-200" 
-      role="dialog" 
-      aria-modal="true" 
-      aria-label={`Ad details for ${ad.advertiser.name}`} 
+    <div
+      className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm sm:p-6 transition-all duration-200"
+      role="dialog"
+      aria-modal="true"
+      aria-label={`Ad details for ${ad.advertiser.name}`}
       onMouseDown={() => {
         if (!showShare && !showSwipePicker) onClose();
       }}
     >
-      <div 
-        className="relative flex flex-col bg-white overflow-hidden shadow-2xl w-full h-[85vh] sm:h-auto sm:max-h-[calc(100vh-48px)] sm:w-[min(1180px,calc(100vw-64px))] sm:rounded-[16px] border border-line/60 animate-in fade-in zoom-in-95 duration-200"
+      <div
+        className="relative flex flex-col bg-white overflow-hidden shadow-2xl w-full h-[85vh] sm:h-auto sm:max-h-[calc(100vh-48px)] sm:w-[min(1280px,calc(100vw-64px))] sm:rounded-[16px] border border-line/60 animate-in fade-in zoom-in-95 duration-200"
         onMouseDown={event => event.stopPropagation()}
       >
         {/* Sticky Header */}
-        <header className="shrink-0 flex items-center justify-between px-4 sm:px-6 py-4 border-b border-line/60 bg-white z-20">
-          
+        <header className="shrink-0 flex items-center justify-between px-5 py-4 border-b border-line/60 bg-white/95 backdrop-blur z-20">
           {/* Left: Advertiser */}
-          <div className="flex items-center gap-3 sm:gap-4 min-w-0 flex-[1.5]">
+          <div className="flex items-center gap-3 min-w-0 flex-[1.5]">
             {ad.advertiser.logoUrl ? (
-              <img src={ad.advertiser.logoUrl} alt="" className="size-9 sm:size-10 rounded-full border border-line/60 shrink-0 object-cover" />
+              <img src={ad.advertiser.logoUrl} alt={`${ad.advertiser.displayName || ad.advertiser.name || "Advertiser"} logo`} className="size-9 rounded-full border border-line/60 shrink-0 object-cover" />
             ) : (
-              <span className="grid size-9 sm:size-10 shrink-0 place-items-center rounded-full bg-ink font-[600] text-white text-[15px]">
+              <span className="grid size-9 shrink-0 place-items-center rounded-full bg-ink font-[600] text-white text-[15px]">
                 {ad.advertiser.name?.[0] || "U"}
               </span>
             )}
-            <div className="min-w-0">
-              <h2 className="truncate text-[16px] sm:text-[18px] font-[600] text-ink leading-tight">{ad.advertiser.displayName || ad.advertiser.name || "Advertiser"}</h2>
-              <div className="hidden sm:flex items-center gap-2 mt-0.5 text-[12px] text-muted whitespace-nowrap overflow-hidden text-ellipsis">
-                <span>Sponsored Ad</span>
-              </div>
+            <div className="min-w-0 flex items-center gap-2">
+              <h2 className="truncate text-[16px] font-[650] text-ink">{ad.advertiser.displayName || ad.advertiser.name || "Advertiser"}</h2>
+              {/* Note: User explicitly said NO FAKE VERIFIED. So no verified icon unless it's in the data. There is no verified field in NormalizedAd */}
+            </div>
+            {/* Secondary Metadata */}
+            <div className="hidden md:flex items-center gap-3 ml-4 border-l border-line/60 pl-4 text-[12px] font-[500] text-muted">
+              <span className="flex items-center gap-1.5">
+                <span className={cn("size-1.5 rounded-full", ad.delivery.status === "active" ? "bg-brand" : "bg-zinc-400")} />
+                {ad.delivery.status === "active" ? "Active" : "Inactive"}
+              </span>
+              {media.kind && media.kind !== "unknown" && (
+                <>
+                  <span className="text-line">•</span>
+                  <span className="capitalize">{media.kind}</span>
+                </>
+              )}
+              {media.cards && media.cards.length > 1 && (
+                <>
+                  <span className="text-line">•</span>
+                  <span>{media.cards.length} creatives</span>
+                </>
+              )}
+              {platformsDisplay && (
+                <>
+                  <span className="text-line">•</span>
+                  <span>{platformsDisplay}</span>
+                </>
+              )}
             </div>
           </div>
-          
-          {/* Center: Interactive Metadata */}
-          <div className="hidden lg:flex items-center justify-center gap-2 flex-[2] px-4 flex-wrap">
-            
-            {/* Active Control */}
-            <MetadataPopover
-              content={
-                <div className="p-4 space-y-4">
-                  <div className="flex items-center gap-2 mb-2">
-                     <span className={cn("size-2 rounded-full", ad.delivery.status === "active" ? "bg-brand" : "bg-zinc-400")} />
-                     <span className="text-[14px] font-[650] text-ink">{ad.delivery.status === "active" ? "Active" : "Inactive"}</span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-[11px] font-[650] uppercase tracking-wide text-muted mb-1">Started</p>
-                      <p className="text-[13px] font-[500] text-ink">{ad.delivery.startedAt ? formatDate(ad.delivery.startedAt) : "Unknown"}</p>
-                    </div>
-                    <div>
-                      <p className="text-[11px] font-[650] uppercase tracking-wide text-muted mb-1">Last Seen</p>
-                      <p className="text-[13px] font-[500] text-ink">{ad.provider.fetchedAt ? formatDate(ad.provider.fetchedAt) : "Unknown"}</p>
-                    </div>
-                    {ad.delivery.daysRunning && (
-                      <div className="col-span-2">
-                        <p className="text-[11px] font-[650] uppercase tracking-wide text-muted mb-1">Observed Lifespan</p>
-                        <p className="mt-2 text-sm font-semibold text-ink">
-                {Array.isArray(ad.intelligence?.labels) && ad.intelligence!.labels.length > 0
-                  ? ad.intelligence!.labels[0].replace(/\(.+\)/, "").trim()
-                  : "Not enough data"}
-              </p></div>
-                    )}
-                  </div>
-                </div>
-              }
-            >
-              <button className={cn(
-                "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] text-[12px] font-[650] border transition-colors",
-                ad.delivery.status === "active"
-                  ? "bg-brand/10 text-brand border-brand/20 hover:bg-brand/20"
-                  : "bg-zinc-100 text-muted border-zinc-200 hover:bg-zinc-200 text-zinc-600"
-              )}>
-                <span className={cn("size-1.5 rounded-full", ad.delivery.status === "active" ? "bg-brand" : "bg-zinc-400")} /> {ad.delivery.status === "active" ? "Active" : "Inactive"}
-              </button>
-            </MetadataPopover>
 
-            {/* Platform Control */}
-            {platformsDisplay && (
-              <MetadataPopover
-                content={
-                  <div className="p-4">
-                    <p className="text-[12px] font-[650] uppercase tracking-wide text-muted mb-3">Running Platforms</p>
-                    <div className="space-y-2 mb-4">
-                      {normalizedPlatforms.map(p => (
-                        <div key={p} className="text-[14px] font-[500] text-ink">{p}</div>
-                      ))}
-                    </div>
-                  </div>
-                }
-              >
-                <button className="inline-flex items-center px-3 py-1.5 rounded-[8px] text-[12px] font-[650] border bg-zinc-50 text-ink border-line/80 hover:bg-zinc-100 transition-colors">
-                  {platformsDisplay}
-                </button>
-              </MetadataPopover>
-            )}
-
-            {/* Creative Control */}
-            {media.kind && media.kind !== "unknown" && (
-              <MetadataPopover
-                content={(close) => (
-                  <div className="p-2 w-[240px]">
-                    <div className="flex items-center justify-between px-2 py-1.5 mb-1">
-                      <span className="text-[12px] font-[600] text-ink">Creative Type</span>
-                      <span className="text-[11px] font-[500] text-muted capitalize bg-zinc-100 px-1.5 py-0.5 rounded">{media.kind}</span>
-                    </div>
-                    {media.kind === "carousel" && media.cards && media.cards.length > 0 && (
-                      <div className="flex flex-col gap-1 mt-2 max-h-[250px] overflow-y-auto custom-scrollbar">
-                        <p className="text-[11px] font-[650] uppercase tracking-wide text-muted">Variations ({media.cards.length})</p>
-                        {media.cards.map((item, idx) => (
-                          <div 
-                            key={idx} 
-                            role="button"
-                            tabIndex={0}
-                            className="flex items-center gap-3 p-2 rounded-lg hover:bg-zinc-50 transition-colors cursor-pointer group"
-                            onClick={() => { setActiveSlideIndex(idx); close(); }}
-                            onKeyDown={(e) => { if(e.key==="Enter") { setActiveSlideIndex(idx); close(); } }}
-                          >
-                             <div className="size-10 rounded-md bg-[#F8FAFC] border border-line flex items-center justify-center shrink-0 overflow-hidden">
-                               {item.imageUrl || item.videoUrl ? (
-                                 <img src={safeExternalUrl(item.imageUrl || item.videoUrl)!} alt="" className="w-full h-full object-cover" />
-                               ) : <ImageIcon size={14} className="text-muted/50" />}
-                             </div>
-                             <div className="flex-1 min-w-0">
-                               <p className="text-[13px] font-[500] text-ink line-clamp-1 group-hover:text-brand transition-colors">
-                                 {String(idx + 1).padStart(2, '0')} · {item.headline || "Slide"}
-                               </p>
-                             </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-              >
-                <button className="inline-flex items-center px-3 py-1.5 rounded-[8px] text-[12px] font-[650] border bg-zinc-50 text-ink border-line/80 hover:bg-zinc-100 transition-colors">
-                  {titleCase(media.kind)} {media.kind === "carousel" && media.cards ? `· ${media.cards.length}` : ""}
-                </button>
-              </MetadataPopover>
-            )}
-          </div>
-          
           {/* Right: Actions */}
-          <div className="flex items-center justify-end gap-1.5 sm:gap-2 flex-[1.5]">
-            <div className="hidden sm:flex items-center gap-1.5 sm:gap-2">
-              <HeaderButton 
-                icon={downloading ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />} 
-                label="Download" 
+          <div className="flex items-center justify-end gap-1.5 sm:gap-2 shrink-0">
+            <div className="hidden sm:flex items-center gap-1.5">
+              <HeaderButton
+                icon={downloading ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}
+                label="Download"
                 onClick={handleDownload}
                 disabled={!hasDownload || downloading}
                 title={!hasDownload ? "Download unavailable" : "Download media"}
               />
               {!isPublicShare && (
-                <>
-                  <HeaderButton icon={<Share size={16} />} label="Share" onClick={() => setShowShare(true)} />
-                </>
+                <HeaderButton icon={<Share size={15} />} label="Share" onClick={() => setShowShare(true)} />
               )}
               {canSave && (
                 <HeaderButton
                   ref={swipeBtnRef}
-                  icon={<LayoutTemplate size={16} />}
+                  icon={<LayoutTemplate size={15} />}
                   label="Add to Swipe File"
                   onClick={() => setShowSwipePicker(true)}
                 />
               )}
             </div>
-            
+
             {/* Mobile Actions Menu */}
             <div className="sm:hidden">
               <MetadataPopover
@@ -421,53 +327,49 @@ export function AdDetailDrawer({
                   <div className="p-2 flex flex-col gap-1 min-w-[180px]">
                     <MobileMenuButton icon={<Download size={16} />} label="Download" onClick={() => { handleDownload(); close(); }} disabled={!hasDownload} />
                     {!isPublicShare && (
-                      <>
-                        <MobileMenuButton icon={<Share size={16} />} label="Share" onClick={() => { setShowShare(true); close(); }} />
-                      </>
+                      <MobileMenuButton icon={<Share size={16} />} label="Share" onClick={() => { setShowShare(true); close(); }} />
                     )}
                     {canSave && <MobileMenuButton icon={<LayoutTemplate size={16} />} label="Swipe File" onClick={() => { setShowSwipePicker(true); close(); }} />}
                   </div>
                 )}
               >
-                <button className="grid size-9 place-items-center rounded-lg text-ink hover:bg-zinc-100 transition-colors">
-                  <MoreHorizontal size={18} />
+                <button className="grid size-8 place-items-center rounded-md text-ink hover:bg-zinc-100 transition-colors">
+                  <MoreHorizontal size={16} />
                 </button>
               </MetadataPopover>
             </div>
-            
+
             {canSave && (
-              <button 
+              <button
                 onClick={() => setShowSwipePicker(true)}
                 disabled={saving}
                 className={cn(
-                  "flex items-center gap-2 h-9 px-3 sm:px-4 rounded-[8px] text-[13px] font-[600] transition-colors ml-1 sm:ml-2 shadow-sm",
-                  isSaved || saving 
+                  "flex items-center gap-1.5 h-8 px-3 rounded-[6px] text-[13px] font-[600] transition-colors ml-1 shadow-sm",
+                  isSaved || saving
                     ? "bg-zinc-100 text-muted border border-line"
-                    : "bg-brand text-white hover:bg-brand-strong border border-transparent hover:shadow-md"
+                    : "bg-brand text-white hover:bg-brand-strong border border-transparent"
                 )}
               >
-                {saving ? <Loader2 size={15} className="animate-spin" /> : isSaved ? <Check size={15} /> : <Bookmark size={15} />}
-                <span className="hidden sm:inline">{isSaved ? "Organize" : "Save"}</span>
+                {saving ? <Loader2 size={14} className="animate-spin" /> : isSaved ? <Check size={14} /> : <Bookmark size={14} />}
+                <span className="hidden sm:inline">{isSaved ? "Saved" : "Save"}</span>
               </button>
             )}
-            <div className="w-px h-6 bg-line/60 mx-1 sm:mx-2" />
-            <button onClick={onClose} className="grid size-9 place-items-center rounded-lg text-muted hover:bg-zinc-100 transition-colors" aria-label="Close">
+            <div className="w-px h-5 bg-line/60 mx-1 sm:mx-2" />
+            <button onClick={onClose} className="grid size-8 place-items-center rounded-md text-muted hover:bg-zinc-100 transition-colors" aria-label="Close">
               <X size={18} />
             </button>
           </div>
         </header>
 
         {/* Scrollable Content */}
-        <div className="flex-1 overflow-y-auto overflow-x-clip bg-white min-h-0">
+        <div className="flex-1 overflow-y-auto bg-white min-h-0 custom-scrollbar">
           {/* Hero Section */}
-          <div className="grid lg:grid-cols-[1.15fr_0.85fr] max-w-[1180px] mx-auto p-4 sm:p-6 md:p-8 gap-8 md:gap-10 lg:items-start min-w-0">
-            
-            {/* Left: Creative Container */}
-            <div className="flex flex-col gap-4">
-              <AdCreativeViewer 
-                ad={ad} 
-              />
-              
+          <div className="grid lg:grid-cols-[minmax(0,1.25fr)_minmax(320px,0.95fr)] max-w-[1440px] mx-auto p-4 sm:p-6 md:p-8 gap-8 lg:gap-12 lg:items-start min-w-0">
+
+            {/* Left: Creative Container (55-58%) */}
+            <div className="flex flex-col gap-4 min-w-0">
+              <AdCreativeViewer ad={ad} />
+
               {/* Carousel Thumbnail Strip */}
               {media.kind === "carousel" && media.cards && media.cards.length > 1 && (
                 <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar px-1">
@@ -476,129 +378,49 @@ export function AdDetailDrawer({
                       key={idx}
                       onClick={() => setActiveSlideIndex(idx)}
                       className={cn(
-                        "relative shrink-0 h-16 w-16 md:h-18 md:w-18 rounded-[8px] overflow-hidden bg-[#F8FAFC] flex items-center justify-center transition-all",
-                        activeSlideIndex === idx 
-                          ? "border-[2px] border-brand shadow-sm" 
+                        "relative shrink-0 h-16 w-16 md:h-20 md:w-20 rounded-[8px] overflow-hidden bg-[#F8FAFC] flex items-center justify-center transition-all",
+                        activeSlideIndex === idx
+                          ? "border-[2px] border-brand shadow-sm ring-2 ring-brand/20 ring-offset-1"
                           : "border border-line hover:border-zinc-300 opacity-80 hover:opacity-100"
                       )}
                     >
                       {item.imageUrl || item.videoUrl ? (
                          <img src={safeExternalUrl(item.imageUrl || item.videoUrl)!} alt={`Thumb ${idx+1}`} className="w-full h-full object-cover" />
                       ) : <ImageIcon size={14} className="text-muted/50" />}
+                      <div className="absolute top-1 left-1 bg-white/95 px-1.5 py-0.5 rounded-[4px] text-[10px] font-bold text-ink shadow-sm">
+                        {idx + 1}
+                      </div>
                     </button>
                   ))}
                 </div>
               )}
             </div>
-            
-            {/* Right: Dense Intelligence Column */}
-            <div className="flex flex-col min-w-0 pb-6 gap-6">
-              
-              {/* Score Group */}
-              <div>
-                <h3 className="text-[11px] font-[600] uppercase tracking-wider text-muted mb-3 flex items-center gap-1.5">
-                  AdsHunting Winning Score
-                  <span title="Winning Score is calculated using observable ad signals available to AdsHunting. It does not represent ROAS, CTR, revenue or conversion performance.">
-                    <Info size={14} className="cursor-help text-muted/70 hover:text-ink transition-colors" />
-                  </span>
-                </h3>
-                
-                {hasValidScore && scoreTheme ? (
-                  <div className="flex flex-col gap-2">
-                    <div className="flex items-baseline gap-2">
-                      <span className={cn("text-[34px] sm:text-[40px] font-[700] leading-none tracking-tight text-ink")}>{clampedScore}</span>
-                      <span className="text-[14px] font-[500] text-muted">/ 100</span>
-                      <span className={cn("ml-2 text-[14px] font-[600] text-ink", scoreTheme.text)}>{scoreTheme.label}</span>
-                    </div>
-                    {/* Progress Bar */}
-                    <div className="w-full h-2.5 bg-zinc-100 rounded-full overflow-hidden mt-1">
-                      <div 
-                        className={cn("h-full rounded-full transition-all duration-1000", scoreTheme.bg)} 
-                        style={{ width: `${clampedScore}%` }} 
-                      />
-                    </div>
-                  </div>
-                ) : (
-                  <div className="text-[15px] font-[500] text-muted mb-4">Score unavailable</div>
-                )}
-              </div>
-              
-              <div className="w-full h-px bg-line/60" />
 
-              {/* Delivery Group */}
-              <div>
-                <h3 className="text-[11px] font-[600] uppercase tracking-wider text-muted mb-3">Delivery</h3>
-                <div className="flex flex-col gap-1.5">
-                   <div className="flex items-center gap-2 text-[14px] font-[500] text-ink">
-                     <span className={cn("flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[12px] font-[650] bg-zinc-100", ad.delivery.status === "active" ? "text-ink" : "text-muted")}>
-                       <span className={cn("size-1.5 rounded-full", ad.delivery.status === "active" ? "bg-[#68B32F]" : "bg-zinc-400")} />
-                       {ad.delivery.status === "active" ? "Active" : "Inactive"}
-                     </span>
-                     {ad.delivery.daysRunning && <span className="text-muted">· {ad.delivery.daysRunning} days</span>}
-                   </div>
-                   <div className="flex items-center gap-2 text-[13px] text-muted mt-1">
-                     <span>{ad.delivery.startedAt ? formatDate(ad.delivery.startedAt) : "Unknown"}</span>
-                     <ArrowRight size={14} className="text-line" />
-                     <span>{ad.delivery.status === "active" ? "Running" : ad.delivery.endedAt ? formatDate(ad.delivery.endedAt) : ad.provider.fetchedAt ? formatDate(ad.provider.fetchedAt) : "Unknown"}</span>
-                   </div>
-                </div>
-              </div>
+            {/* Right: Intelligence Summary (42-45%) */}
+            <div className="flex flex-col min-w-0 gap-8">
 
-              {/* Platforms Group */}
-              {normalizedPlatforms.length > 0 && (
-                <>
-                  <div className="w-full h-px bg-line/60" />
-                  <div>
-                    <h3 className="text-[11px] font-[600] uppercase tracking-wider text-muted mb-3">Platforms</h3>
-                    <div className="flex flex-wrap gap-2">
-                      {normalizedPlatforms.map(p => (
-                        <span key={p} className="inline-flex items-center px-2.5 py-1 rounded-md text-[12px] font-[500] bg-zinc-50 border border-line/60 text-ink">
-                          {p}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                </>
-              )}
+              {/* 1. WINNER SCORE MODULE */}
+              <WinnerScoreModule ad={ad} />
 
-              <div className="w-full h-px bg-line/60" />
+              {/* 2. AT A GLANCE */}
+              <AtAGlanceGrid ad={ad} />
 
-              {/* Creative Intelligence Group */}
-              <div>
-                <h3 className="text-[11px] font-[600] uppercase tracking-wider text-muted mb-3">Creative Intelligence</h3>
-                <div className="grid grid-cols-2 gap-y-3 gap-x-4">
-                  <div className="flex flex-col">
-                    <span className="text-[11px] text-muted uppercase tracking-wider font-[500] mb-0.5">Format</span>
-                    <span className="text-[13px] font-[500] text-ink capitalize">{media.kind || "Unknown"}</span>
-                  </div>
-                  <div className="flex flex-col">
-                    <span className="text-[11px] text-muted uppercase tracking-wider font-[500] mb-0.5">Call to Action</span>
-                    <span className="text-[13px] font-[500] text-ink">{ad.copy.cta || "None"}</span>
-                  </div>
-                  <div className="flex flex-col col-span-2">
-                    <span className="text-[11px] text-muted uppercase tracking-wider font-[500] mb-0.5">Primary Copy</span>
-                    <span className="text-[13px] font-[500] text-ink">{ad.copy.primaryText ? "Available" : "Missing"}</span>
-                  </div>
-                </div>
-              </div>
+              {/* 3. PRIMARY MESSAGE / HOOK */}
+              <MessagingModule ad={ad} />
 
-              {/* Hook Group */}
-              {(ad.intelligence?.hookType || ad.copy.headline || ad.copy.primaryText) && (
-                <>
-                  <div className="w-full h-px bg-line/60" />
-                  <div>
-                    <h3 className="text-[11px] font-[600] uppercase tracking-wider text-muted mb-2">Hook / Angle</h3>
-                    <p className="text-[13px] font-[500] italic text-ink/80 leading-relaxed border-l-2 border-brand/40 pl-3">
-                      &quot;{ad.intelligence?.hookType || sanitizeAdCopy(ad.copy.headline) || sanitizeAdCopy(ad.copy.primaryText)?.split('\n')[0]?.substring(0, 80) + '...'}&quot;
-                    </p>
-                  </div>
-                </>
-              )}
+              {/* 4. DELIVERY */}
+              <DeliveryVisualization ad={ad} />
+
+              {/* 5. PLATFORMS */}
+              <PlatformsModule platforms={normalizedPlatforms} />
+
+              {/* 6. ADVERTISER / BRAND ACTION */}
+              <AdvertiserAction ad={ad} />
 
             </div>
           </div>
 
-          {/* Sticky Tabs */}
+          {/* Sticky Tabs Header */}
           <div className="sticky top-0 z-10 bg-white/95 backdrop-blur-md border-y border-line/80 px-4 sm:px-6 md:px-8 pt-4 shadow-[0_2px_8px_rgba(0,0,0,0.02)]">
             <div className="flex items-center gap-6 md:gap-8 max-w-[1440px] mx-auto overflow-x-auto no-scrollbar scroll-smooth">
               {TABS.map(tab => (
@@ -606,9 +428,9 @@ export function AdDetailDrawer({
                   key={tab}
                   onClick={() => setActiveTab(tab)}
                   className={cn(
-                    "pb-3.5 text-[14px] font-[550] transition-colors whitespace-nowrap border-b-[2px]",
-                    activeTab === tab 
-                      ? "text-brand border-brand" 
+                    "pb-3 text-[13px] font-[600] transition-colors whitespace-nowrap border-b-[2px]",
+                    activeTab === tab
+                      ? "text-brand border-brand"
                       : "text-muted border-transparent hover:text-ink"
                   )}
                 >
@@ -631,13 +453,13 @@ export function AdDetailDrawer({
       </div>
 
       {/* Nested Modals */}
-      <ShareModal 
-        isOpen={showShare} 
-        onClose={() => setShowShare(false)} 
-        adIds={[ad.id]} 
-        defaultName={`Ad from ${ad.advertiser.name}`} 
+      <ShareModal
+        isOpen={showShare}
+        onClose={() => setShowShare(false)}
+        adIds={[ad.id]}
+        defaultName={`Ad from ${ad.advertiser.name}`}
       />
-      
+
       {showSwipePicker && canSave && (
         <SwipeFilePicker
           ad={ad}
@@ -658,13 +480,13 @@ export function AdDetailDrawer({
 
 const HeaderButton = React.forwardRef<HTMLButtonElement, { icon: React.ReactNode, label: string, onClick?: () => void, disabled?: boolean, title?: string }>(
   ({ icon, label, onClick, disabled, title }, ref) => (
-    <button 
+    <button
       ref={ref}
       onClick={onClick}
       disabled={disabled}
       title={title || label}
       aria-label={label}
-      className="hidden sm:flex size-9 items-center justify-center rounded-[8px] text-ink bg-white border border-line hover:bg-zinc-50 hover:border-zinc-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+      className="hidden sm:flex size-8 items-center justify-center rounded-[6px] text-ink bg-white border border-line hover:bg-zinc-50 hover:border-zinc-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
     >
       {icon}
     </button>
@@ -674,7 +496,7 @@ HeaderButton.displayName = "HeaderButton";
 
 function MobileMenuButton({ icon, label, onClick, disabled }: { icon: React.ReactNode, label: string, onClick: () => void, disabled?: boolean }) {
   return (
-    <button 
+    <button
       onClick={onClick}
       disabled={disabled}
       className="flex items-center gap-3 w-full px-3 py-2.5 rounded-md text-[14px] font-[500] text-ink hover:bg-zinc-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-left"
@@ -684,90 +506,321 @@ function MobileMenuButton({ icon, label, onClick, disabled }: { icon: React.Reac
   );
 }
 
-
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
-  
+
   const handleCopy = () => {
     if (!text) return;
     navigator.clipboard.writeText(text);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
-  
+
   return (
-    <button onClick={handleCopy} className="text-muted hover:text-brand transition-colors p-1.5 rounded-md hover:bg-brand" title="Copy text" aria-label="Copy">
+    <button onClick={handleCopy} className="text-muted hover:text-brand transition-colors p-1.5 rounded-md hover:bg-brand/10" title="Copy text" aria-label="Copy">
       {copied ? <Check size={14} className="text-brand" /> : <Copy size={14} />}
     </button>
   );
 }
 
 // --------------------------------------------------------------------------------
+// Layout Specific Modules
+// --------------------------------------------------------------------------------
+
+function WinnerScoreModule({ ad }: { ad: NormalizedAd }) {
+  const rawScore = ad.intelligence.winnerScore;
+  const hasValidScore = rawScore !== undefined && rawScore !== null && !isNaN(rawScore);
+  const clampedScore = hasValidScore ? Math.max(0, Math.min(100, rawScore || 0)) : null;
+  const scoreTheme = clampedScore !== null ? getScoreTheme(clampedScore) : null;
+
+  return (
+    <section className="flex flex-col gap-3">
+      <div className="flex items-center justify-between">
+        <h3 className="text-[10px] font-[600] uppercase tracking-widest text-muted">AdsHunting Winner Score</h3>
+        <MetadataPopover
+          align="right"
+          content={
+            <div className="p-4 w-[280px]">
+              <p className="text-[13px] font-[600] text-ink mb-2">How AdsHunting scores ads</p>
+              <p className="text-[13px] text-muted mb-4 leading-relaxed">
+                The Winner Score is calculated strictly using observable signals. It represents algorithmic potential, not actual revenue.
+              </p>
+              <p className="text-[11px] font-[650] uppercase tracking-wider text-muted mb-2">Scoring Factors Methodology</p>
+              <ul className="text-[12px] font-[500] text-ink space-y-1.5">
+                <li>• Longevity (35%)</li>
+                <li>• Active Status (20%)</li>
+                <li>• Creative Variations (15%)</li>
+                <li>• Landing Page Persistence (10%)</li>
+                <li>• Geographic Coverage (10%)</li>
+                <li>• Creative Refresh Pattern (10%)</li>
+              </ul>
+            </div>
+          }
+        >
+          <button className="text-muted/70 hover:text-ink transition-colors flex items-center gap-1">
+            <Info size={14} />
+          </button>
+        </MetadataPopover>
+      </div>
+
+      {hasValidScore && scoreTheme ? (
+        <div className="bg-zinc-50 rounded-[12px] p-4 border border-line/60">
+          <div className="flex items-baseline gap-2 mb-3">
+            <span className="text-[36px] font-[700] leading-none tracking-tight text-ink">{clampedScore}</span>
+            <span className="text-[14px] font-[500] text-muted">/ 100</span>
+            <span className={cn("ml-2 text-[14px] font-[600] tracking-wide", scoreTheme.text)}>{scoreTheme.label}</span>
+          </div>
+
+          {/* Progress Indicator */}
+          <div className="w-full h-1.5 bg-zinc-200 rounded-full overflow-hidden">
+            <div
+              className={cn("h-full rounded-full transition-all duration-1000", scoreTheme.bg)}
+              style={{ width: `${clampedScore}%` }}
+            />
+          </div>
+
+        </div>
+      ) : (
+        <div className="bg-zinc-50 rounded-[12px] p-4 border border-line/60 text-[13px] font-[500] text-muted">
+          Winner Score unavailable for this ad.
+        </div>
+      )}
+    </section>
+  );
+}
+
+function AtAGlanceGrid({ ad }: { ad: NormalizedAd }) {
+  const media = resolveAdMedia(ad);
+  const normalizedPlatforms = ad.delivery.platforms ? Array.from(new Set(ad.delivery.platforms.map(normalizePlatform))) : [];
+  const platformsDisplay = normalizedPlatforms.length > 0
+    ? (normalizedPlatforms.length <= 2 ? normalizedPlatforms.join(" + ") : `${normalizedPlatforms[0]} +${normalizedPlatforms.length - 1}`)
+    : null;
+
+  // Build grid data dynamically to omit empty rows
+  const rows: { label: string, value: React.ReactNode }[] = [];
+
+  // Status
+  rows.push({
+    label: "Status",
+    value: <span className={cn("font-[600]", ad.delivery.status === "active" ? "text-brand" : "text-muted")}>{ad.delivery.status === "active" ? "Active" : "Inactive"}</span>
+  });
+
+  // Duration
+  if (ad.delivery.daysRunning) {
+    rows.push({ label: "Run duration", value: `${ad.delivery.daysRunning} days` });
+  }
+
+  // Dates
+  if (ad.delivery.startedAt) {
+    rows.push({ label: "First seen", value: formatDate(ad.delivery.startedAt) });
+  }
+  if (ad.provider.fetchedAt) {
+    rows.push({ label: "Last seen", value: formatDate(ad.provider.fetchedAt) });
+  }
+
+  // Media
+  if (media.kind && media.kind !== "unknown") {
+    rows.push({ label: "Format", value: <span className="capitalize">{media.kind}</span> });
+  }
+  if (media.cards && media.cards.length > 0) {
+    rows.push({ label: "Creatives", value: media.cards.length });
+  }
+
+  // Details
+  if (ad.copy.cta) {
+    rows.push({ label: "CTA", value: ad.copy.cta });
+  }
+  if (platformsDisplay) {
+    rows.push({ label: "Platforms", value: platformsDisplay });
+  }
+
+  return (
+    <section>
+      <h3 className="text-[10px] font-[600] uppercase tracking-widest text-muted mb-3">At a Glance</h3>
+      <div className="grid grid-cols-2 gap-x-6 gap-y-3">
+        {rows.map((row, idx) => (
+          <div key={idx} className="flex flex-col">
+            <span className="text-[11px] font-[500] text-muted mb-0.5">{row.label}</span>
+            <span className="text-[13px] font-[500] text-ink">{row.value}</span>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function MessagingModule({ ad }: { ad: NormalizedAd }) {
+  const primaryText = ad.copy.primaryText;
+  const hook = ad.intelligence?.hookType;
+
+  if (!primaryText && !hook) return null;
+
+  return (
+    <section className="flex flex-col gap-4">
+      {primaryText && (
+        <div>
+          <div className="flex justify-between items-center mb-2">
+            <h3 className="text-[10px] font-[600] uppercase tracking-widest text-muted">Primary Message</h3>
+            <CopyButton text={primaryText} />
+          </div>
+          <div className="text-[13px] text-ink leading-[1.6] whitespace-pre-wrap font-[400] bg-zinc-50/50 p-3.5 rounded-xl border border-line/60">
+            {primaryText.length > 250 ? primaryText.substring(0, 250) + "..." : primaryText}
+          </div>
+        </div>
+      )}
+
+      {hook && (
+        <div>
+          <h3 className="text-[10px] font-[600] uppercase tracking-widest text-muted mb-2">Hook / Angle</h3>
+          <div className="text-[13px] font-[500] italic text-ink/80 leading-relaxed border-l-[2px] border-brand/40 pl-3">
+            {hook}
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function DeliveryVisualization({ ad }: { ad: NormalizedAd }) {
+  const firstSeen = ad.delivery.startedAt;
+  const lastSeen = ad.delivery.endedAt || ad.provider.fetchedAt;
+
+  // Need at least one valid date to show delivery
+  if (!firstSeen && !lastSeen) return null;
+
+  return (
+    <section>
+      <h3 className="text-[10px] font-[600] uppercase tracking-widest text-muted mb-3">Delivery</h3>
+      <div className="flex flex-col">
+        {/* Timeline Line */}
+        <div className="flex items-center gap-3 mb-4">
+          <div className="flex-1 relative h-1.5 bg-zinc-100 rounded-full">
+            {/* If we have both dates and it ran for days, fill the line. Otherwise just a dot if one date. */}
+            {firstSeen && lastSeen ? (
+              <div className="absolute inset-y-0 left-0 bg-brand rounded-full" style={{ width: '100%' }} />
+            ) : (
+              <div className="absolute inset-y-0 left-0 bg-brand rounded-full w-2 h-2 -ml-0.5 top-1/2 -translate-y-1/2" />
+            )}
+          </div>
+        </div>
+
+        {/* Dates underneath */}
+        <div className="flex justify-between items-start text-[12px]">
+          {firstSeen && (
+            <div className="flex flex-col">
+              <span className="font-[500] text-muted">First seen</span>
+              <span className="font-[600] text-ink">{formatDate(firstSeen)}</span>
+            </div>
+          )}
+          {ad.delivery.daysRunning ? (
+            <div className="flex flex-col items-center">
+              <span className="font-[600] text-ink">{ad.delivery.daysRunning} days</span>
+              <span className="font-[500] text-muted">observed</span>
+            </div>
+          ) : null}
+          {lastSeen && (
+            <div className="flex flex-col text-right">
+              <span className="font-[500] text-muted">{ad.delivery.status === "active" ? "Running as of" : "Last seen"}</span>
+              <span className="font-[600] text-ink">{formatDate(lastSeen)}</span>
+            </div>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function PlatformsModule({ platforms }: { platforms: string[] }) {
+  if (!platforms || platforms.length === 0) return null;
+  return (
+    <section>
+      <h3 className="text-[10px] font-[600] uppercase tracking-widest text-muted mb-2">Platforms</h3>
+      <div className="flex flex-wrap gap-2">
+        {platforms.map(p => (
+          <span key={p} className="text-[13px] font-[500] text-ink px-2.5 py-1 rounded-md bg-zinc-50 border border-line/60">
+            {p}
+          </span>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function AdvertiserAction({ ad }: { ad: NormalizedAd }) {
+  if (!ad.advertiser.id) return null;
+  return (
+    <section>
+      <div className="w-full h-px bg-line/60 mb-5" />
+      <Link href={`/competitors/${encodeURIComponent(ad.advertiser.id)}`} className="flex justify-between items-center p-3 rounded-xl hover:bg-zinc-50 transition-colors border border-transparent hover:border-line/60 group">
+        <div className="flex items-center gap-3">
+          {ad.advertiser.logoUrl ? (
+            <img src={ad.advertiser.logoUrl} alt={`${ad.advertiser.displayName || ad.advertiser.name || "Advertiser"} logo`} className="size-8 rounded-full border border-line/60 object-cover" />
+          ) : (
+            <span className="grid size-8 place-items-center rounded-full bg-ink font-[600] text-white text-[13px]">
+              {ad.advertiser.name?.[0] || "U"}
+            </span>
+          )}
+          <span className="text-[14px] font-[600] text-ink group-hover:text-brand transition-colors">{ad.advertiser.displayName || ad.advertiser.name}</span>
+        </div>
+        <ArrowRight size={16} className="text-muted group-hover:text-brand transition-colors" />
+      </Link>
+    </section>
+  );
+}
+
+
+// --------------------------------------------------------------------------------
 // Viewers & Tabs
 // --------------------------------------------------------------------------------
 
-function AdCreativeViewer({ 
-  ad, 
+function AdCreativeViewer({
+  ad,
   className,
   style
-}: { 
-  ad: NormalizedAd; 
+}: {
+  ad: NormalizedAd;
   className?: string;
   style?: React.CSSProperties;
 }) {
-  const containerClass = "relative w-full bg-[#F5F5F5] rounded-[16px] border border-line/60 flex items-center justify-center overflow-hidden transition-all duration-200 h-fit max-w-full min-w-0 p-6 md:p-7" + (className ? ` ${className}` : "");
-  const containerStyle = { maxHeight: "560px", ...style };
+  // Use object-contain styling in AdMedia but the container gives it space.
+  const containerClass = "relative w-full bg-[#F5F5F5]/60 rounded-[12px] border border-line/60 flex items-center justify-center overflow-hidden transition-all duration-200 h-fit max-w-full min-w-0" + (className ? ` ${className}` : "");
+  // Remove fixed max height to allow true aspect ratio containment
+  const containerStyle = { ...style };
 
   return (
     <div className={containerClass} style={containerStyle}>
-      <AdMedia ad={ad} variant="detail" className="w-full h-full" />
+      <AdMedia ad={ad} variant="detail" className="w-full h-auto max-h-[75vh]" />
     </div>
   );
 }
 
 // --------------------------------------------------------------------------------
-// Tab Layouts
+// Tab Layouts (Deep Details)
 // --------------------------------------------------------------------------------
 
 function OverviewTab({ ad }: { ad: NormalizedAd }) {
-  const media = resolveAdMedia(ad);
   return (
-    <div className="grid lg:grid-cols-[64%_36%] gap-x-10 gap-y-12">
+    <div className="grid lg:grid-cols-2 gap-x-10 gap-y-12">
       <div className="space-y-10">
         <section>
-          <h3 className="text-[16px] font-[650] text-ink mb-5">Ad Copy</h3>
+          <h3 className="text-[14px] font-[650] text-ink mb-4">Ad Copy Detail</h3>
           <div className="space-y-4">
             <CopyBlock text={ad.copy.primaryText} label="Primary Text" />
-            {(ad.copy.headline || ad.copy.cta) && (
-              <div className="grid sm:grid-cols-2 gap-4 mt-2">
-                 <CopyBlock text={ad.copy.headline} label="Headline" />
-                 <CopyBlock text={ad.copy.cta} label="Call to Action" />
-              </div>
-            )}
+            <div className="grid sm:grid-cols-2 gap-4 mt-2">
+               <CopyBlock text={ad.copy.headline} label="Headline" />
+               <CopyBlock text={ad.copy.cta} label="Call to Action" />
+            </div>
           </div>
         </section>
-        
-        {media.kind === "carousel" && media.cards && media.cards.length > 1 && (
-          <section>
-            <h3 className="text-[16px] font-[650] text-ink mb-5">Creative Variations</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-               {media.cards.map((item, idx) => (
-                 <CarouselVariationCard key={idx} item={item} index={idx} advertiserName={ad.advertiser.name || "Unknown"} fullWidth />
-               ))}
-            </div>
-          </section>
-        )}
       </div>
-      
       <div className="space-y-10">
         <section>
-          <h3 className="text-[16px] font-[650] text-ink mb-5">Advertiser</h3>
+          <h3 className="text-[14px] font-[650] text-ink mb-4">Advertiser Profile</h3>
           <AdvertiserCard ad={ad} />
         </section>
-        
         <section>
-          <h3 className="text-[16px] font-[650] text-ink mb-5">Landing Page</h3>
-          <WebsitePreviewCard url={ad.destination.url} title={ad.copy.headline} />
+          <h3 className="text-[14px] font-[650] text-ink mb-4">Landing Page Details</h3>
+          <WebsitePreviewCard url={ad.destination.url} title={ad.destination.title || ad.copy.headline} />
         </section>
       </div>
     </div>
@@ -778,14 +831,14 @@ function CreativeTab({ ad }: { ad: NormalizedAd }) {
   const media = resolveAdMedia(ad);
   if (media.kind === "carousel" && media.cards && media.cards.length > 1) {
     return (
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {media.cards.map((item, idx) => (
            <CarouselVariationCard key={idx} item={item} index={idx} advertiserName={ad.advertiser.name || "Unknown"} fullWidth />
         ))}
       </div>
     );
   }
-  return <div className="text-muted text-[14px] bg-white py-12 rounded-[16px] border border-line text-center">Standard creative view is available in the Overview tab.</div>;
+  return <div className="text-muted text-[13px] bg-zinc-50 py-12 rounded-[12px] border border-line text-center">Standard creative view is available in the media viewer above.</div>;
 }
 
 function CopyTab({ ad }: { ad: NormalizedAd }) {
@@ -815,7 +868,7 @@ function DeliveryTab({ ad }: { ad: NormalizedAd }) {
 function LandingPageTab({ ad }: { ad: NormalizedAd }) {
   return (
     <div className="max-w-2xl">
-      <WebsitePreviewCard url={ad.destination.url} title={ad.copy.headline} />
+      <WebsitePreviewCard url={ad.destination.url} title={ad.destination.title || ad.copy.headline} />
     </div>
   );
 }
@@ -832,27 +885,26 @@ function AdvertiserTab({ ad }: { ad: NormalizedAd }) {
 // Sub-components
 // --------------------------------------------------------------------------------
 
-// Replaces the large padded CopyCard
 function CopyBlock({ text, label }: { text?: string | null, label: string }) {
   const [expanded, setExpanded] = useState(false);
   if (!text) return null;
-  
+
   const MAX_LENGTH = 350;
   const isLong = text.length > MAX_LENGTH;
   const displayText = !isLong || expanded ? text : text.slice(0, MAX_LENGTH) + "...";
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-1">
-        <span className="text-[12px] font-[700] uppercase tracking-wide text-muted">{label}</span>
+      <div className="flex justify-between items-center mb-1.5">
+        <span className="text-[10px] font-[600] uppercase tracking-widest text-muted">{label}</span>
         <CopyButton text={text} />
       </div>
-      <div className="bg-zinc-50/50 p-4 rounded-xl border border-line/60">
-        <p className="text-[15px] text-ink leading-[1.6] whitespace-pre-wrap font-[400]">{displayText}</p>
+      <div className="bg-zinc-50/50 p-4 rounded-[12px] border border-line/60">
+        <p className="text-[13px] text-ink leading-[1.6] whitespace-pre-wrap font-[400]">{displayText}</p>
         {isLong && (
-          <button 
-            onClick={() => setExpanded(!expanded)} 
-            className="mt-2 text-[13px] font-semibold text-brand hover:text-brand-strong transition-colors"
+          <button
+            onClick={() => setExpanded(!expanded)}
+            className="mt-2 text-[12px] font-semibold text-brand hover:text-brand-strong transition-colors"
           >
             {expanded ? "Read less" : "Read more"}
           </button>
@@ -867,11 +919,11 @@ function CarouselVariationCard({ item, index, advertiserName, fullWidth = false 
   const video = safeExternalUrl(item.videoUrl);
   return (
     <div className={cn("bg-white rounded-[12px] border border-line shadow-sm overflow-hidden flex flex-col", fullWidth ? "w-full" : "w-[280px]")}>
-      <div className="relative aspect-[4/5] bg-[#F8FAFC] flex items-center justify-center p-2 border-b border-line">
+      <div className="relative bg-[#F8FAFC] flex items-center justify-center p-2 border-b border-line">
         {video ? (
-           <video src={video} poster={image || undefined} muted playsInline controls className="w-full h-full object-contain rounded-[6px]" />
+           <video src={video} poster={image || undefined} muted playsInline controls className="w-full h-auto max-h-[500px] object-contain rounded-[6px]" />
         ) : image ? (
-           <img src={image} alt="Variation" className="w-full h-full object-contain rounded-[6px]" />
+           <img src={image} alt="Variation" className="w-full h-auto max-h-[500px] object-contain rounded-[6px]" />
         ) : (
            <ImageIcon className="text-muted/50" size={32} />
         )}
@@ -898,8 +950,8 @@ function TimelineEvent({ label, date, active }: { label: string, date: string, a
         <div className={cn("size-2.5 rounded-full border-[2px]", active ? "bg-brand border-brand" : "bg-white border-line")} />
       </div>
       <div>
-        <p className="text-[15px] font-[600] text-ink">{date}</p>
-        <p className="text-[13px] font-[500] text-muted">{label}</p>
+        <p className="text-[14px] font-[600] text-ink">{date}</p>
+        <p className="text-[12px] font-[500] text-muted">{label}</p>
       </div>
     </div>
   );
@@ -907,60 +959,60 @@ function TimelineEvent({ label, date, active }: { label: string, date: string, a
 
 function AdvertiserCard({ ad, detailed = false }: { ad: NormalizedAd, detailed?: boolean }) {
   return (
-    <div className="bg-white rounded-[16px] border border-line p-5">
+    <div className="bg-zinc-50/50 rounded-[12px] border border-line p-5">
       <div className="flex items-center gap-4">
         {ad.advertiser.logoUrl ? (
-          <img src={ad.advertiser.logoUrl} alt="" className="size-[48px] rounded-full border border-line/60 object-cover" />
+          <img src={ad.advertiser.logoUrl} alt={`${ad.advertiser.displayName || ad.advertiser.name || "Advertiser"} logo`} className="size-[48px] rounded-full border border-line/60 object-cover" />
         ) : (
           <span className="grid size-[48px] place-items-center rounded-full bg-ink font-[600] text-white text-[20px]">
             {ad.advertiser.name?.[0] || "U"}
           </span>
         )}
         <div className="flex-1 min-w-0">
-          <p className="text-[16px] font-[650] text-ink truncate">{ad.advertiser.name || "Unknown"}</p>
-          <div className="flex items-center gap-1.5 text-[13px] font-[500] text-muted mt-1">
-            <Check size={12} className="text-brand" strokeWidth={3} /> Verified Advertiser
-          </div>
+          <p className="text-[15px] font-[650] text-ink truncate">{ad.advertiser.displayName || ad.advertiser.name || "Unknown"}</p>
+          {/* Omitted fake verified badge per spec */}
         </div>
       </div>
-      
-      {detailed && (
+
+      {detailed && ad.advertiser.id && (
         <div className="mt-5 pt-5 border-t border-line grid grid-cols-2 gap-4">
           <div>
-            <p className="text-[12px] font-[650] uppercase tracking-wide text-muted mb-1">Page ID</p>
-            <p className="text-[14px] font-[500] text-ink">{ad.advertiser.id}</p>
+            <p className="text-[10px] font-[600] uppercase tracking-widest text-muted mb-1">Provider ID</p>
+            <p className="text-[13px] font-[500] text-ink">{ad.advertiser.id}</p>
           </div>
         </div>
       )}
-      
-      <div className="mt-5">
-         <Link href={`/brands/${encodeURIComponent(ad.advertiser.id || "unknown")}`} className="flex justify-center items-center h-10 rounded-lg bg-zinc-50 border border-line text-[13px] font-[650] text-ink hover:bg-zinc-100 transition-colors w-full">
-           View Brand Intelligence <ArrowRight size={14} className="ml-1.5 text-muted" />
-         </Link>
-      </div>
+
+      {ad.advertiser.id && (
+        <div className="mt-5">
+           <Link href={`/brands/${encodeURIComponent(ad.advertiser.id)}`} className="flex justify-center items-center h-9 rounded-lg bg-white border border-line text-[13px] font-[600] text-ink hover:bg-zinc-50 transition-colors w-full">
+             View Brand Intelligence <ArrowRight size={14} className="ml-1.5 text-muted" />
+           </Link>
+        </div>
+      )}
     </div>
   );
 }
 
 function WebsitePreviewCard({ url, title }: { url?: string | null, title?: string | null }) {
-  if (!url) return <div className="text-[14px] font-[500] text-muted">Landing page data not available.</div>;
+  if (!url) return <div className="text-[13px] font-[500] text-muted p-4 bg-zinc-50 rounded-[12px] border border-line/60">Landing page data not available.</div>;
   const domain = cleanUrl(url);
   return (
-    <div className="bg-white rounded-[16px] border border-line overflow-hidden flex flex-col group">
-       <div className="bg-[#F8FAFC] border-b border-line px-4 py-3 flex items-center gap-2">
-         <Globe size={15} className="text-muted" />
-         <span className="text-[13px] font-[550] text-ink truncate">{domain}</span>
+    <div className="bg-white rounded-[12px] border border-line overflow-hidden flex flex-col group">
+       <div className="bg-[#F8FAFC] border-b border-line px-4 py-2.5 flex items-center gap-2">
+         <Globe size={14} className="text-muted" />
+         <span className="text-[12px] font-[600] text-ink truncate">{domain}</span>
          <div className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity">
            <CopyButton text={url} />
          </div>
        </div>
-       <div className="p-5 flex flex-col gap-3">
+       <div className="p-4 flex flex-col gap-3">
          <div>
-           <p className="text-[11px] font-[700] uppercase tracking-[0.08em] text-muted mb-1">Destination</p>
-           <p className="text-[15px] font-[500] text-ink line-clamp-2 leading-relaxed">{title || "No page title available"}</p>
+           <p className="text-[10px] font-[600] uppercase tracking-widest text-muted mb-1">Destination</p>
+           <p className="text-[13px] font-[500] text-ink line-clamp-2 leading-relaxed">{title || "No page title available"}</p>
          </div>
-         <a href={url} target="_blank" rel="noreferrer" className="mt-1 flex w-fit items-center gap-1.5 px-4 h-9 rounded-[8px] bg-zinc-50 border border-line text-ink text-[13px] font-[650] hover:bg-zinc-100 transition-colors">
-           Open Link <ExternalLink size={14} className="text-muted" />
+         <a href={url} target="_blank" rel="noreferrer" className="mt-1 flex w-fit items-center gap-1.5 px-3 h-8 rounded-[6px] bg-zinc-50 border border-line text-ink text-[12px] font-[600] hover:bg-zinc-100 transition-colors">
+           Open Link <ExternalLink size={13} className="text-muted" />
          </a>
        </div>
     </div>

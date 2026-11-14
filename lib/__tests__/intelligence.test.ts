@@ -3,10 +3,7 @@ import {
   calculateWinnerScore, 
   calculateLongevityScore,
   calculateActiveStatusScore,
-  calculateVariantScore,
   calculateGeographicCoverageScore,
-  calculateLandingPagePersistenceScore,
-  calculateCreativeRefreshPatternScore,
   normalizeLandingPageUrl 
 } from "../intelligence";
 import type { NormalizedAd } from "../types";

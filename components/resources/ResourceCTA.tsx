@@ -23,7 +23,7 @@ export function ResourceCTA({
       </p>
       <div className="flex flex-col sm:flex-row items-center justify-center gap-4 w-full sm:w-auto">
         <CTAButton href="/sign-up" className="w-full sm:w-auto h-12 px-8 text-base font-semibold">
-          Start 7-Day Free Trial
+          Get Early Access
         </CTAButton>
         {secondaryText && secondaryHref && (
           <Link href={secondaryHref} className="text-brand font-medium hover:text-brand-strong transition-colors underline-offset-4 hover:underline px-4 py-2">

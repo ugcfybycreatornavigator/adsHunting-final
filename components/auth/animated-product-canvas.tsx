@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
-import { PlaySquare, BarChart3, TrendingUp, Layers, Activity } from "lucide-react";
+import { PlaySquare, TrendingUp, Activity } from "lucide-react";
 
 export function AnimatedProductCanvas() {
   const prefersReducedMotion = useReducedMotion();

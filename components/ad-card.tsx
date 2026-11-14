@@ -25,6 +25,7 @@ export function AdCard({
   onNoteClick,
   onTagsClick,
   onRemoveClick,
+  layout = "grid",
 }: {
   ad: NormalizedAd;
   saved?: boolean;
@@ -39,6 +40,7 @@ export function AdCard({
   onNoteClick?: () => void;
   onTagsClick?: () => void;
   onRemoveClick?: () => void;
+  layout?: "grid" | "list";
 }) {
   const [saving, setSaving] = useState(false);
   const [sharing] = useState(false);
@@ -83,7 +85,8 @@ export function AdCard({
 
   return (
     <article className={cn(
-      "group relative flex flex-col w-full rounded-[12px] border border-line bg-white shadow-sm transition-all duration-200 hover:border-zinc-300 hover:shadow-md",
+      "group relative flex w-full flex-col rounded-[12px] border border-line bg-white shadow-sm transition-all duration-200 hover:border-zinc-300 hover:shadow-md",
+      layout === "list" && "md:grid md:min-h-[180px] md:grid-cols-[180px_minmax(0,1fr)_150px] md:grid-rows-[52px_1fr]",
       menuOpen ? "z-50 overflow-visible" : "overflow-hidden z-10"
     )}>
       {/* Full-card accessible clickable overlay */}
@@ -97,11 +100,11 @@ export function AdCard({
       />
       
       {/* Header */}
-      <div className="relative z-30 flex h-[52px] items-center gap-2.5 px-3">
+      <div className={cn("relative z-30 flex h-[52px] items-center gap-2.5 px-3", layout === "list" && "md:col-start-2 md:row-start-1")}>
         {ad.advertiser.logoUrl && !avatarFailed ? (
           <img 
             src={ad.advertiser.logoUrl} 
-            alt="" 
+            alt={`${advertiserName} logo`}
             className="size-7 shrink-0 rounded-full border border-line object-cover bg-zinc-50" 
             loading="lazy"
             onError={() => setAvatarFailed(true)}
@@ -111,7 +114,7 @@ export function AdCard({
         )}
         <div className="flex flex-col min-w-0 flex-1 justify-center">
           <Link
-            href={`/brands/${encodeURIComponent(ad.advertiser.id || ad.id)}`}
+            href={`/competitors/${encodeURIComponent(ad.advertiser.id || ad.id)}`}
             onClick={(event) => event.stopPropagation()}
             className="truncate text-[13px] font-semibold text-ink hover:text-signal"
           >
@@ -187,7 +190,7 @@ export function AdCard({
 
       {/* Media 4:5 - clicking video requests full screen or plays directly, clicking card overview opens ad details */}
       <div 
-        className="relative z-10 aspect-[4/5] w-full bg-[#F5F5F5] overflow-hidden border-y border-line group-hover:border-zinc-300 transition-colors cursor-pointer"
+        className={cn("relative z-10 aspect-[4/5] w-full overflow-hidden border-y border-line bg-[#F5F5F5] transition-colors group-hover:border-zinc-300 cursor-pointer", layout === "list" && "md:col-start-1 md:row-span-2 md:row-start-1 md:h-full md:aspect-auto md:border-y-0 md:border-r")}
         onClick={(e) => {
           // If video element is clicked, trigger native fullscreen or play
           const videoEl = e.currentTarget.querySelector("video");
@@ -217,7 +220,7 @@ export function AdCard({
       </div>
 
       {/* Metadata Section */}
-      <div className="relative z-0 flex flex-col gap-2.5 p-3 pb-4 pointer-events-none">
+      <div className={cn("relative z-0 flex flex-col gap-2.5 p-3 pb-4 pointer-events-none", layout === "list" && "md:col-start-2 md:row-start-2 md:justify-center md:pt-1")}>
         
         {/* Status + Score */}
         <div className="flex items-center justify-between">
@@ -250,7 +253,7 @@ export function AdCard({
       </div>
       
       {/* Footer Actions */}
-      <div className="relative z-10 flex w-full h-[38px] border-t border-line" ref={saveBtnRef}>
+      <div className={cn("relative z-10 flex h-[38px] w-full border-t border-line", layout === "list" && "md:col-start-3 md:row-span-2 md:row-start-1 md:h-full md:flex-col md:border-l md:border-t-0")} ref={saveBtnRef}>
         <button 
           type="button"
           disabled={saving}
@@ -266,7 +269,7 @@ export function AdCard({
           <span>{saving ? "Saving..." : (isSaved || swipeFileCount > 0) ? "Organize" : "Save"}</span>
         </button>
 
-        <div className="w-[1px] bg-line" />
+        <div className={cn("w-px bg-line", layout === "list" && "md:h-px md:w-full")} />
 
         <button
           type="button"

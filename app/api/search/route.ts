@@ -5,7 +5,8 @@ import { rateLimit } from "@/lib/rate-limit";
 import { dbAdToNormalized } from "@/lib/catalog";
 import { requireUser } from "@/lib/auth";
 import { requirePaidWorkspaceAccess } from "@/lib/billing/entitlement";
-import { getWorkspaceCreditBalance } from "@/lib/billing/usage";
+import { getWorkspaceCreditBalance, consumeUsage, CREDIT_COSTS } from "@/lib/billing/usage";
+import crypto from "crypto";
 import { ProviderError } from "@/lib/providers/errors";
 import { adsForClient, persistNormalizedAds, archiveAdsInBackground } from "@/lib/ads-persistence";
 import { isPreviewMode } from "@/lib/preview";
@@ -32,6 +33,7 @@ const schema = z.object({
   platforms: z.array(z.enum(["facebook", "instagram", "messenger", "audience_network", "threads"])).max(5).optional(),
   sort: z.string().max(32).optional(),
   cursor: z.string().max(16_000).optional(),
+  sessionId: z.string().max(64).optional(),
   cta: z.string().max(40).optional(),
   source: z.literal("competitor").optional(),
 
@@ -51,13 +53,13 @@ const schema = z.object({
   languages: z.array(z.string().max(16)).optional(),
   niches: z.array(z.string().max(32)).optional(),
   contentStyles: z.array(z.string().max(32)).optional(),
-  
+
   runtime: z.object({
     preset: z.string().optional(),
     minDays: z.number().nonnegative().optional(),
     maxDays: z.number().nonnegative().optional(),
   }).optional(),
-  
+
   videoLength: z.object({
     preset: z.string().optional(),
     minSeconds: z.number().nonnegative().optional(),
@@ -65,49 +67,66 @@ const schema = z.object({
   }).optional(),
 });
 
-type CacheEntry = { expires: number; payload: AdSearchResult };
-const cache = new Map<string, CacheEntry>();
 const inFlight = new Map<string, Promise<AdSearchResult>>();
+const DEFAULT_FEED_SAMPLE_SIZE = 120;
+
+function searchResponse(body: unknown, requestId: string, startedAt: number, init: ResponseInit = {}) {
+  const headers = new Headers(init.headers);
+  headers.set("X-Request-Id", requestId);
+  headers.set("Server-Timing", `total;dur=${Math.round(performance.now() - startedAt)}`);
+  return NextResponse.json(body, { ...init, headers });
+}
 
 export async function POST(request: NextRequest) {
   const requestId = crypto.randomUUID();
+  const startedAt = performance.now();
   try {
     const accessError = await requirePaidWorkspaceAccess();
     if (accessError) return accessError;
 
     let catalogClient: Awaited<ReturnType<typeof requireUser>>["supabase"] = null;
-  const authRes = await requireUser();
-  if (authRes.error || !authRes.user) return authRes.error || NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  catalogClient = authRes.supabase;
+    const authRes = await requireUser();
+    if (authRes.error || !authRes.user) return authRes.error || NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    catalogClient = authRes.supabase;
 
-  const balance = await getWorkspaceCreditBalance(authRes.user.id);
-  if (balance && balance.creditsRemaining <= 0) {
-    return NextResponse.json(
-      { error: "INSUFFICIENT_CREDITS", reason: "out_of_credits", creditsRemaining: 0, code: "INSUFFICIENT_CREDITS" },
-      { status: 402 }
+    const rawBody = await request.json().catch(() => ({}));
+    const cleanBody = Object.fromEntries(
+      Object.entries(rawBody).filter(
+        ([, v]) => v !== "" && v !== null && v !== undefined && !(Array.isArray(v) && v.length === 0)
+      )
     );
-  }
+
+    const balance = await getWorkspaceCreditBalance(authRes.user.id);
+    const isNewSearch = !rawBody?.cursor;
+    const baseCost = isNewSearch ? CREDIT_COSTS.AD_SEARCH : 0;
+
+    if (balance && !balance.unlimited && baseCost > 0 && balance.creditsRemaining !== null && balance.creditsRemaining < baseCost) {
+      return NextResponse.json(
+        { error: "INSUFFICIENT_CREDITS", reason: "out_of_credits", creditsRemaining: balance.creditsRemaining, code: "INSUFFICIENT_CREDITS" },
+        { status: 402 }
+      );
+    }
 
   if (isSupabaseConfigured && !isPreviewMode) {
     // Already authenticated above
   } else if (isSupabaseConfigured && isPreviewMode) {
     // Already authenticated above
   }
-  const ip = request.headers.get("x-forwarded-for")?.split(",")[0] || "local";
-  const limit = rateLimit(`search:${ip}`, 40);
+  const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "local";
+  const rateLimitKey = authRes.user ? `search:${authRes.user.id}` : `search:ip:${ip}`;
+  const limit = await rateLimit(rateLimitKey, 40, 60_000, { policy: "fail-closed" });
   if (!limit.allowed) {
+    if (limit.source === "fail-closed") {
+      return NextResponse.json(
+        { error: "Search rate verification is temporarily unavailable. Please retry shortly.", code: "RATE_LIMIT_UNAVAILABLE" },
+        { status: 503, headers: { "Retry-After": String(limit.retryAfter || 5) } }
+      );
+    }
     return NextResponse.json(
       { error: "Too many searches. Please wait a moment.", code: "RATE_LIMITED" },
       { status: 429, headers: { "Retry-After": String(limit.retryAfter) } }
     );
   }
-
-  const rawBody = await request.json().catch(() => ({}));
-  const cleanBody = Object.fromEntries(
-    Object.entries(rawBody).filter(
-      ([, v]) => v !== "" && v !== null && v !== undefined && !(Array.isArray(v) && v.length === 0)
-    )
-  );
 
   const parsed = schema.safeParse(cleanBody);
   if (!parsed.success) {
@@ -118,7 +137,7 @@ export async function POST(request: NextRequest) {
   }
 
   const filters = normalizeDiscoverFilters(parsed.data);
-  
+
   // Prefer the existing catalog mapping over client navigation context.
   if (filters.brand && catalogClient) {
     const { data } = await catalogClient.from("ads").select("*")
@@ -134,7 +153,7 @@ export async function POST(request: NextRequest) {
   } else if (filters.query) {
     resolvedIntent = { type: "keyword", query: filters.query };
   }
-  
+
   // Sort array fields for stable cache key
   const normalizedFilters = { ...filters };
   if (normalizedFilters.platforms) normalizedFilters.platforms.sort();
@@ -144,16 +163,33 @@ export async function POST(request: NextRequest) {
   if (normalizedFilters.languages) normalizedFilters.languages.sort();
   if (normalizedFilters.niches) normalizedFilters.niches.sort();
   if (normalizedFilters.contentStyles) normalizedFilters.contentStyles.sort();
-  
-  const key = JSON.stringify(normalizedFilters);
-  const isDefaultDiscoverFeed = !filters.query && !filters.brand;
-  const cached = cache.get(key);
-  if (!isDefaultDiscoverFeed && cached && cached.expires > Date.now()) {
-    return NextResponse.json({ ...cached.payload, requestId, source: "cache" }, {
-      headers: { "Cache-Control": "no-store" }
-    });
-  }
-  if (cached) cache.delete(key);
+
+  const sessionId = parsed.data.sessionId || requestId;
+
+  const searchFingerprint = crypto.createHash("sha256").update(
+    (filters.brand ? "BRAND:" : "SEARCH:") +
+    (filters.query || "") + ":" +
+    JSON.stringify({
+      brand: filters.brand,
+      platforms: normalizedFilters.platforms,
+      sort: normalizedFilters.sort,
+      formats: normalizedFilters.formats,
+      statuses: normalizedFilters.statuses,
+      markets: normalizedFilters.markets,
+      languages: normalizedFilters.languages,
+      niches: normalizedFilters.niches,
+      contentStyles: normalizedFilters.contentStyles,
+      country: normalizedFilters.country,
+      mediaType: normalizedFilters.mediaType,
+      status: normalizedFilters.status,
+      cta: normalizedFilters.cta,
+      runtime: normalizedFilters.runtime,
+      startDate: normalizedFilters.startDate,
+      endDate: normalizedFilters.endDate
+    })
+  ).digest("hex");
+
+  const providerRequestKey = JSON.stringify(normalizedFilters);
 
   let payload: AdSearchResult | null = null;
 
@@ -177,13 +213,13 @@ export async function POST(request: NextRequest) {
           query = query.not("advertiser_name", "is", null).neq("advertiser_name", "");
         }
         if (filters.selectedBrand) query = query.in("source", filters.selectedBrand.provider === "meta" ? ["meta", "meta_official", "searchapi", "metaapi_io"] : ["foreplay"]);
-        
+
         // Apply Plural filters
         if (filters.formats?.length) query = query.in("media_type", filters.formats);
         if (filters.statuses?.length) query = query.in("status", filters.statuses);
         if (filters.markets?.length) query = query.in("country", filters.markets);
         if (filters.platforms?.length) query = query.contains("platforms", filters.platforms);
-        
+
         // Legacy singular filters
         if (filters.status && filters.status !== "all" && !filters.statuses?.length) query = query.eq("status", filters.status);
         if (filters.mediaType && filters.mediaType !== "all" && !filters.formats?.length) query = query.eq("media_type", filters.mediaType);
@@ -194,7 +230,7 @@ export async function POST(request: NextRequest) {
           if (filters.runtime.minDays !== undefined) query = query.gte("running_days", filters.runtime.minDays);
           if (filters.runtime.maxDays !== undefined) query = query.lte("running_days", filters.runtime.maxDays);
         }
-        
+
         // Determine pagination
         const limit = 30;
         const offset = filters.cursor ? parseInt(filters.cursor, 10) : 0;
@@ -216,8 +252,8 @@ export async function POST(request: NextRequest) {
         } else {
           // "relevant" - use a seeded pseudo-random sort for variety if it's a brand profile, otherwise newest
           if (filters.brand) {
-            // Postgres lacks a simple seeded random for string IDs without extension, 
-            // but we can sort by last_seen_at DESC as a stable proxy, 
+            // Postgres lacks a simple seeded random for string IDs without extension,
+            // but we can sort by last_seen_at DESC as a stable proxy,
             // or simply canonical_ad_id for stability.
             // A more varied feed can be simulated by ordering by start_date DESC.
             query = query.order("start_date", { ascending: false, nullsFirst: false });
@@ -233,11 +269,11 @@ export async function POST(request: NextRequest) {
         if (defaultFeed && !filters.cursor && !hasActiveFilters) {
           const { count } = await catalogClient!.from("ads").select("id", { count: "exact", head: true })
             .not("advertiser_name", "is", null).neq("advertiser_name", "");
-          const maxStart = Math.max(0, (count || 0) - 1000);
+          const maxStart = Math.max(0, (count || 0) - DEFAULT_FEED_SAMPLE_SIZE);
           rangeStart = maxStart > 0 ? Math.floor(Math.random() * maxStart) : 0;
-          rangeEnd = rangeStart + 999;
+          rangeEnd = rangeStart + DEFAULT_FEED_SAMPLE_SIZE - 1;
         } else if (defaultFeed) {
-          rangeEnd = offset + 999;
+          rangeEnd = offset + DEFAULT_FEED_SAMPLE_SIZE - 1;
         }
         query = query.range(rangeStart, rangeEnd);
 
@@ -245,48 +281,27 @@ export async function POST(request: NextRequest) {
 
         if (!error && data) {
           const sampleRows = data;
-          if (defaultFeed && !filters.cursor && !hasActiveFilters && sampleRows.length) {
-            const seen = new Set(sampleRows.map(row => row.canonical_ad_id || row.id));
-            const { count } = await catalogClient!.from("ads").select("id", { count: "exact", head: true })
-              .not("advertiser_name", "is", null).neq("advertiser_name", "");
-            const maxStart = Math.max(0, (count || 0) - 120);
-            for (let i = 0; i < 8 && sampleRows.length < 1000; i++) {
-              const start = maxStart > 0 ? Math.floor(Math.random() * maxStart) : 0;
-              const { data: extra } = await catalogClient!.from("ads").select("*")
-                .not("advertiser_name", "is", null).neq("advertiser_name", "")
-                .order("last_seen_at", { ascending: false })
-                .order("canonical_ad_id", { ascending: true })
-                .range(start, start + 119);
-              for (const row of extra || []) {
-                const id = row.canonical_ad_id || row.id;
-                if (!seen.has(id)) {
-                  seen.add(id);
-                  sampleRows.push(row);
-                }
-            }
-            }
-          }
           const hasMore = sampleRows.length > limit;
           const sourceData = defaultFeed
             ? takeDefaultFeed(sampleRows, limit, filters)
             : (hasMore ? data.slice(0, limit) : data).map(dbAdToNormalized);
           const renderableSourceData = sourceData.filter(hasRenderableMedia);
           const pagedData = hasMore ? data.slice(0, limit) : data;
-          
+
           const canonical = data.map(brandFromRow).filter((brand): brand is NonNullable<typeof brand> => Boolean(brand));
           const ads = ensureWinnerScores(resolveAdIdentities(renderableSourceData, canonical, filters.selectedBrand, filters.brand));
-          
+
           // No longer deduplicating aggressively by ad.id because canonical_ad_id is unique per creative variant.
           // The UI will group them if needed, but the search API returns all variants.
-          
+
           const nextOffset = offset + limit;
           const nextCursor = hasMore ? nextOffset.toString() : null;
-          
+
           if (ads.length || filters.source === "competitor" || filters.cursor) payload = {
-            ads: adsForClient(ads), 
-            nextCursor, 
+            ads: adsForClient(ads),
+            nextCursor,
             total: defaultFeed ? ads.length : pagedData.length,
-            source: "catalog" 
+            source: "catalog"
           };
         } else if (filters.source === "competitor") {
           // Force empty payload if competitor has no ads, bypassing provider fallback
@@ -299,7 +314,7 @@ export async function POST(request: NextRequest) {
 
     // 2. Call provider if not satisfied by preloaded cache (e.g. we have a search query)
     const hasLiveSearchIntent = Boolean(filters.query?.trim() || filters.brand);
-    
+
     let canUseProvider = false;
     let capabilityMismatch = false;
     try {
@@ -310,18 +325,18 @@ export async function POST(request: NextRequest) {
     } catch {
       capabilityMismatch = true;
     }
-    
+
     if (!payload && isSupabaseConfigured && filters.source !== "competitor" && hasLiveSearchIntent && canUseProvider) {
       const { getToken } = await auth();
       const token = await getToken();
-      
+
       if (token) {
         const env = getServerEnv();
         const functionUrl = `${env.supabaseUrl}/functions/v1/ads-search`;
         let providerError: unknown = null;
-        
+
         try {
-          const requestKey = `edge:${key}`;
+          const requestKey = `edge:${providerRequestKey}`;
           let pending = inFlight.get(requestKey);
           if (!pending) {
             const edgePayload = { ...filters, requestId };
@@ -340,10 +355,10 @@ export async function POST(request: NextRequest) {
               }
               return res.json() as Promise<AdSearchResult>;
             }).finally(() => inFlight.delete(requestKey));
-            
+
             inFlight.set(requestKey, pending);
           }
-          
+
           const result = await pending;
           const ids = [...new Set(result.ads.map(ad => ad.advertiser?.id).filter((id): id is string => Boolean(id)))];
           const { data: mappings } = ids.length
@@ -351,7 +366,7 @@ export async function POST(request: NextRequest) {
             : { data: [] };
           const canonical = (mappings || []).map(brandFromRow).filter((b): b is NonNullable<typeof b> => Boolean(b));
           result.ads = ensureWinnerScores(resolveAdIdentities(result.ads, canonical, filters.selectedBrand, filters.brand));
-          
+
             if (result && result.ads && result.ads.length > 0) {
               // Note: We no longer deduplicate by ad.id blindly here.
               // We rely on canonical_ad_id which already encapsulates unique creatives.
@@ -363,7 +378,7 @@ export async function POST(request: NextRequest) {
                 }
               }
               result.ads = Array.from(dedupMap.values());
-            
+
             const adsToArchive = result.ads;
             // Complete identity persistence before responding so immediate refresh is consistent.
             const persistence = await persistNormalizedAds(adsToArchive);
@@ -395,7 +410,7 @@ export async function POST(request: NextRequest) {
           else if (capabilityMismatch) console.info(`[AdsSearch][requestId=${requestId}] Using local corpus due to provider capability mismatch`);
           try {
             let query = catalogClient!.from("ads").select("*", { count: "exact" });
-            
+
             if (filters.brand) {
               query = query.eq("advertiser_id", filters.selectedBrand?.providerAdvertiserId || filters.brand);
             } else if (filters.query) {
@@ -407,14 +422,14 @@ export async function POST(request: NextRequest) {
             if (filters.statuses?.length) query = query.in("status", filters.statuses);
             if (filters.markets?.length) query = query.in("country", filters.markets);
             if (filters.platforms?.length) query = query.contains("platforms", filters.platforms);
-            
+
             if (filters.status && filters.status !== "all" && !filters.statuses?.length) query = query.eq("status", filters.status);
             if (filters.mediaType && filters.mediaType !== "all" && !filters.formats?.length) query = query.eq("media_type", filters.mediaType);
             if (filters.country && filters.country !== "ALL" && !filters.markets?.length) query = query.eq("country", filters.country);
             if (filters.cta) query = query.ilike("cta", `%${filters.cta}%`);
 
             query = query.order("last_seen_at", { ascending: false }).limit(25);
-            
+
             const offset = filters.cursor ? parseInt(filters.cursor, 10) : 0;
             if (offset > 0) {
               query = query.range(offset, offset + 24);
@@ -426,10 +441,10 @@ export async function POST(request: NextRequest) {
               const resolved = ensureWinnerScores(resolveAdIdentities(data.map(dbAdToNormalized).filter(hasRenderableMedia), canonical, filters.selectedBrand, filters.brand));
               const deduplicated = Array.from(new Map(resolved.map(ad => [ad.id, ad])).values());
               if (deduplicated.length) {
-                payload = { 
-                  ads: adsForClient(deduplicated), 
-                  nextCursor: data.length === 25 ? (offset + 25).toString() : null, 
-                  total: data.length, 
+                payload = {
+                  ads: adsForClient(deduplicated),
+                  nextCursor: data.length === 25 ? (offset + 25).toString() : null,
+                  total: data.length,
                   source: "cache",
                   stale: true,
                   degraded: true,
@@ -441,7 +456,7 @@ export async function POST(request: NextRequest) {
             console.error(`[AdsSearch][requestId=${requestId}] Cache fallback error:`, cacheErr);
           }
         }
-        
+
         if (!payload && providerError) {
           throw providerError;
         }
@@ -452,7 +467,6 @@ export async function POST(request: NextRequest) {
       payload.ads = ensureWinnerScores(resolveAdIdentities(payload.ads, [], filters.selectedBrand, filters.brand));
       payload.ads = await signArchivedAdMedia(payload.ads);
       payload.brand = filters.selectedBrand;
-      if (!isDefaultDiscoverFeed) cache.set(key, { expires: Date.now() + 60_000, payload });
       payload.resolvedIntent = resolvedIntent;
       payload.requestId = requestId;
 
@@ -476,19 +490,68 @@ export async function POST(request: NextRequest) {
         });
       }
 
-      return NextResponse.json(payload, { headers: { "Cache-Control": "no-store" } });
+      let finalCredits = null;
+      if (payload && payload.ads && filters.source !== "competitor") {
+        const deliveryAdIds = payload.ads.map(ad => (ad as { canonical_ad_id?: string; id: string }).canonical_ad_id || ad.id).filter((id): id is string => Boolean(id));
+        const usageResult = await consumeUsage(
+          authRes.user.id,
+          authRes.user.id,
+          sessionId,
+          isNewSearch ? (filters.brand ? "BRAND_SEARCH" : "AD_SEARCH") : null,
+          isNewSearch ? searchFingerprint : null,
+          baseCost,
+          "AD_DELIVERED",
+          deliveryAdIds,
+          CREDIT_COSTS.AD_DELIVERED
+        );
+
+        if (usageResult && usageResult.success && !usageResult.unlimited) {
+          if (usageResult.baseCharged === false && baseCost > 0 && usageResult.creditsRemaining !== undefined && usageResult.creditsRemaining < baseCost) {
+            return NextResponse.json(
+              { error: "INSUFFICIENT_CREDITS", reason: "out_of_credits_concurrent", code: "INSUFFICIENT_CREDITS" },
+              { status: 402 }
+            );
+          }
+
+          const acceptedIds = new Set(usageResult.acceptedAdIds || []);
+          payload.ads = payload.ads.filter(ad => acceptedIds.has((ad as { canonical_ad_id?: string; id: string }).canonical_ad_id || ad.id));
+
+          finalCredits = {
+            unlimited: false,
+            allocated: usageResult.creditsAllocated,
+            used: usageResult.creditsUsed,
+            remaining: usageResult.creditsRemaining,
+            chargedThisRequest: usageResult.creditsChargedThisRequest
+          };
+        } else if (usageResult && usageResult.unlimited) {
+          finalCredits = {
+            unlimited: true,
+            allocated: null,
+            used: null,
+            remaining: null,
+            chargedThisRequest: 0
+          };
+        }
+      }
+
+      if (finalCredits) {
+        payload.credits = finalCredits;
+      }
+      payload.sessionId = sessionId;
+
+      return searchResponse(payload, requestId, startedAt, { headers: { "Cache-Control": "no-store" } });
     }
 
-    payload = { ads: [], nextCursor: null, total: 0, source: "catalog", brand: filters.selectedBrand, resolvedIntent, requestId };
-    if (!isDefaultDiscoverFeed) cache.set(key, { expires: Date.now() + 30_000, payload });
-    if (cache.size > 200) cache.delete(cache.keys().next().value as string);
-    return NextResponse.json(payload, { headers: { "Cache-Control": "no-store" } });
+    payload = { ads: [], nextCursor: null, total: 0, source: "catalog", brand: filters.selectedBrand, resolvedIntent, requestId, sessionId };
+    return searchResponse(payload, requestId, startedAt, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     if (error instanceof ProviderError) {
-      return NextResponse.json({ success: false, code: error.code, message: error.message, requestId, retryable: error.status >= 500 || error.status === 429 || error.status === 408 }, { status: error.status });
+      return searchResponse({ success: false, code: error.code, message: error.message, requestId, retryable: error.status >= 500 || error.status === 429 || error.status === 408 }, requestId, startedAt, { status: error.status });
     }
-    return NextResponse.json(
+    return searchResponse(
       { success: false, code: "SEARCH_UNAVAILABLE", message: "Search is temporarily unavailable.", requestId, retryable: true },
+      requestId,
+      startedAt,
       { status: 502 }
     );
   }

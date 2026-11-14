@@ -47,10 +47,17 @@ export async function getWorkspaceUsage(workspaceId: string): Promise<WorkspaceU
   };
 }
 
+export const CREDIT_COSTS = {
+  AD_SEARCH: 15,
+  BRAND_SEARCH: 15,
+  AD_DELIVERED: 10,
+};
+
 export interface WorkspaceCreditBalance {
-  creditsAllocated: number;
-  creditsUsed: number;
-  creditsRemaining: number;
+  unlimited: boolean;
+  creditsAllocated: number | null;
+  creditsUsed: number | null;
+  creditsRemaining: number | null;
   cycleStart: string | null;
   cycleEnd: string | null;
 }
@@ -62,19 +69,10 @@ export async function getWorkspaceCreditBalance(workspaceId: string): Promise<Wo
   const isOwner = await isPlatformOwner(workspaceId);
   if (isOwner) {
     return {
-      creditsAllocated: 999999999,
-      creditsUsed: 0,
-      creditsRemaining: 999999999,
-      cycleStart: null,
-      cycleEnd: null,
-    };
-  }
-
-  if (process.env.EARLY_ACCESS_BYPASS === "true") {
-    return {
-      creditsAllocated: 999999999,
-      creditsUsed: 0,
-      creditsRemaining: 999999999,
+      unlimited: true,
+      creditsAllocated: null,
+      creditsUsed: null,
+      creditsRemaining: null,
       cycleStart: null,
       cycleEnd: null,
     };
@@ -93,47 +91,119 @@ export async function getWorkspaceCreditBalance(workspaceId: string): Promise<Wo
     .maybeSingle();
 
   if (error || !data) {
-    // Attempt lazy reconciliation if they have an active entitlement but no balance row.
     const entitlement = await getWorkspaceEntitlement(workspaceId);
-    if (entitlement.accessSource === "early_access") return null;
-    if (entitlement.hasAccess) {
-      const cycleStart = now;
-      const cycleEnd = entitlement.currentPeriodEnd 
-        ? entitlement.currentPeriodEnd 
-        : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
-        
-      const { data: newRow, error: insertError } = await admin
-        .from("workspace_credit_balances")
-        .insert({
-          workspace_id: workspaceId,
-          cycle_start: cycleStart,
-          cycle_end: cycleEnd,
-          credits_allocated: 10000,
-          credits_used: 0,
-        })
-        .select("*")
-        .single();
-        
-      if (!insertError && newRow) {
-        return {
-          creditsAllocated: Number(newRow.credits_allocated),
-          creditsUsed: Number(newRow.credits_used),
-          creditsRemaining: Math.max(0, Number(newRow.credits_allocated) - Number(newRow.credits_used)),
-          cycleStart: newRow.cycle_start,
-          cycleEnd: newRow.cycle_end,
-        };
+    if (!entitlement.hasAccess) return null;
+
+    if (entitlement.accessSource === "early_access") {
+      // Reconcile missing early access balance row using original successful payment
+      const { data: payment } = await admin
+        .from("billing_payments")
+        .select("id, provider, provider_order_id, provider_payment_id, paid_at")
+        .eq("workspace_id", workspaceId)
+        .eq("payment_type", "early_access")
+        .eq("status", "paid")
+        .maybeSingle();
+
+      if (payment && payment.provider_order_id && payment.provider_payment_id) {
+        const { data: reconciled, error: reconError } = await admin.rpc("finalize_early_access_purchase", {
+          p_workspace_id: workspaceId,
+          p_provider: payment.provider,
+          p_order_id: payment.provider_order_id,
+          p_payment_id: payment.provider_payment_id,
+          p_paid_at: payment.paid_at || now,
+        });
+
+        if (!reconError && reconciled) {
+          // Fetch the newly reconciled balance
+          const { data: newBalance } = await admin
+            .from("workspace_credit_balances")
+            .select("*")
+            .eq("workspace_id", workspaceId)
+            .gt("cycle_end", now)
+            .order("cycle_start", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+          if (newBalance) {
+             return {
+              unlimited: false,
+              creditsAllocated: Number(newBalance.credits_allocated),
+              creditsUsed: Number(newBalance.credits_used),
+              creditsRemaining: Math.max(0, Number(newBalance.credits_allocated) - Number(newBalance.credits_used)),
+              cycleStart: newBalance.cycle_start,
+              cycleEnd: newBalance.cycle_end,
+            };
+          }
+        }
       }
+
+      // If we reach here, we know they have early_access entitlement but the ledger cannot prove it.
+      // Do NOT silently return 0 used / 3000 allocated.
+      console.error(`[Billing] Missing credit balance row for paid workspace ${workspaceId}. Reconciliation failed.`);
+      return null;
     }
+
+    // Non-early-access paid plans without a balance row.
+    // In the future this handles subscriptions. For now we return null.
     return null;
   }
 
   const creditsRemaining = Math.max(0, Number(data.credits_allocated) - Number(data.credits_used));
 
   return {
+    unlimited: false,
     creditsAllocated: Number(data.credits_allocated),
     creditsUsed: Number(data.credits_used),
     creditsRemaining,
     cycleStart: data.cycle_start,
     cycleEnd: data.cycle_end,
   };
+}
+
+export async function consumeUsage(
+  workspaceId: string,
+  userId: string,
+  sessionId: string,
+  baseEventType: "AD_SEARCH" | "BRAND_SEARCH" | null,
+  baseFingerprint: string | null,
+  baseCost: number,
+  deliveryEventType: "AD_DELIVERED" | null,
+  deliveryAdIds: string[],
+  deliveryCostPerAd: number
+) {
+  const isOwner = await isPlatformOwner(workspaceId);
+  if (isOwner) {
+    return {
+      success: true,
+      unlimited: true,
+      baseCharged: false,
+      creditsChargedThisRequest: 0,
+      acceptedAdIds: deliveryAdIds,
+      creditsRemaining: null,
+      creditsAllocated: null,
+      creditsUsed: null,
+      exhausted: false
+    };
+  }
+
+  const admin = createAdminClient();
+  const { data, error } = await admin.rpc("report_search_and_delivery_usage", {
+    p_workspace_id: workspaceId,
+    p_user_id: userId,
+    p_search_session_id: sessionId,
+    p_base_event_type: baseEventType,
+    p_base_fingerprint: baseFingerprint,
+    p_base_cost: baseCost,
+    p_delivery_event_type: deliveryEventType,
+    p_delivery_ad_ids: deliveryAdIds,
+    p_delivery_cost: deliveryCostPerAd,
+    p_metadata: {}
+  });
+
+  if (error) {
+    console.error("[Usage] RPC error consuming credits:", error);
+    return { success: false, error: "RPC_ERROR" };
+  }
+
+  return { ...data, unlimited: false };
 }

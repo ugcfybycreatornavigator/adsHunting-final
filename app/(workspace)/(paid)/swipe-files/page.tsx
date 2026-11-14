@@ -29,11 +29,14 @@ function SwipeFilesSkeleton() {
 
 async function SwipeFilesLoader() {
   const { userId, supabase } = await requireUser();
-  if (!userId || !supabase) redirect("/login");
+  if (!userId || !supabase) redirect("/sign-in");
 
   const files = await getSwipeFiles(supabase, userId);
-  // Do not show the system folder (Saved Ads) in the user-created folders list, this matches the API logic
-  const initialData = files.filter(f => !f.isSystem);
+  // Unify creative library: show default collection (Saved Ads) first, then custom folders
+  const initialData = [
+    ...files.filter(f => f.isSystem),
+    ...files.filter(f => !f.isSystem),
+  ];
 
   return <SwipeFilesManager initialData={initialData} />;
 }

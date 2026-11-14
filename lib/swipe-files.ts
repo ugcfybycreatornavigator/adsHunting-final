@@ -61,7 +61,7 @@ export async function ensureDefaultSwipeFile(supabase: SupabaseClient, userId: s
     .select("id")
     .eq("user_id", userId)
     .eq("system_key", "saved_ads")
-    .single();
+    .maybeSingle();
 
   if (retryError || !retry?.id) {
     if (retryError) logSwipeFileError(retryError, "ensureDefaultSwipeFile.retry");

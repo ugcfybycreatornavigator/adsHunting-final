@@ -291,7 +291,7 @@ export function HeroSection() {
                   e.currentTarget.style.boxShadow = '0 1px 3px rgba(94,169,32,0.18), 0 4px 12px rgba(94,169,32,0.10)';
                 }}
               >
-                Start 7-Day Free Trial
+                Get Early Access
                 <ArrowRight size={18} strokeWidth={2.5} className="ml-2 transition-transform duration-200 group-hover:translate-x-[3px]" />
               </Link>
 

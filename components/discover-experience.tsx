@@ -2,7 +2,9 @@
 import { apiFetch } from "@/lib/api-client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, Filter, History, Loader2, RefreshCw, Search, X } from "lucide-react";
+import { ChevronDown, Filter, Grid2X2, List, Loader2, RefreshCw, Search, X } from "lucide-react";
+import { useUser } from "@clerk/nextjs";
+import { historyStorageKey, recentTerms } from "@/lib/search-suggestions";
 import { AdCard } from "@/components/ad-card";
 import { BrandCard } from "@/components/brand-card";
 import { AdDetailDrawer } from "@/components/ad-detail";
@@ -22,6 +24,10 @@ const countries = [["ALL", "All countries"], ["IN", "India"], ["US", "United Sta
 const defaults: AdSearchFilters = { query: "", status: "all", country: "ALL", platforms: [], mediaType: "all", cta: "", duration: "", startDate: "", endDate: "" };
 
 export function DiscoverExperience({ brandId, hideHeader = false }: { brandId?: string, hideHeader?: boolean }) {
+  const { user } = useUser();
+  const accountId = user?.id;
+  const accountRef = useRef(accountId);
+  const [historyOwner, setHistoryOwner] = useState<string | undefined>(undefined);
   const defaultFilters = useMemo(() => ({ ...defaults, brand: brandId }), [brandId]);
   const { filters, updateFilters: setFilters, clearFilters } = useUrlFilters(defaultFilters, { syncUrl: !hideHeader, readUrl: !hideHeader });
   const [ads, setAds] = useState<NormalizedAd[]>([]);
@@ -39,19 +45,24 @@ export function DiscoverExperience({ brandId, hideHeader = false }: { brandId?: 
   const [shareAdId, setShareAdId] = useState<string | null>(null);
   const [draftQuery, setDraftQuery] = useState(filters.query || "");
   const [sort, setSort] = useState("relevant");
+  const [layout, setLayout] = useState<"grid" | "list">("grid");
   const [history, setHistory] = useState<string[]>([]);
   const [savedAdIds, setSavedAdIds] = useState<Set<string>>(new Set());
   const [adCollectionIds, setAdCollectionIds] = useState<Record<string, string[]>>({});
   const [toast, setToast] = useState<{ message: string; tone?: "success" | "error" } | null>(null);
   const [deepLinkedAdId, setDeepLinkedAdId] = useState<string | null>(null);
   const requestController = useRef<AbortController | null>(null);
+  const searchSessionIdRef = useRef<string | null>(null);
 
   useEffect(() => {
-    try { setHistory(JSON.parse(localStorage.getItem("signal-search-history") || "[]")); } catch { }
+    accountRef.current = accountId;
+    setHistoryOwner(accountId);
+    setHistory([]);
+    try { if (accountId) setHistory(recentTerms(JSON.parse(localStorage.getItem(historyStorageKey(accountId)) || "[]"))); } catch { }
     if (typeof window !== "undefined") {
       setDeepLinkedAdId(new URLSearchParams(window.location.search).get("ad"));
     }
-  }, []);
+  }, [accountId]);
 
   useEffect(() => {
     let active = true;
@@ -86,19 +97,34 @@ export function DiscoverExperience({ brandId, hideHeader = false }: { brandId?: 
   }, [toast]);
 
   const search = useCallback(async (nextFilters: AdSearchFilters, append = false) => {
-    if (!append) requestController.current?.abort();
+    const searchAccount = accountRef.current;
+    if (!append) {
+      requestController.current?.abort();
+      searchSessionIdRef.current = typeof crypto !== "undefined" && crypto.randomUUID
+        ? crypto.randomUUID()
+        : `sess_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    }
     const controller = new AbortController();
     requestController.current = controller;
+    let timedOut = false;
+    const timeoutId = window.setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, 35_000);
 
     if (append) setLoadingMore(true);
     else setLoading(true);
     setError(null);
 
     try {
+      const sessionId = nextFilters.sessionId || searchSessionIdRef.current || undefined;
       const response = await apiFetch("/api/search", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(nextFilters),
+        body: JSON.stringify({
+          ...nextFilters,
+          sessionId,
+        }),
         signal: controller.signal,
       });
 
@@ -115,6 +141,12 @@ export function DiscoverExperience({ brandId, hideHeader = false }: { brandId?: 
         throw { message: data.message || data.error || "Search failed.", code: data.code };
       }
       const result = data as AdSearchResult;
+
+      if (requestController.current !== controller) return;
+
+      if (result.sessionId) {
+        searchSessionIdRef.current = result.sessionId;
+      }
 
       if (result.degraded) {
         setToast({ message: "Showing recently indexed results." });
@@ -136,16 +168,26 @@ export function DiscoverExperience({ brandId, hideHeader = false }: { brandId?: 
       setCursor(result.nextCursor);
       setTotal(result.total);
 
-      if (nextFilters.query?.trim() || result.resolvedIntent?.type === "advertiser") {
+      if (searchAccount && searchAccount === accountRef.current && (nextFilters.query?.trim() || result.resolvedIntent?.type === "advertiser")) {
         const queryToSave = result.resolvedIntent?.type === "advertiser" ? result.resolvedIntent.advertiserName : nextFilters.query!.trim();
         setHistory(current => {
-          const updated = [queryToSave, ...current.filter(item => item.toLowerCase() !== queryToSave.toLowerCase())].slice(0, 6);
-          localStorage.setItem("signal-search-history", JSON.stringify(updated));
+          const updated = recentTerms([queryToSave, ...current]);
+          try { localStorage.setItem(historyStorageKey(searchAccount), JSON.stringify(updated)); } catch { }
           return updated;
         });
       }
     } catch (err: unknown) {
-      if (err instanceof DOMException && err.name === "AbortError") return;
+      if (requestController.current !== controller) return;
+      if (err instanceof DOMException && err.name === "AbortError" && !timedOut) return;
+      if (timedOut) {
+        setError({ message: "Search took too long. Please retry.", code: "SEARCH_TIMEOUT" });
+        if (!append) {
+          setAds([]);
+          setCursor(null);
+          setTotal(null);
+        }
+        return;
+      }
       const errorObj = typeof err === "object" && err !== null && "message" in err ? (err as { message: string; code?: string }) : { message: "Search is temporarily unavailable." };
       setError(errorObj);
       if (!append) {
@@ -154,6 +196,7 @@ export function DiscoverExperience({ brandId, hideHeader = false }: { brandId?: 
         setTotal(null);
       }
     } finally {
+      window.clearTimeout(timeoutId);
       if (requestController.current === controller) {
         setLoading(false);
         setLoadingMore(false);
@@ -179,6 +222,7 @@ export function DiscoverExperience({ brandId, hideHeader = false }: { brandId?: 
       });
       const data = await response.json();
       if (!response.ok) throw { message: data.error || "Failed to search brands" };
+      if (searchBrandsController.current !== controller) return;
       setBrands(data.brands || []);
     } catch (err: unknown) {
       if (err instanceof DOMException && err.name === "AbortError") return;
@@ -307,11 +351,7 @@ export function DiscoverExperience({ brandId, hideHeader = false }: { brandId?: 
   }
 
   function clearAllFilters() {
-    clearFilters();
-  }
-
-  function update<K extends keyof AdSearchFilters>(key: K, value: AdSearchFilters[K]) {
-    setFilters({ [key]: value });
+    setFilters({ ...defaults, query: filters.query, brand: filters.brand, selectedBrand: filters.selectedBrand, view: filters.view, formats: [], statuses: [], markets: [], languages: [], niches: [], contentStyles: [], runtime: undefined, videoLength: undefined });
   }
 
   async function saveAd(ad: NormalizedAd) {
@@ -389,16 +429,23 @@ export function DiscoverExperience({ brandId, hideHeader = false }: { brandId?: 
       )}
 
       {/* Sticky Toolbar */}
-      <div className="sticky top-0 z-30 mb-8 bg-white/85 pb-4 pt-4 backdrop-blur-xl border-b border-zinc-200/80">
+      <div className="sticky top-0 z-30 mb-8 border-b border-zinc-200/70 bg-white/90 pb-4 pt-4 backdrop-blur-xl">
         <div className="flex flex-col gap-4">
           {!hideHeader && (
-            <div className="relative">
+            <div className="relative flex items-center rounded-[26px] border border-zinc-200/80 bg-white p-1.5 shadow-[0_12px_35px_rgba(15,23,42,0.10)] transition focus-within:border-emerald-300 focus-within:shadow-[0_12px_35px_rgba(15,23,42,0.10),0_0_0_3px_rgba(5,150,105,0.10)]">
               <SearchAutocomplete
+                key={accountId || "signed-out"}
+                accountKey={accountId}
+                history={historyOwner === accountId ? history : []}
+                onHistoryChange={(next) => {
+                  setHistory(next);
+                  try { if (accountId) localStorage.setItem(historyStorageKey(accountId), JSON.stringify(next)); } catch { }
+                }}
                 placeholder={isBrandsView ? "Search brands..." : "Search competitor ads, brands, products or keywords..."}
                 value={draftQuery}
                 onChange={setDraftQuery}
                 onSubmit={(val) => {
-                  setFilters({ query: val, brand: undefined }, false);
+                  setFilters({ query: val, brand: undefined, selectedBrand: undefined }, false);
                 }}
                 onSelectBrand={(suggestion) => {
                   setFilters({ query: suggestion.label, brand: suggestion.id, selectedBrand: suggestion.brand });
@@ -414,56 +461,61 @@ export function DiscoverExperience({ brandId, hideHeader = false }: { brandId?: 
                 }}
                 onClear={() => {
                   setDraftQuery("");
-                  clearFilters(false);
                 }}
+                embedded
+                className="min-w-0 flex-1"
               />
-            </div>
-          )}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="flex flex-wrap items-center gap-2.5">
-              <AdvancedFilters filters={filters} updateFilters={setFilters} clearFilters={clearAllFilters} />
-              <SavedFiltersPopover filters={filters} updateFilters={setFilters} />
-            </div>
-            <div className="flex flex-wrap items-center gap-3">
-              <CompactSelect ariaLabel="Sort" value={sort} onChange={setSort} options={[["relevant", "Relevant"], ["newest", "Newest"], ["oldest", "Oldest"], ["longest", "Longest Running"], ["variations", "Variations"]]} />
-
-              {!hideHeader && (
-                <div className="flex items-center rounded-[10px] bg-zinc-100/80 p-[3px] shrink-0 h-9 border border-zinc-200/60 shadow-inner">
+              <div className="hidden shrink-0 items-center gap-1.5 border-l border-zinc-200 pl-2 pr-1 lg:flex">
+                <div className="flex items-center rounded-full bg-zinc-50 p-1">
                   <button
                     type="button"
                     onClick={() => setFilters({ view: "ads" })}
-                    className={cn("rounded-md px-4 py-1 text-[13px] font-semibold transition-all h-full", !isBrandsView ? "bg-white text-zinc-900 shadow-sm border border-zinc-200/50" : "text-zinc-500 hover:text-zinc-900")}
+                    className={cn("h-9 rounded-full px-4 text-[13px] font-semibold transition", !isBrandsView ? "bg-emerald-700 text-white shadow-sm" : "text-zinc-600 hover:bg-white")}
                   >
                     All Ads
                   </button>
                   <button
                     type="button"
                     onClick={() => setFilters({ view: "brands" })}
-                    className={cn("rounded-md px-4 py-1 text-[13px] font-semibold transition-all h-full", isBrandsView ? "bg-white text-zinc-900 shadow-sm border border-zinc-200/50" : "text-zinc-500 hover:text-zinc-900")}
+                    className={cn("h-9 rounded-full px-4 text-[13px] font-semibold transition", isBrandsView ? "bg-emerald-700 text-white shadow-sm" : "text-zinc-600 hover:bg-white")}
                   >
                     Brands
                   </button>
                 </div>
+                <SavedFiltersPopover filters={filters} updateFilters={setFilters} />
+                <AdvancedFilters filters={filters} updateFilters={setFilters} clearFilters={clearAllFilters} />
+              </div>
+            </div>
+          )}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-wrap items-center gap-2.5">
+              {!hideHeader && (
+                <div className="flex items-center rounded-full bg-emerald-50 p-1 lg:hidden">
+                  <button type="button" onClick={() => setFilters({ view: "ads" })} className={cn("h-9 rounded-full px-4 text-[13px] font-semibold", !isBrandsView ? "bg-emerald-700 text-white shadow-sm" : "text-zinc-600")}>All Ads</button>
+                  <button type="button" onClick={() => setFilters({ view: "brands" })} className={cn("h-9 rounded-full px-4 text-[13px] font-semibold", isBrandsView ? "bg-emerald-700 text-white shadow-sm" : "text-zinc-600")}>Brands</button>
+                </div>
               )}
+              <div className="flex items-center rounded-full border border-zinc-200 bg-white p-1 shadow-sm" role="group" aria-label="Display layout">
+                <button type="button" onClick={() => setLayout("grid")} aria-label="Grid view" aria-pressed={layout === "grid"} className={cn("flex h-8 items-center gap-2 rounded-full px-3 text-xs font-semibold transition", layout === "grid" ? "bg-emerald-100 text-emerald-800" : "text-zinc-400 hover:text-zinc-700")}><Grid2X2 size={14} /> Grid</button>
+                <button type="button" onClick={() => setLayout("list")} aria-label="List view" aria-pressed={layout === "list"} className={cn("flex h-8 items-center gap-2 rounded-full px-3 text-xs font-semibold transition", layout === "list" ? "bg-emerald-100 text-emerald-800" : "text-zinc-400 hover:text-zinc-700")}><List size={14} /> List</button>
+              </div>
+              <div className="flex items-center gap-2 lg:hidden">
+                <SavedFiltersPopover filters={filters} updateFilters={setFilters} />
+                <AdvancedFilters filters={filters} updateFilters={setFilters} clearFilters={clearAllFilters} />
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <CompactSelect ariaLabel="Sort" value={sort} onChange={setSort} options={[["relevant", "Most relevant"], ["newest", "Most recent"], ["oldest", "Oldest"], ["longest", "Longest running"], ["variations", "Most variations"]]} />
             </div>
           </div>
         </div>
 
 
 
-        {!filters.query && history.length > 0 && (
-          <div className="mt-3 flex items-center gap-2 overflow-x-auto pb-0.5 scrollbar-none">
-            <History size={13} className="shrink-0 text-zinc-400" />
-            {history.map(item => (
-              <button key={item} onClick={() => update("query", item)} className="shrink-0 rounded-full bg-zinc-50 border border-line px-3 py-1 text-xs font-medium text-muted hover:text-ink">
-                {item}
-              </button>
-            ))}
-            <button onClick={() => { localStorage.removeItem("signal-search-history"); setHistory([]); }} className="shrink-0 px-2 text-[11px] text-zinc-400 hover:text-signal">
-              Clear
-            </button>
-          </div>
-        )}
+        {filters.query && <div className="mt-3 flex items-center gap-2 text-xs text-zinc-500">
+          <span>{filters.brand ? "Applied brand" : "Current search"}: {filters.query}</span>
+          <button type="button" className="min-h-11 px-2 underline" onClick={() => { setDraftQuery(""); setFilters({ query: "", brand: undefined, selectedBrand: undefined }); }}>Clear search</button>
+        </div>}
 
         {activeChips.length > 0 && (
           <div className="mt-4 flex flex-wrap items-center gap-2 pb-1">
@@ -489,8 +541,8 @@ export function DiscoverExperience({ brandId, hideHeader = false }: { brandId?: 
           ) : brands.length === 0 && !brandsLoading ? (
             <EmptyState title="No brands found" body="Try searching for another brand name." />
           ) : (
-            <div className={cn(brandGridClass(), brandsLoading && "opacity-60 transition-opacity")}>
-              {brands.map(brand => <BrandCard key={brand.id} brand={brand} />)}
+            <div className={cn(layout === "grid" ? brandGridClass() : "grid grid-cols-1 gap-3", brandsLoading && "opacity-60 transition-opacity")}>
+              {brands.map(brand => <BrandCard key={brand.id} brand={brand} layout={layout} />)}
             </div>
           )
         ) : (
@@ -502,7 +554,10 @@ export function DiscoverExperience({ brandId, hideHeader = false }: { brandId?: 
               title={error.code === "PROVIDER_NOT_CONFIGURED" ? "No Ads Provider Configured" : error.code === "PROVIDER_UNAVAILABLE" ? "All Ad Providers Unavailable" : "Search Temporarily Unavailable"}
               body={error.message}
               action={
-                <Button variant="secondary" onClick={() => search(filters)}>
+                <Button
+                  variant="secondary"
+                  onClick={() => search({ ...filters, sessionId: searchSessionIdRef.current || undefined })}
+                >
                   <RefreshCw size={15} /> Retry search
                 </Button>
               }
@@ -535,7 +590,7 @@ export function DiscoverExperience({ brandId, hideHeader = false }: { brandId?: 
               }
             />
           ) : (
-            <div className={cn(gridClass(), loading && !loadingMore && "opacity-60 transition-opacity")}>
+            <div className={cn(layout === "grid" ? gridClass() : "grid grid-cols-1 gap-3", loading && !loadingMore && "opacity-60 transition-opacity")}>
               {displayedAds.map(ad => (
                 <AdCard
                   key={ad.id}
@@ -547,6 +602,7 @@ export function DiscoverExperience({ brandId, hideHeader = false }: { brandId?: 
                   onSave={() => saveAd(ad)}
                   onSwipeFileAdded={(result) => handleSwipeFileAdded(ad, result)}
                   onShare={() => shareAd(ad)}
+                  layout={layout}
                 />
               ))}
             </div>
@@ -556,7 +612,7 @@ export function DiscoverExperience({ brandId, hideHeader = false }: { brandId?: 
 
       {!isBrandsView && cursor && !loading && ads.length > 0 && (
         <div className="mt-7 flex justify-center">
-          <Button variant="secondary" disabled={loadingMore} onClick={() => search({ ...filters, cursor }, true)}>
+          <Button variant="secondary" disabled={loadingMore} onClick={() => search({ ...filters, cursor, sessionId: searchSessionIdRef.current || undefined }, true)}>
             {loadingMore && <Loader2 className="animate-spin" size={16} />}
             Load more ads
           </Button>
@@ -592,7 +648,7 @@ function CompactSelect({ ariaLabel, value, options, onChange }: { ariaLabel: str
         aria-label={ariaLabel}
         value={value || ""}
         onChange={event => onChange(event.target.value)}
-        className="h-full appearance-none rounded-[8px] border border-line bg-white px-3 pr-8 text-[13px] font-semibold text-ink outline-none transition hover:bg-zinc-50 focus:border-[#68B32F] focus:ring-[2px] focus:ring-[#68B32F]/15 shadow-sm"
+        className="h-full appearance-none rounded-full border border-zinc-200 bg-white px-4 pr-9 text-[13px] font-semibold text-zinc-700 shadow-sm outline-none transition hover:bg-zinc-50 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/15"
       >
         {options.map(([val, lbl]) => <option key={val} value={val}>{lbl}</option>)}
       </select>

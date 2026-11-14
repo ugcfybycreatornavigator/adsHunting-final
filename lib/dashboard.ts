@@ -53,9 +53,43 @@ export async function getDashboardData(): Promise<DashboardData> {
 
   const catalogueAds = catalogue.map(dbAdToNormalized);
   const trending = catalogueAds.sort((a: NormalizedAd, b: NormalizedAd) => ((b.variants || 1) * 10 + (b.intelligence?.winnerScore || 0)) - ((a.variants || 1) * 10 + (a.intelligence?.winnerScore || 0))).slice(0, 5);
-  const tracked = await Promise.all(competitorRows.map(async (competitor) => {
-    const activeAds = await countRows("Home.competitorActiveAds", () => adminSupabase.from("ads").select("*", { count: "exact", head: true }).eq("advertiser_id", competitor.advertiser_id).eq("status", "active"));
-    return { name: competitor.advertiser_name, advertiserId: competitor.advertiser_id, activeAds: activeAds ?? 0 };
+
+  // Batched query to eliminate N+1 competitor counts
+  const activeCountsByAdvertiser = new Map<string, number>();
+  if (competitorRows.length > 0) {
+    const advertiserIds = competitorRows.map(c => c.advertiser_id);
+    const { data: countData, error: countError } = await adminSupabase.rpc("get_competitor_active_counts", {
+      p_advertiser_ids: advertiserIds
+    });
+
+    if (!countError && Array.isArray(countData)) {
+      for (const row of countData as Array<{ advertiser_id: string; active_ads: number }>) {
+        activeCountsByAdvertiser.set(row.advertiser_id, Number(row.active_ads));
+      }
+    } else {
+      const { data: activeAdRows } = await adminSupabase
+        .from("ads")
+        .select("advertiser_id")
+        .in("advertiser_id", advertiserIds)
+        .eq("status", "active")
+        .limit(1000);
+      if (activeAdRows) {
+        for (const row of activeAdRows) {
+          if (row.advertiser_id) {
+            activeCountsByAdvertiser.set(
+              row.advertiser_id,
+              (activeCountsByAdvertiser.get(row.advertiser_id) || 0) + 1
+            );
+          }
+        }
+      }
+    }
+  }
+
+  const tracked = competitorRows.map((competitor) => ({
+    name: competitor.advertiser_name,
+    advertiserId: competitor.advertiser_id,
+    activeAds: activeCountsByAdvertiser.get(competitor.advertiser_id) ?? 0,
   }));
   const mostSaved = savedRows.flatMap((row) => row.ads ? [dbAdToNormalized(Array.isArray(row.ads) ? row.ads[0] : row.ads)] : []);
 

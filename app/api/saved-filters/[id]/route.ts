@@ -44,13 +44,17 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     .eq("id", id)
     .eq("user_id", auth.userId) // RLS handles this, but defense in depth
     .select()
-    .single();
+    .maybeSingle();
 
   if (error) {
     if (error.code === "23505") {
       return NextResponse.json({ error: "A filter with this name already exists." }, { status: 409 });
     }
     return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  if (!data) {
+    return NextResponse.json({ error: "Saved filter not found." }, { status: 404 });
   }
 
   return NextResponse.json(data);

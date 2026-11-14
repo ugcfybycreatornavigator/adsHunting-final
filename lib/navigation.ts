@@ -16,7 +16,7 @@ export const navigationConfig = {
   ],
   support: [
     { label: "Support", href: "#", icon: HelpCircle, isModal: true },
-    { label: "FAQ", href: "/faq", icon: BookOpen },
+    { label: "FAQ", href: "/resources/help", icon: BookOpen },
     { label: "Settings", href: "/settings", icon: Settings },
   ]
 };

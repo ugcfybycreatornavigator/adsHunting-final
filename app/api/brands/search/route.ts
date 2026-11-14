@@ -4,6 +4,12 @@ import { getBrands, BrandSummary } from "@/lib/brand-data";
 import { requireUser } from "@/lib/auth";
 import { getAdProviders } from "@/lib/providers";
 import { realAdvertiserName } from "@/lib/advertiser-identity";
+import { rateLimit } from "@/lib/rate-limit";
+import { z } from "zod";
+
+const schema = z.object({
+  query: z.string().max(200).optional().default("")
+});
 
 export async function POST(request: Request) {
   const accessError = await requirePaidWorkspaceAccess();
@@ -11,9 +17,27 @@ export async function POST(request: Request) {
 
   try {
     const auth = await requireUser();
-    if (auth.error) return auth.error;
+    if (auth.error || !auth.user) return auth.error || NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    const { query } = await request.json();
+    const limit = await rateLimit(`brand-search:${auth.user.id}`, 30, 60_000);
+    if (!limit.allowed) {
+      return NextResponse.json(
+        { error: "Too many requests. Please slow down." },
+        { status: 429, headers: { "Retry-After": String(limit.retryAfter) } }
+      );
+    }
+
+    const rawBody = await request.json().catch(() => null);
+    if (!rawBody || typeof rawBody !== "object") {
+      return NextResponse.json({ error: "Invalid JSON payload." }, { status: 400 });
+    }
+
+    const parsed = schema.safeParse(rawBody);
+    if (!parsed.success) {
+      return NextResponse.json({ error: "Invalid search query." }, { status: 400 });
+    }
+
+    const query = parsed.data.query.trim();
     let externalCandidates: BrandSummary[] = [];
 
     // If there is a query, attempt to find live candidates from SearchAPI

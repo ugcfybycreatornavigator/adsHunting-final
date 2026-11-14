@@ -135,6 +135,7 @@ export interface AdSearchFilters {
   platforms?: string[];
   sort?: string;
   cursor?: string;
+  sessionId?: string;
   cta?: string;
   view?: "ads" | "brands";
   source?: "competitor";
@@ -181,6 +182,14 @@ export interface AdSearchResult {
   brand?: BrandIdentity;
   resolvedIntent?: SearchIntent;
   requestId?: string;
+  sessionId?: string;
+  credits?: {
+    unlimited: boolean;
+    allocated: number | null;
+    used: number | null;
+    remaining: number | null;
+    chargedThisRequest: number;
+  } | null;
   stale?: boolean;
   degraded?: boolean;
 }

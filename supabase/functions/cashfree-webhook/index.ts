@@ -102,7 +102,7 @@ serve(async (req: Request) => {
       await admin.from("billing_webhook_events").update({ processing_status: "processed", processed_at: new Date().toISOString() }).eq("provider_event_id", eventId);
       return json({ received: true, ignored: true });
     }
-    if (Number(localPayment.amount_paise) !== EARLY_ACCESS.totalPaise || localPayment.currency !== EARLY_ACCESS.currency) {
+    if (!localPayment.amount_paise || Number(localPayment.amount_paise) <= 0 || !localPayment.currency) {
       throw new Error("LOCAL_PAYMENT_EVIDENCE_MISMATCH");
     }
 
@@ -116,8 +116,8 @@ serve(async (req: Request) => {
       orderId,
       workspaceId: localPayment.workspace_id,
       internalPaymentId: localPayment.id,
-      amountPaise: EARLY_ACCESS.totalPaise,
-      currency: EARLY_ACCESS.currency,
+      amountPaise: Number(localPayment.amount_paise),
+      currency: localPayment.currency,
       paymentType: EARLY_ACCESS.paymentType,
     }, inrAmountToPaise);
     console.log(`[${requestId}] cashfree_webhook_state`, localPayment.id, localPayment.workspace_id, orderId, evidence.state);

@@ -4,9 +4,13 @@
 
 import * as Sentry from "@sentry/nextjs";
 
+const environment = process.env.SENTRY_ENVIRONMENT ?? process.env.VERCEL_ENV;
+
 Sentry.init({
   dsn: "https://7dc9b3e8560c01b07445871f08f7a7a1@o4512032724418560.ingest.us.sentry.io/4512032729464832",
-  enabled: process.env.NODE_ENV === "production",
+  enabled: environment === "production" || environment === "preview",
+  environment: environment ?? "local",
+  release: process.env.SENTRY_RELEASE ?? process.env.VERCEL_GIT_COMMIT_SHA,
 
   // Define how likely traces are sampled. Adjust this value in production, or use tracesSampler for greater control.
   tracesSampleRate: 1,

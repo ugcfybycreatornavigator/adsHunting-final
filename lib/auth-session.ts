@@ -1,4 +1,4 @@
-import { auth, clerkClient } from "@clerk/nextjs/server";
+import { clerkClient } from "@clerk/nextjs/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export async function verifyAndActivateSession(userId: string, sessionId: string, adminClient = createAdminClient()) {
@@ -26,8 +26,7 @@ export async function verifyAndActivateSession(userId: string, sessionId: string
   if (activated) {
     // We are the newest! Revoke other sessions via Clerk.
     try {
-      const clientAuth = await auth();
-      // Alternatively, we can fetch all sessions for the user and revoke them.
+      // Fetch all sessions for the user and revoke older/other active ones.
       const userSessions = await clerk.sessions.getSessionList({ userId });
       for (const s of userSessions.data) {
         if (s.id !== sessionId && s.status === 'active') {

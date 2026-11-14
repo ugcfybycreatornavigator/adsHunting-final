@@ -108,7 +108,7 @@ export default async function ProductSeoPage({ params }: Props) {
               </p>
               <div className="mt-9 flex flex-col sm:flex-row gap-4">
                 <CTAButton href={authLinks.signUp} size="lg" className="h-12 md:h-14 px-8 text-base">
-                  Start 7-Day Free Trial
+                  Get Early Access
                 </CTAButton>
                 <CTAButton href="/pricing" variant="outline" size="lg" className="h-12 md:h-14 px-8 text-base">
                   See Pricing

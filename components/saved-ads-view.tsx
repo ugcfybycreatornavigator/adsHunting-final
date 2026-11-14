@@ -13,7 +13,18 @@ import type { SwipeFile, NormalizedAd } from "@/lib/types";
 type Saved = { id: string; notes: string | null; createdAt: string; ad: NormalizedAd; tags: { id: string; name: string }[]; collectionIds: string[] };
 
 export function SavedAdsView({ collectionId }: { collectionId?: string }) {
-  const [items, setItems] = useState<Saved[]>([]); const [loading, setLoading] = useState(true); const [error, setError] = useState(""); const [query, setQuery] = useState(""); const [details, setDetails] = useState<NormalizedAd | null>(null); const [editing, setEditing] = useState<Saved | null>(null); const [toast, setToast] = useState<string | null>(null); const [shareAdId, setShareAdId] = useState<string | null>(null); const [shareCollection] = useState<boolean>(false);
+  const [items, setItems] = useState<Saved[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [query, setQuery] = useState("");
+  const [details, setDetails] = useState<NormalizedAd | null>(null);
+  const [editing, setEditing] = useState<Saved | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
+  const [shareAdId, setShareAdId] = useState<string | null>(null);
+  const [shareCollection] = useState<boolean>(false);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   
   const load = useCallback(async () => { 
     setLoading(true); 
@@ -30,7 +41,9 @@ export function SavedAdsView({ collectionId }: { collectionId?: string }) {
 
       if (!response.ok) throw new Error(data?.error || "Failed to load saved ads."); 
       
-      setItems(Array.isArray(data?.items) ? data.items : []); 
+      setItems(Array.isArray(data?.items) ? data.items : []);
+      setNextCursor(data?.nextCursor || null);
+      setHasMore(Boolean(data?.hasMore));
     } catch (error) { 
       setItems([]); 
       setError(error instanceof Error ? error.message : "Unable to load saved ads."); 
@@ -38,6 +51,33 @@ export function SavedAdsView({ collectionId }: { collectionId?: string }) {
       setLoading(false); 
     } 
   }, [collectionId]);
+
+  const loadMore = async () => {
+    if (!nextCursor || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const params = new URLSearchParams();
+      if (collectionId) params.set("swipeFileId", collectionId);
+      params.set("cursor", nextCursor);
+      params.set("limit", "50");
+
+      const response = await apiFetch(`/api/swipe-files/ads?${params.toString()}`);
+      if (response.ok) {
+        const data = await response.json();
+        const newItems = Array.isArray(data?.items) ? data.items : [];
+        setItems(current => {
+          const existingIds = new Set(current.map(i => i.id));
+          return [...current, ...newItems.filter((i: Saved) => !existingIds.has(i.id))];
+        });
+        setNextCursor(data?.nextCursor || null);
+        setHasMore(Boolean(data?.hasMore));
+      }
+    } catch {
+      // Non-fatal
+    } finally {
+      setLoadingMore(false);
+    }
+  };
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => { if (!toast) return; const timer = window.setTimeout(() => setToast(null), 2400); return () => window.clearTimeout(timer); }, [toast]);
@@ -66,6 +106,14 @@ export function SavedAdsView({ collectionId }: { collectionId?: string }) {
         <AdCard key={item.id} ad={item.ad} saved tags={item.tags} onOpen={() => setDetails(item.ad)} onSave={() => {}} onNoteClick={() => setEditing(item)} onRemoveClick={() => remove(item.id)} onShare={() => share(item.ad)} />
       ))}
     </div>
+    {hasMore && (
+      <div className="mt-8 flex justify-center">
+        <Button variant="secondary" onClick={loadMore} disabled={loadingMore}>
+          {loadingMore && <Loader2 className="animate-spin mr-1.5" size={15} />}
+          Load more saved ads
+        </Button>
+      </div>
+    )}
     {details && <AdDetailDrawer ad={details} onClose={() => setDetails(null)} />}
     {editing && (
       <EditModal

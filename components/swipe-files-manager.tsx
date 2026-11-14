@@ -210,7 +210,7 @@ function PreviewTile({ src, index, total }: { src: string; index: number; total:
       style={{ transform, zIndex }}
     >
       {!failed ? (
-        <img src={src} alt="" onError={() => setFailed(true)} className="w-full h-full object-cover text-transparent" />
+        <img src={src} alt="Swipe file preview thumbnail" onError={() => setFailed(true)} className="w-full h-full object-cover text-transparent" />
       ) : (
         <div className="w-full h-full bg-zinc-50 flex items-center justify-center text-brand/40">
            <ImageIcon size={14} />

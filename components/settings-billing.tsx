@@ -43,7 +43,7 @@ export function SettingsBilling({ entitlement, planConfig, creditBalance }: Sett
   };
 
   const pct = creditBalance 
-    ? Math.max(0, Math.min(100, (creditBalance.creditsUsed / creditBalance.creditsAllocated) * 100)) 
+    ? creditBalance.unlimited ? 0 : Math.max(0, Math.min(100, ((creditBalance.creditsUsed || 0) / (creditBalance.creditsAllocated || 1)) * 100))
     : 0;
 
   return (
@@ -140,34 +140,38 @@ export function SettingsBilling({ entitlement, planConfig, creditBalance }: Sett
               <div className="min-w-0">
                 <p className="text-[14px] font-semibold text-[#18181B]">Credits Used</p>
                 <p className="text-[13px] text-[#71717A] mt-1">
-                  {isEarlyAccess ? "Included with your one-time purchase" : <>Resets on {creditBalance.cycleEnd ? new Date(creditBalance.cycleEnd).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : "next cycle"}</>}
+                  {creditBalance.unlimited ? "Unlimited platform access" : isEarlyAccess ? "Included with your one-time purchase" : <>Resets on {creditBalance.cycleEnd ? new Date(creditBalance.cycleEnd).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : "next cycle"}</>}
                 </p>
               </div>
               <div className="text-left sm:text-right">
                 <p className="text-[15px] font-semibold text-[#18181B]">
-                  {creditBalance.creditsAllocated >= 999999999 ? (
+                  {creditBalance.unlimited ? (
                     <span className="text-[#68B32F] font-semibold">Unlimited</span>
                   ) : (
                     <>
-                      {creditBalance.creditsUsed.toLocaleString()}{" "}
-                      <span className="text-[#71717A] font-medium">/ {creditBalance.creditsAllocated.toLocaleString()}</span>
+                      {(creditBalance.creditsUsed || 0).toLocaleString()}{" "}
+                      <span className="text-[#71717A] font-medium">/ {(creditBalance.creditsAllocated || 0).toLocaleString()}</span>
                     </>
                   )}
                 </p>
               </div>
             </div>
             
-            <div className="h-2.5 w-full bg-[#ECEDEF] rounded-full overflow-hidden">
-              <div 
-                className={`h-full transition-all duration-500 ease-out ${pct > 90 ? 'bg-red-500' : 'bg-gradient-to-r from-[#68B32F] to-[#569b24]'}`}
-                style={{ width: `${pct}%` }}
-              />
-            </div>
-            
-            {creditBalance.creditsRemaining <= 0 && (
-              <p className="text-[13px] text-red-600 font-medium mt-3">
-                {isEarlyAccess ? "You have used all included Early Access credits." : "You have run out of credits for this billing cycle. Wait until it resets to continue searching."}
-              </p>
+            {!creditBalance.unlimited && (
+              <>
+                <div className="h-2.5 w-full bg-[#ECEDEF] rounded-full overflow-hidden">
+                  <div
+                    className={`h-full transition-all duration-500 ease-out ${pct > 90 ? 'bg-red-500' : 'bg-gradient-to-r from-[#68B32F] to-[#569b24]'}`}
+                    style={{ width: `${pct}%` }}
+                  />
+                </div>
+
+                {(creditBalance.creditsRemaining !== null && creditBalance.creditsRemaining <= 0) && (
+                  <p className="text-[13px] text-red-600 font-medium mt-3">
+                    {isEarlyAccess ? "You have used all included Early Access credits." : "You have run out of credits for this billing cycle. Wait until it resets to continue searching."}
+                  </p>
+                )}
+              </>
             )}
           </div>
         </Card>

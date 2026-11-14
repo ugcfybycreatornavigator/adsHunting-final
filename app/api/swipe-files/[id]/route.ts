@@ -16,7 +16,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     .select("is_system")
     .eq("id", id)
     .eq("user_id", auth.userId)
-    .single();
+    .maybeSingle();
     
   if (!file) return new NextResponse("Not Found", { status: 404 });
   if (file.is_system) return NextResponse.json({ error: "Cannot delete the default Swipe File" }, { status: 400 });

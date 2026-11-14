@@ -15,24 +15,36 @@ export async function GET(req: NextRequest) {
 
     const { searchParams } = new URL(req.url);
     const swipeFileId = searchParams.get("swipeFileId");
+    const cursor = searchParams.get("cursor");
+    const limitParam = searchParams.get("limit");
+    const limit = Math.min(Math.max(1, parseInt(limitParam || "50", 10) || 50), 100);
 
-    // 1. Fetch the primary items and ad data
+    // 1. Fetch the primary items and ad data with bounded limit
     let query = auth.supabase!
       .from("swipe_file_items")
       .select("id, notes, created_at, swipe_file_id, ads (*), swipe_files!inner(user_id)")
       .eq("swipe_files.user_id", auth.userId)
-      .order("created_at", { ascending: false });
+      .order("created_at", { ascending: false })
+      .limit(limit + 1);
 
     if (swipeFileId) {
       query = query.eq("swipe_file_id", swipeFileId);
     }
 
-    const { data: primaryItems, error } = await query;
+    if (cursor) {
+      query = query.lt("created_at", cursor);
+    }
+
+    const { data: rawPrimaryItems, error } = await query;
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-    if (!primaryItems || primaryItems.length === 0) {
-      return NextResponse.json({ items: [] });
+    if (!rawPrimaryItems || rawPrimaryItems.length === 0) {
+      return NextResponse.json({ items: [], nextCursor: null, hasMore: false });
     }
+
+    const hasMore = rawPrimaryItems.length > limit;
+    const primaryItems = hasMore ? rawPrimaryItems.slice(0, limit) : rawPrimaryItems;
+    const nextCursor = hasMore && primaryItems.length > 0 ? primaryItems[primaryItems.length - 1].created_at : null;
 
     // Extract unique ad_ids from the primary fetch
     const adIds = new Set<string>();
@@ -87,11 +99,39 @@ export async function GET(req: NextRequest) {
 
     let items = Array.from(adMap.values());
 
-    // 4. Sign media URLs
+    // 4. Hydrate tags for items
+    if (items.length > 0) {
+      try {
+        const itemIds = items.map(it => it.id);
+        const { data: tagLinks } = await auth.supabase!
+          .from("saved_ad_tags")
+          .select("saved_ad_id, tags!inner(id, name)")
+          .in("saved_ad_id", itemIds);
+
+        if (tagLinks && tagLinks.length > 0) {
+          const tagsByItemId = new Map<string, Array<{ id: string; name: string }>>();
+          for (const rawLink of tagLinks) {
+            const link = rawLink as unknown as { saved_ad_id: string; tags: { id: string; name: string } | Array<{ id: string; name: string }> | null };
+            const tagObj = Array.isArray(link.tags) ? link.tags[0] : link.tags;
+            if (!tagObj) continue;
+            if (!tagsByItemId.has(link.saved_ad_id)) tagsByItemId.set(link.saved_ad_id, []);
+            tagsByItemId.get(link.saved_ad_id)!.push({ id: tagObj.id, name: tagObj.name });
+          }
+          items = items.map(it => ({
+            ...it,
+            tags: tagsByItemId.get(it.id) || []
+          }));
+        }
+      } catch (tagErr) {
+        console.error("[SavedAds] Non-fatal error loading tags:", tagErr);
+      }
+    }
+
+    // 5. Sign media URLs
     const signedAds = await signArchivedAdMedia(items.map(item => adsForClient([item.ad])[0]));
     items = items.map((item, index) => ({ ...item, ad: signedAds[index] }));
 
-    return NextResponse.json({ items });
+    return NextResponse.json({ items, nextCursor, hasMore });
   } catch (err) {
     console.error("[SavedAds] Unexpected error in GET /api/swipe-files/ads:", err);
     return NextResponse.json({ error: "Failed to load saved ads." }, { status: 500 });

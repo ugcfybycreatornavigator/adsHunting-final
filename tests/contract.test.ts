@@ -29,8 +29,8 @@ test("Contract: refineAd handles missing advertiser metadata", () => {
 });
 
 test("Contract: duplicate canonical ads generate stable IDs", () => {
-  const ad1 = refineAd({ advertiser: { id: "adv-1", name: "Nike" } as any, copy: { primaryText: "Just do it" } as any });
-  const ad2 = refineAd({ advertiser: { id: "adv-1", name: "Nike" } as any, copy: { primaryText: "Just do it" } as any });
+  const ad1 = refineAd({ advertiser: { id: "adv-1", name: "Nike" } as never, copy: { primaryText: "Just do it" } as never });
+  const ad2 = refineAd({ advertiser: { id: "adv-1", name: "Nike" } as never, copy: { primaryText: "Just do it" } as never });
   
   // Fingerprints should match and provide a stable ID
   assert.equal(ad1.id, ad2.id);

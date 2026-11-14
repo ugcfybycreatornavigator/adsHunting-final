@@ -40,7 +40,7 @@ export function FinalCTASection() {
             <span className="absolute inset-0 rounded-full border border-white/40 opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
 
             <span className="relative z-10 flex items-center gap-2">
-              Start 7-Day Free Trial
+              Get Early Access
               <ArrowRight
                 size={16}
                 strokeWidth={2.5}

@@ -9,7 +9,7 @@ type NavItem = { name: string; href: string; icon: LucideIcon; isSoon?: boolean 
 const navGroups: NavItem[][] = [
   [
     { name: "General", href: "/settings", icon: Settings },
-    { name: "Alerts", href: "/settings/alerts", icon: Bell },
+    { name: "Alerts", href: "/settings/alerts", icon: Bell, isSoon: true },
   ],
   [
     { name: "Team", href: "/settings/team", icon: Users },
@@ -42,8 +42,8 @@ export function SettingsNav() {
           className="w-full h-[44px] appearance-none rounded-[10px] border border-[#E1E1E1] bg-white px-3 pr-10 text-[14px] font-medium text-[#18181B] outline-none focus:ring-2 focus:ring-signal focus:ring-offset-1"
         >
           {flatItems.map((item) => (
-            <option key={item.href} value={item.href}>
-              {item.name} {item.isSoon ? "(Soon)" : ""}
+            <option key={item.href} value={item.href} disabled={item.isSoon}>
+              {item.name} {item.isSoon ? "(Coming Soon)" : ""}
             </option>
           ))}
         </select>
@@ -59,6 +59,23 @@ export function SettingsNav() {
             <div key={groupIdx} className="flex flex-col gap-[2px]">
               {group.map((item) => {
                 const active = pathname === item.href;
+                if (item.isSoon) {
+                  return (
+                    <div
+                      key={item.href}
+                      title={`${item.name} is coming soon in private beta`}
+                      className="group relative flex h-[36px] items-center justify-between rounded-[10px] px-3 text-[#A1A1AA] cursor-not-allowed opacity-75 select-none"
+                    >
+                      <div className="flex items-center gap-[11px]">
+                        <item.icon size={17} strokeWidth={1.8} className="shrink-0 text-[#A1A1AA]" />
+                        <span className="truncate text-[13.5px]">{item.name}</span>
+                      </div>
+                      <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-[4px] bg-[#F4F4F5] text-[#71717A] border border-[#E1E1E1]">
+                        Soon
+                      </span>
+                    </div>
+                  );
+                }
                 return (
                   <Link
                     key={item.href}
@@ -74,11 +91,6 @@ export function SettingsNav() {
                       <item.icon size={17} strokeWidth={1.8} className={cn("shrink-0 transition-colors duration-150", active ? "text-[#52525B]" : "text-[#A1A1AA] group-hover:text-[#52525B]")} />
                       <span className="truncate text-[13.5px]">{item.name}</span>
                     </div>
-                    {item.isSoon && (
-                      <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-[4px] bg-[#F4F4F5] text-[#71717A] border border-[#E1E1E1]">
-                        Soon
-                      </span>
-                    )}
                   </Link>
                 );
               })}

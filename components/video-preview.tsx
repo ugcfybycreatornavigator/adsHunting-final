@@ -6,6 +6,8 @@ import { Pause, Play, VolumeX, Volume2 } from "lucide-react";
 export function VideoPreview({
   src,
   poster,
+  title,
+  alt,
   className = "",
   controls = false,
   objectFit = "cover",
@@ -13,6 +15,8 @@ export function VideoPreview({
 }: {
   src: string | string[];
   poster?: string | null;
+  title?: string;
+  alt?: string;
   className?: string;
   controls?: boolean;
   objectFit?: "cover" | "contain";
@@ -133,7 +137,7 @@ export function VideoPreview({
         onPause={() => setPlaying(false)}
       />
       {failed && poster && (
-        <img src={poster} alt="" className="absolute inset-0 h-full w-full object-contain" />
+        <img src={poster} alt={alt || title || "Video preview poster"} className="absolute inset-0 h-full w-full object-contain" />
       )}
       {failed && !poster && (
         <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 bg-zinc-100 text-muted">

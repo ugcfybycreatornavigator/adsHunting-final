@@ -231,7 +231,7 @@ function SidebarProfile() {
         <div className="relative">
           <img
             src={user.imageUrl}
-            alt=""
+            alt={`${user.fullName || "User"} avatar`}
             className="size-[32px] shrink-0 rounded-full border border-black/10 object-cover bg-white"
           />
           {isOwner && (
@@ -262,7 +262,7 @@ function SidebarProfile() {
         >
           <div className="flex items-center gap-3 px-2 pb-3 pt-2">
             <div className="relative">
-              <img src={user.imageUrl} alt="" className="size-[36px] rounded-full border border-line object-cover bg-zinc-50" />
+              <img src={user.imageUrl} alt={`${user.fullName || "User"} avatar`} className="size-[36px] rounded-full border border-line object-cover bg-zinc-50" />
               {isOwner && (
                 <span className="absolute -bottom-0.5 -right-0.5 grid size-4 place-items-center rounded-full bg-[#68B32F] text-white ring-2 ring-white">
                   <ShieldCheck size={11} strokeWidth={2.5} />
@@ -316,26 +316,28 @@ function SidebarCredits() {
   const { state } = useCredits();
   if (!state) return null;
 
-  const pct = Math.max(0, Math.min(100, (state.creditsRemaining / state.creditsAllocated) * 100));
+  const pct = state.unlimited ? 0 : Math.max(0, Math.min(100, ((state.creditsUsed || 0) / (state.creditsAllocated || 1)) * 100));
 
   return (
     <Link href="/settings/billing" className="group flex flex-col gap-1.5 px-3 py-2 mb-2 rounded-[12px] hover:bg-[#F7F7F8] transition-colors outline-none focus-visible:ring-2 focus-visible:ring-signal">
       <div className="flex items-center justify-between">
         <span className="text-[12px] font-semibold text-[#18181B]">Credits</span>
         <span className="text-[11px] font-medium text-[#71717A] tabular-nums group-hover:text-[#18181B] transition-colors">
-          {state.creditsAllocated >= 999999999 ? (
+          {state.unlimited ? (
             <span className="text-[#68B32F] font-semibold">Unlimited</span>
           ) : (
-            `${state.creditsRemaining >= 1000 ? (state.creditsRemaining / 1000).toFixed(1) + 'K' : state.creditsRemaining} / ${state.creditsAllocated >= 1000 ? (state.creditsAllocated / 1000).toFixed(0) + 'K' : state.creditsAllocated}`
+            `${state.creditsRemaining !== null && state.creditsRemaining >= 1000 ? (state.creditsRemaining / 1000).toFixed(1) + 'K' : (state.creditsRemaining || 0)} / ${state.creditsAllocated !== null && state.creditsAllocated >= 1000 ? (state.creditsAllocated / 1000).toFixed(0) + 'K' : (state.creditsAllocated || 0)}`
           )}
         </span>
       </div>
-      <div className="h-1.5 w-full bg-[#ECEDEF] rounded-full overflow-hidden">
-        <div 
-          className="h-full bg-gradient-to-r from-[#68B32F] to-[#569b24] transition-all duration-500 ease-out"
-          style={{ width: `${pct}%` }}
-        />
-      </div>
+      {!state.unlimited && (
+        <div className="h-1.5 w-full bg-[#ECEDEF] rounded-full overflow-hidden">
+          <div
+            className="h-full bg-gradient-to-r from-[#68B32F] to-[#569b24] transition-all duration-500 ease-out"
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+      )}
     </Link>
   );
 }

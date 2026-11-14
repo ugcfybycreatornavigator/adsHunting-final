@@ -112,7 +112,7 @@ function PricingSection() {
 
             <div className="mt-10">
               <CTAButton href={authLinks.signUp} className="w-full h-[52px] rounded-[14px] text-[16px] shadow-sm hover:shadow-md justify-center">
-                Start 7-Day Free Trial
+                Get Early Access
               </CTAButton>
             </div>
           </div>

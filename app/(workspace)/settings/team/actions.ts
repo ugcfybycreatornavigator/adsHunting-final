@@ -7,7 +7,7 @@ import { resolveWorkspaceAccess } from "@/lib/billing/limits";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { resolvePlanKey } from "@/lib/billing/billing-config";
 
-export async function inviteTeamMember(email: string) {
+export async function inviteTeamMember(email: string): Promise<{ success?: boolean; message?: string; error?: string }> {
   const { userId } = await requireUser();
   if (!userId) {
     return { error: "Authentication required" };
@@ -40,11 +40,8 @@ export async function inviteTeamMember(email: string) {
     }
   }
 
-  // If we had a real team members table or Clerk Organizations setup, we would insert/invite here.
-  // For now, return success to simulate the backend action working correctly.
-  
-  // Simulate network
-  await new Promise(resolve => setTimeout(resolve, 800));
-
-  return { success: true, message: `Invitation sent to ${email}` };
+  // Team invitations require multi-seat workspace provisioning which is in private beta for Early Access.
+  return {
+    error: `Team invitations for ${email} are currently in private beta for Early Access workspaces. Contact support@adshunting.com to provision team member seats.`
+  };
 }

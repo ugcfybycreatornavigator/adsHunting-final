@@ -17,7 +17,7 @@ export function SavedFiltersPopover({ filters, updateFilters }: { filters: AdSea
       header={<div className="font-semibold text-ink text-[15px] pb-3 border-b border-line mb-3">Saved Filters</div>}
       footer={null}
       trigger={
-        <Button variant="secondary" className="h-9 text-[13px] font-semibold bg-white border-line shadow-sm hover:bg-zinc-50 text-ink px-3">
+        <Button variant="secondary" className="h-10 rounded-full border-zinc-200 bg-white px-3.5 text-[13px] font-semibold text-zinc-700 shadow-none hover:bg-zinc-50">
           <Bookmark size={14} className="mr-1.5 text-zinc-400" />
           Saved Filters
           <ChevronDown size={14} className="ml-1 text-zinc-400" />

@@ -48,13 +48,19 @@ export async function persistNormalizedAds(ads: NormalizedAd[]) {
 
     const allAdsToUpsert: NormalizedAd[] = [];
 
-    // For each advertiser, fetch existing ads to build a complete context
+    // For each advertiser, fetch existing ads to build a targeted scoring context
     for (const [advId, incomingAds] of adsByAdvertiser.entries()) {
-      // Fetch existing DB ads for this advertiser to build context
+      // Query active ads and ads started within the last 30 days for this advertiser.
+      // Winner scoring specifically inspects active ads (for landing page reuse persistence, max 5)
+      // and ads launched in the last 30 days (for creative refresh velocity, max 5).
+      const thirtyDaysAgoIso = new Date(Date.now() - 30 * 86_400_000).toISOString();
       const { data: dbAds } = await admin
         .from("ads")
         .select("*")
-        .eq("advertiser_id", advId);
+        .eq("advertiser_id", advId)
+        .or(`status.eq.active,start_date.gte.${thirtyDaysAgoIso}`)
+        .order("last_seen_at", { ascending: false })
+        .limit(200);
       
       const existingAds: NormalizedAd[] = [];
       if (dbAds && dbAds.length > 0) {
@@ -68,7 +74,19 @@ export async function persistNormalizedAds(ads: NormalizedAd[]) {
         }
       }
 
-      // Merge incoming with existing, preferring incoming if conflict on ID
+      // Also ensure any existing rows matching the incoming ads are included in existingAds context
+      for (const ad of incomingAds) {
+        const existingRow = existingCatalogRows.get(ad.id);
+        if (existingRow && !existingAds.some(e => e.id === ad.id)) {
+          try {
+            existingAds.push(dbAdToNormalized(existingRow));
+          } catch {
+             // Ignore
+          }
+        }
+      }
+
+      // Merge incoming with existing context, preferring incoming on ID conflict
       const mergedMap = new Map<string, NormalizedAd>();
       for (const ad of existingAds) {
         if (ad && ad.id) mergedMap.set(ad.id, ad);
@@ -79,9 +97,9 @@ export async function persistNormalizedAds(ads: NormalizedAd[]) {
       
       const fullAdvertiserContext = Array.from(mergedMap.values());
 
-      // Recalculate score for ALL ads (incoming + existing) for this advertiser
-      // because a new ad might affect the "Creative Refresh Pattern" of an existing ad, etc.
-      for (const ad of fullAdvertiserContext) {
+      // Calculate winner scores with targeted context and ONLY upsert incoming ads
+      // rather than rewriting the entire historical catalog to the database on every search
+      for (const ad of incomingAds) {
         ad.intelligence.winnerScore = calculateWinnerScore(ad, { advertiserAds: fullAdvertiserContext });
         allAdsToUpsert.push(ad);
       }
@@ -93,8 +111,42 @@ export async function persistNormalizedAds(ads: NormalizedAd[]) {
       const row = normalizedToDb(ad);
       const existing = existingCatalogRows.get(ad.id);
       if (existing) {
+        // 1. Preserve historical provider ad IDs and increment observation count
         row.provider_ad_ids = [...new Set([...(existing.provider_ad_ids || []), ...(row.provider_ad_ids || [])])];
         row.observation_count = Number(existing.observation_count || 1) + (incomingCanonicalIds.has(ad.id) ? 1 : 0);
+
+        // 2. Preserve historical discovery timestamp
+        if (existing.first_seen_at) {
+          row.first_seen_at = existing.first_seen_at;
+        }
+
+        // 3. Preserve permanent media archival state
+        if (existing.archive_status === "archived") {
+          row.archive_status = "archived";
+          if (existing.stored_media_path) row.stored_media_path = existing.stored_media_path;
+          if (existing.source_media_url && existing.source_media_url.includes("supabase.co")) {
+            row.source_media_url = existing.source_media_url;
+          }
+          if (existing.thumbnail_url && existing.thumbnail_url.includes("supabase.co")) {
+            row.thumbnail_url = existing.thumbnail_url;
+          }
+        }
+
+        // 4. Preserve earliest known start_date and recalculate running days
+        if (existing.start_date) {
+          const incomingStart = row.start_date ? new Date(row.start_date).getTime() : Infinity;
+          const existingStart = new Date(existing.start_date).getTime();
+          if (Number.isFinite(existingStart) && existingStart <= incomingStart) {
+            row.start_date = existing.start_date;
+          }
+        }
+        if (row.start_date) {
+          const startMs = new Date(row.start_date).getTime();
+          const stopMs = row.stop_date ? new Date(row.stop_date).getTime() : Date.now();
+          if (Number.isFinite(startMs) && stopMs >= startMs) {
+            row.running_days = Math.max(0, Math.floor((stopMs - startMs) / 86_400_000));
+          }
+        }
       }
       return row;
     });

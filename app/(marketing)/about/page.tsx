@@ -126,7 +126,7 @@ export default function AboutPage() {
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <CTAButton href={authLinks.signUp} size="lg" className="w-full sm:w-auto px-8">
-              Start Your Free Trial
+              Get Early Access
             </CTAButton>
             <a href="mailto:hello@adshunting.com" className="text-text-secondary hover:text-text-primary font-medium px-6 py-3 transition-colors">
               Contact Us

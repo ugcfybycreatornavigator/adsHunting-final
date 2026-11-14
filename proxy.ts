@@ -20,14 +20,10 @@ function canonicalRedirect(request: NextRequest) {
   }
 }
 
-const authenticatedProxy = clerkMiddleware((_auth, request) => canonicalRedirect(request));
-
-// Local preview mode intentionally renders the workspace without an authenticated
-// Clerk session. Skipping Clerk here prevents invalid or placeholder development
-// keys from causing an infinite token-refresh redirect loop.
-export const proxy = process.env.DEV_BYPASS_AUTH === "true"
-  ? (request: NextRequest) => canonicalRedirect(request)
-  : authenticatedProxy;
+// Clerk must run for every matched request, including local preview requests.
+// Server components can otherwise call auth() without Clerk's request headers,
+// which fails before the preview-mode guard can safely bypass authorization.
+export const proxy = clerkMiddleware((_auth, request) => canonicalRedirect(request));
 
 export const config = {
   matcher: [

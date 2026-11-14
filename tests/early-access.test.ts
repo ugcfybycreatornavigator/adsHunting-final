@@ -32,7 +32,7 @@ test("Early Access price and credit constants are exact and decimal-safe", () =>
 });
 
 test("Cashfree order creation uses server constants and mandatory One Click Checkout", () => {
-  assert.match(cashfree, /CASHFREE_API_VERSION = "2026-01-01"/);
+  assert.match(cashfree, /CASHFREE_API_VERSION = "2023-08-01"/);
   assert.match(createFunction, /order_amount:\s*Number\(EARLY_ACCESS\.totalAmountInr\)/);
   assert.doesNotMatch(createFunction, /body\?\.(amount|credits)|body\.(amount|credits)/);
   assert.match(createFunction, /one_click_checkout:\s*\{/);

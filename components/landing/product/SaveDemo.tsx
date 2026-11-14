@@ -28,7 +28,7 @@ export function SaveDemo() {
       <div className="p-6 pb-0 flex justify-center opacity-40 grayscale pointer-events-none absolute inset-0 -top-12 z-0 scale-[1.1]">
          <div className="w-3/4 max-w-[320px] bg-white border border-[#e4e8e2] rounded-xl overflow-hidden shadow-lg">
             { }
-            <img src={ad.thumbnail} className="w-full aspect-[4/5] object-cover" alt="" />
+            <img src={ad.thumbnail} className="w-full aspect-[4/5] object-cover" alt="Ad creative preview" />
          </div>
       </div>
 

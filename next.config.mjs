@@ -12,6 +12,7 @@ const nextConfig = {
   },
   async redirects() {
     const redirects = [
+      { source: "/faq", destination: "/resources/help", permanent: true },
       { source: "/trial", destination: "/sign-up", permanent: true },
       { source: "/signup", destination: "/sign-up", permanent: true },
     ];

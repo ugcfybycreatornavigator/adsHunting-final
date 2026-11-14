@@ -76,7 +76,7 @@ export default function PricingPage() {
                           </span>
                           <span className="mb-1 text-[15px] font-medium text-text-muted">/ {plan.period}</span>
                         </div>
-                        <p className="mt-3 text-[14px] text-text-secondary">{plan.trialDays}-day free trial included.</p>
+                        <p className="mt-3 text-[14px] text-text-secondary">Instant access to ad intelligence.</p>
                       </div>
                     ) : (
                       <div className="flex min-h-[83px] items-center gap-3 text-text-secondary">
@@ -98,7 +98,7 @@ export default function PricingPage() {
                   <div className="mt-8">
                     {isAvailable ? (
                       <CTAButton href={authLinks.signUp} className="h-12 w-full justify-center rounded-[14px] text-[16px]">
-                        Start 7-Day Free Trial
+                        Get Early Access
                       </CTAButton>
                     ) : (
                       <div className="flex h-12 w-full items-center justify-center rounded-[14px] border border-border bg-surface-subtle text-[14px] font-bold uppercase tracking-widest text-text-muted">

@@ -41,7 +41,6 @@ export const pricingPlans: PricingPlan[] = [
     price: 499,
     currency: "₹",
     period: "month",
-    trialDays: 7,
     available: true,
     icon: Compass,
     features: [

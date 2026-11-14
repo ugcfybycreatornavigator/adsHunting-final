@@ -186,6 +186,7 @@ export function validateCashfreeEarlyAccessEvidence(
   const successfulPayments = payments.filter((payment) => payment.payment_status === "SUCCESS");
   const successfulPayment = successfulPayments.find((payment) => (
     payment.order_id === expected.orderId
+    && amountToPaise(payment.payment_amount) === expected.amountPaise
     && amountToPaise(payment.order_amount) === expected.amountPaise
     && payment.payment_currency === expected.currency
   ));

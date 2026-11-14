@@ -77,7 +77,7 @@ export function WorkflowSection() {
   }, []);
 
   return (
-    <section id="workflow" className="py-24 md:py-32 bg-slate-50 border-y border-border relative">
+    <section id="workflow" className="py-24 md:py-32 bg-slate-50 border-y border-border relative overflow-x-clip">
       <LandingContainer>
 
         {/* Section Header */}
@@ -219,7 +219,7 @@ export function WorkflowSection() {
 
         <div className="mt-20 md:mt-32 flex justify-center">
           <CTAButton href={authLinks.signUp} size="lg" className="h-14 px-10 text-[16px] shadow-lg shadow-brand/10">
-            Start Your 7-Day Free Trial
+            Get Early Access
           </CTAButton>
         </div>
 

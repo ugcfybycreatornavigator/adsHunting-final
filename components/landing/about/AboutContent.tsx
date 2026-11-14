@@ -258,7 +258,7 @@ export function AboutContent() {
 
           <div className="flex flex-col items-center gap-5 w-full md:w-auto shrink-0 relative z-10 md:pr-4">
             <CTAButton href={authLinks.signUp} size="lg" className="w-full md:w-auto h-[60px] px-10 shadow-md text-[17px] font-semibold rounded-full hover:-translate-y-0.5 transition-transform duration-300">
-              Start 7-Day Free Trial <ArrowRight size={18} className="ml-2" />
+              Get Early Access <ArrowRight size={18} className="ml-2" />
             </CTAButton>
             <a href={authLinks.signIn} className="text-[14px] font-medium text-text-secondary hover:text-text-primary transition-colors text-center">
               Already using AdsHunting? Sign In

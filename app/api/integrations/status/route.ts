@@ -58,12 +58,18 @@ export async function POST(request: NextRequest) {
     const auth = await requireUser();
     if (auth.error) return auth.error;
   }
-  const ip = request.headers.get("x-forwarded-for")?.split(",")[0] || "local";
-  const limit = rateLimit(`integration-test:${ip}`, 5, 10 * 60_000);
+  const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "local";
+  const limit = await rateLimit(`integration-test:${ip}`, 5, 10 * 60_000, { policy: "fail-closed" });
   if (!limit.allowed) {
+    if (limit.source === "fail-closed") {
+      return NextResponse.json(
+        { success: false, code: "SERVICE_UNAVAILABLE", message: "Rate limit verification is temporarily unavailable." },
+        { status: 503, headers: { "Retry-After": String(limit.retryAfter || 5) } }
+      );
+    }
     return NextResponse.json(
       { success: false, code: "RATE_LIMIT", message: "Connection tests are temporarily rate limited." },
-      { status: 429 }
+      { status: 429, headers: { "Retry-After": String(limit.retryAfter) } }
     );
   }
 

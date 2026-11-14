@@ -154,7 +154,7 @@ export function Navbar() {
             <Link href={authLinks.signIn} className="text-sm font-medium text-text-primary hover:text-text-secondary">
               Sign In
             </Link>
-            <CTAButton href={authLinks.signUp} size="sm">Start 7-Day Free Trial</CTAButton>
+            <CTAButton href={authLinks.signUp} size="sm">Get Early Access</CTAButton>
           </div>
 
           <button
@@ -237,7 +237,7 @@ export function Navbar() {
               Sign In
             </Link>
             <CTAButton href={authLinks.signUp} size="lg" className="w-full">
-              Start 7-Day Free Trial
+              Get Early Access
             </CTAButton>
           </div>
         </div>

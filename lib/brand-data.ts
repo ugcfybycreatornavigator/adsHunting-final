@@ -12,6 +12,7 @@ import { signArchivedMediaUrls } from "@/lib/media-access";
 export type CreativePreview = { id: string; url: string; type: string };
 
 export type CompetitorIntelligence = {
+  competitorId: string;
   advertiserId: string;
   brandName: string;
   logoUrl: string | null;
@@ -42,12 +43,14 @@ export type CompetitorIntelligence = {
 };
 
 export type TrackedRecord = {
+  id: string;
   advertiser_id: string;
   advertiser_name?: string;
   advertiser_avatar_url?: string | null;
   created_at: string;
   sync_status?: string;
   sync_error?: string | null;
+  sync_started_at?: string | null;
   first_sync_completed_at?: string | null;
   ads_count?: number;
   last_synced_at?: string | null;
@@ -119,7 +122,11 @@ export async function syncCompetitorAds(advertiserId: string): Promise<number> {
     for (const { provider, name } of providers) {
       const providerStartedAt = Date.now();
       try {
-        const result = await provider.searchAds(filters);
+        const timeoutPromise = new Promise<never>((_, reject) => {
+          const timer = setTimeout(() => reject(new Error("Provider search timed out after 8000ms")), 8000);
+          if (typeof timer.unref === "function") timer.unref();
+        });
+        const result = await Promise.race([provider.searchAds(filters), timeoutPromise]);
         providerResponded = true;
         ads = resolveAdIdentities(result.ads, brandContext ? [brandContext] : [], brandContext, advertiserId);
         console.info(JSON.stringify({ provider: name, operation: "syncCompetitorAds", status: "success",
@@ -372,6 +379,7 @@ function buildCompetitorIntelligence(
   const ctaDistribution = countBy(distinctAds.map(row => row.cta).filter((cta): cta is string => Boolean(cta)));
 
   return {
+    competitorId: trackedRecord?.id || advertiserId,
     advertiserId,
     brandName,
     logoUrl,
@@ -410,7 +418,7 @@ export async function getCompetitorIntelligence(id: string, allowSync = true, us
   // 1. Fetch tracked competitor record for custom name overriding & cache freshness
   let query = supabase
     .from("competitors")
-    .select("advertiser_name, advertiser_avatar_url, created_at, sync_status, sync_error, last_synced_at, ads_count, status")
+    .select("id, advertiser_name, advertiser_avatar_url, created_at, sync_status, sync_error, sync_started_at, last_synced_at, ads_count, status")
     .eq("advertiser_id", id);
   
   if (userId) {

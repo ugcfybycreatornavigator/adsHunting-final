@@ -165,7 +165,7 @@ function OverviewTab({ data }: { data: CompetitorIntelligence }) {
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3">
             {data.latestCreatives.map((preview) => (
               <div key={preview.id} className="relative aspect-[4/5] bg-zinc-100 rounded-lg overflow-hidden border border-line">
-                <img src={preview.url} alt="" className="absolute inset-0 w-full h-full object-cover" loading="lazy" />
+                <img src={preview.url} alt={`${data.brandName} top creative`} className="absolute inset-0 w-full h-full object-cover" loading="lazy" />
               </div>
             ))}
           </div>

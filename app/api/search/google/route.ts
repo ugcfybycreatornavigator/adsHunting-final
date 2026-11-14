@@ -16,10 +16,28 @@ export async function POST(request: NextRequest) {
   const accessError = await requirePaidWorkspaceAccess();
   if (accessError) return accessError;
 
-  if (isSupabaseConfigured && !isPreviewMode) { const auth = await requireUser(); if (auth.error) return auth.error; }
+  let userId: string | null = null;
+  if (isSupabaseConfigured && !isPreviewMode) {
+    const auth = await requireUser();
+    if (auth.error) return auth.error;
+    userId = auth.user?.id || null;
+  }
   if (!isGoogleSearchConfigured) return NextResponse.json({ success: false, code: "GOOGLE_NOT_CONFIGURED", message: "Google Search is not configured." }, { status: 503 });
-  const ip = request.headers.get("x-forwarded-for")?.split(",")[0] || "local";
-  const limit = rateLimit(`google:${ip}`, 15); if (!limit.allowed) return NextResponse.json({ success: false, code: "RATE_LIMIT", message: "Too many enrichment requests." }, { status: 429 });
+  const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "local";
+  const rateLimitKey = userId ? `google:${userId}` : `google:ip:${ip}`;
+  const limit = await rateLimit(rateLimitKey, 15, 60_000, { policy: "fail-closed" });
+  if (!limit.allowed) {
+    if (limit.source === "fail-closed") {
+      return NextResponse.json(
+        { success: false, code: "SERVICE_UNAVAILABLE", message: "Enrichment rate check is temporarily unavailable." },
+        { status: 503, headers: { "Retry-After": String(limit.retryAfter || 5) } }
+      );
+    }
+    return NextResponse.json(
+      { success: false, code: "RATE_LIMIT", message: "Too many enrichment requests." },
+      { status: 429, headers: { "Retry-After": String(limit.retryAfter) } }
+    );
+  }
   const parsed = schema.safeParse(await request.json().catch(() => ({})));
   if (!parsed.success) return NextResponse.json({ success: false, code: "INVALID_SEARCH", message: "Enter a valid Google Search query." }, { status: 400 });
   const key = JSON.stringify(parsed.data); const hit = cache.get(key); if (hit && hit.expires > Date.now()) return NextResponse.json(hit.payload, { headers: { "X-Cache": "HIT" } });

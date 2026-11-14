@@ -12,6 +12,7 @@
   "dependencies": {
     "@clerk/nextjs": "^7.7.4",
     "@clerk/ui": "^1.32.2",
+    "@next/swc-darwin-arm64": "^16.3.0",
     "@sentry/nextjs": "^10.73.0",
     "@supabase/ssr": "^0.6.1",
     "@supabase/supabase-js": "^2.49.4",
@@ -28,6 +29,7 @@
     "zod": "^3.24.2"
   },
   "devDependencies": {
+    "@next/swc-wasm-nodejs": "^16.3.0",
     "@types/node": "^22.13.10",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",

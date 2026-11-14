@@ -366,7 +366,7 @@ export function AdvancedFilters({ filters, updateFilters }: AdvancedFiltersProps
           header={Header}
           footer={Footer}
           trigger={
-            <Button variant="secondary" className={cn("h-9 text-[13px] font-semibold px-3 shadow-sm transition", activeFilterCount > 0 ? "bg-[#68B32F]/5 border-[#68B32F]/30 text-ink" : "bg-white border-line hover:bg-zinc-50 text-ink")}>
+            <Button variant="secondary" className={cn("h-10 rounded-full px-3.5 text-[13px] font-semibold shadow-none transition", activeFilterCount > 0 ? "border-emerald-300 bg-emerald-50 text-emerald-900" : "border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50")}>
               <Filter size={15} className={cn("mr-1.5", activeFilterCount > 0 ? "text-[#68B32F]" : "text-zinc-500")} />
               Filters
               {activeFilterCount > 0 && (

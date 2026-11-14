@@ -47,7 +47,7 @@ function Avatar({ url, name }: { url: string | null; name: string }) {
   );
 }
 
-function CreativePreview({ url }: { url: string }) {
+function CreativePreview({ url, brandName }: { url: string; brandName?: string }) {
   const [error, setError] = useState(false);
   const validUrl = safeExternalUrl(url);
 
@@ -57,7 +57,7 @@ function CreativePreview({ url }: { url: string }) {
     <div className="flex-1 relative aspect-[4/5] bg-zinc-100 rounded-lg overflow-hidden border border-line/50">
       <img
         src={validUrl}
-        alt=""
+        alt={`${brandName || "Brand"} creative preview`}
         onError={() => setError(true)}
         className="absolute inset-0 w-full h-full object-cover"
         loading="lazy"
@@ -66,7 +66,7 @@ function CreativePreview({ url }: { url: string }) {
   );
 }
 
-export function BrandCard({ brand }: { brand: BrandSummary }) {
+export function BrandCard({ brand, layout = "grid" }: { brand: BrandSummary; layout?: "grid" | "list" }) {
   const brandName = formatBrandName(brand.name);
   
   // Clean platforms
@@ -82,12 +82,12 @@ export function BrandCard({ brand }: { brand: BrandSummary }) {
 
   return (
     <Link
-      href={`/brands/${encodeURIComponent(brand.id)}?name=${encodeURIComponent(brandName)}`}
-      className="group flex flex-col w-full overflow-hidden rounded-[12px] border border-[#E5E7EB] bg-white transition-all duration-150 hover:border-[#D1D5DB] hover:shadow-[0_2px_8px_rgba(0,0,0,0.04)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
+      href={`/competitors/${encodeURIComponent(brand.id)}?name=${encodeURIComponent(brandName)}`}
+      className={`group flex w-full flex-col overflow-hidden rounded-[12px] border border-[#E5E7EB] bg-white transition-all duration-150 hover:border-[#D1D5DB] hover:shadow-[0_2px_8px_rgba(0,0,0,0.04)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal ${layout === "list" ? "md:min-h-[160px]" : ""}`}
     >
-      <div className="flex flex-col p-[16px] flex-1">
+      <div className={`flex flex-1 flex-col p-[16px] ${layout === "list" ? "md:grid md:grid-cols-[minmax(220px,1fr)_240px_minmax(200px,1fr)] md:grid-rows-[auto_1fr] md:items-center md:gap-x-6" : ""}`}>
         {/* Header */}
-        <div className="flex items-center gap-[12px]">
+        <div className={layout === "list" ? "flex items-center gap-[12px] md:col-start-1 md:row-start-1" : "flex items-center gap-[12px]"}>
           <Avatar url={brand.avatar} name={brandName} />
           <div className="flex flex-col min-w-0 flex-1">
             <h3 className="truncate text-[14.5px] font-semibold text-[#18181B] leading-tight">
@@ -100,7 +100,7 @@ export function BrandCard({ brand }: { brand: BrandSummary }) {
         </div>
 
         {/* Metrics */}
-        <div className="flex items-center gap-[16px] mt-[14px] mb-[16px]">
+        <div className={`flex items-center gap-[16px] mt-[14px] mb-[16px] ${layout === "list" ? "md:col-start-1 md:row-start-2 md:mb-0" : ""}`}>
           <div className="flex items-baseline gap-[4px]">
             <span className="text-[14px] font-semibold text-[#18181B]">
               {brand.activeUnique != null ? brand.activeUnique : "—"}
@@ -116,10 +116,10 @@ export function BrandCard({ brand }: { brand: BrandSummary }) {
         </div>
 
         {/* Creatives Preview */}
-        <div className="flex gap-[6px] mb-[16px]">
+        <div className={`flex gap-[6px] mb-[16px] ${layout === "list" ? "md:col-start-2 md:row-span-2 md:row-start-1 md:mb-0" : ""}`}>
           {uniquePreviews.length > 0 ? (
             uniquePreviews.map((url, i) => (
-              <CreativePreview key={i} url={url} />
+              <CreativePreview key={i} url={url} brandName={brandName} />
             ))
           ) : (
             <div className="flex-1 flex items-center justify-center aspect-[21/9] bg-[#F4F4F5] rounded-lg border border-[#E5E7EB] text-[12px] text-[#A1A1AA]">
@@ -129,7 +129,7 @@ export function BrandCard({ brand }: { brand: BrandSummary }) {
         </div>
 
         {/* Footer */}
-        <div className="mt-auto pt-[4px] flex items-center justify-between border-t border-transparent">
+        <div className={`mt-auto flex items-center justify-between border-t border-transparent pt-[4px] ${layout === "list" ? "md:col-start-3 md:row-span-2 md:row-start-1" : ""}`}>
           <p className="truncate text-[12.5px] text-[#71717A] flex-1 pr-[8px]">
             {displayPlatforms.length > 0 ? (
               <>

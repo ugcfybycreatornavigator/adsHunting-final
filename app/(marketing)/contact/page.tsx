@@ -8,7 +8,7 @@ import { breadcrumbJsonLd, createMetadata, jsonLd } from '@/lib/seo';
 
 export const metadata: Metadata = createMetadata({
   title: 'Contact AdsHunting',
-  description: 'Contact AdsHunting with questions about the product, free trial, pricing, billing, or ad research workflow.',
+  description: 'Contact AdsHunting with questions about the product, Early Access, pricing, billing, or ad research workflow.',
   path: '/contact',
 });
 
@@ -41,7 +41,7 @@ export default function ContactPage() {
             Have a question about AdsHunting?
           </h1>
           <p className="text-[17px] md:text-[19px] text-text-secondary leading-relaxed max-w-[640px]">
-            Send us a message about the product, your trial, pricing, billing, or your research workflow.
+            Send us a message about the product, Early Access, pricing, billing, or your research workflow.
           </p>
         </div>
 
@@ -63,9 +63,9 @@ export default function ContactPage() {
                 </div>
 
                 <div className="py-6 border-b border-[#e4e8e2]">
-                  <h3 className="text-[16px] font-bold text-text-primary mb-1">Billing & Trial</h3>
+                  <h3 className="text-[16px] font-bold text-text-primary mb-1">Billing & Access</h3>
                   <p className="text-[15px] text-text-secondary leading-relaxed">
-                    Questions about the 7-day free trial, Scout plan, or subscription-related issues.
+                    Questions about Early Access, the Scout plan, or billing-related issues.
                   </p>
                 </div>
 

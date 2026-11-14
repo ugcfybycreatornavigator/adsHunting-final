@@ -19,12 +19,13 @@ export default async function PaidRoutesLayout({ children }: { children: React.R
   const balance = await getWorkspaceCreditBalance(userId);
   
   const initialState: CreditsState | null = balance ? {
+    unlimited: balance.unlimited,
     creditsAllocated: balance.creditsAllocated,
     creditsUsed: balance.creditsUsed,
     creditsRemaining: balance.creditsRemaining,
     cycleStart: balance.cycleStart,
     cycleEnd: balance.cycleEnd,
-    isExhausted: balance.creditsRemaining <= 0
+    isExhausted: balance.creditsRemaining !== null && balance.creditsRemaining <= 0
   } : null;
 
   return (
