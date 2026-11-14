@@ -2,7 +2,8 @@
 import { apiFetch } from "@/lib/api-client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, Filter, Grid2X2, List, Loader2, RefreshCw, Search, X } from "lucide-react";
+import Link from "next/link";
+import { Bell, ChevronDown, Filter, Grid2X2, List, Loader2, RefreshCw, Search, X } from "lucide-react";
 import { useUser } from "@clerk/nextjs";
 import { historyStorageKey, recentTerms } from "@/lib/search-suggestions";
 import { AdCard } from "@/components/ad-card";
@@ -23,6 +24,96 @@ import { cn } from "@/lib/utils";
 const countries = [["ALL", "All countries"], ["IN", "India"], ["US", "United States"], ["GB", "United Kingdom"], ["CA", "Canada"], ["AU", "Australia"], ["DE", "Germany"], ["FR", "France"], ["BR", "Brazil"]];
 const defaults: AdSearchFilters = { query: "", status: "all", country: "ALL", platforms: [], mediaType: "all", cta: "", duration: "", startDate: "", endDate: "" };
 
+function NotificationBell() {
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    }
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setOpen(false);
+      }
+    }
+    if (open) {
+      document.addEventListener("mousedown", handleClickOutside);
+      document.addEventListener("keydown", handleKeyDown);
+      return () => {
+        document.removeEventListener("mousedown", handleClickOutside);
+        document.removeEventListener("keydown", handleKeyDown);
+      };
+    }
+  }, [open]);
+
+  return (
+    <div className="relative" ref={containerRef}>
+      <button
+        type="button"
+        onClick={() => setOpen((prev) => !prev)}
+        aria-label="Notifications"
+        aria-expanded={open}
+        className={cn(
+          "relative flex size-9 sm:size-10 items-center justify-center rounded-full border border-zinc-200/90 bg-white text-zinc-600 shadow-sm transition-all hover:border-zinc-300 hover:bg-zinc-50 hover:text-zinc-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#68B32F] focus-visible:ring-offset-2",
+          open && "border-zinc-300 bg-zinc-50 text-zinc-900 ring-2 ring-zinc-200/60"
+        )}
+      >
+        <Bell size={18} strokeWidth={2} className="transition-transform duration-150 active:scale-95" />
+        <span
+          className="absolute right-2 top-2 size-2 rounded-full bg-[#68B32F] ring-2 ring-white"
+          title="Active monitoring"
+        />
+      </button>
+
+      {open && (
+        <div
+          role="dialog"
+          aria-label="Notifications Panel"
+          className="absolute right-0 top-full z-50 mt-2 w-80 rounded-2xl border border-zinc-200 bg-white p-4 shadow-xl shadow-zinc-950/5 animate-in fade-in zoom-in-95 duration-150"
+        >
+          <div className="flex items-center justify-between pb-3 border-b border-zinc-100">
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm font-bold text-zinc-900">Notifications</h3>
+              <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] font-medium text-zinc-600">0 unread</span>
+            </div>
+            <Link
+              href="/settings/alerts"
+              onClick={() => setOpen(false)}
+              className="text-xs font-medium text-zinc-500 hover:text-zinc-900 transition-colors"
+            >
+              Settings
+            </Link>
+          </div>
+
+          <div className="py-6 flex flex-col items-center justify-center text-center">
+            <div className="size-11 rounded-full bg-zinc-50 border border-zinc-100 flex items-center justify-center text-zinc-400 mb-2.5">
+              <Bell size={18} strokeWidth={1.75} />
+            </div>
+            <p className="text-xs font-semibold text-zinc-800">You&apos;re all caught up</p>
+            <p className="text-[11px] text-zinc-500 mt-1 max-w-[220px] leading-relaxed">
+              No new alerts. Track competitors to receive updates when new ads are detected.
+            </p>
+          </div>
+
+          <div className="pt-2.5 border-t border-zinc-100 flex items-center justify-between text-xs">
+            <span className="text-[11px] text-zinc-400">Competitor Alerts</span>
+            <Link
+              href="/settings/alerts"
+              onClick={() => setOpen(false)}
+              className="font-medium text-[#529322] hover:text-[#42791b] transition-colors flex items-center gap-1"
+            >
+              Configure alerts →
+            </Link>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function DiscoverExperience({ brandId, hideHeader = false }: { brandId?: string, hideHeader?: boolean }) {
   const { user } = useUser();
   const accountId = user?.id;
@@ -32,7 +123,6 @@ export function DiscoverExperience({ brandId, hideHeader = false }: { brandId?: 
   const { filters, updateFilters: setFilters, clearFilters } = useUrlFilters(defaultFilters, { syncUrl: !hideHeader, readUrl: !hideHeader });
   const [ads, setAds] = useState<NormalizedAd[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
-  const [total, setTotal] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<{ message: string; code?: string } | null>(null);
@@ -166,7 +256,6 @@ export function DiscoverExperience({ brandId, hideHeader = false }: { brandId?: 
         return Array.from(dedup.values());
       });
       setCursor(result.nextCursor);
-      setTotal(result.total);
 
       if (searchAccount && searchAccount === accountRef.current && (nextFilters.query?.trim() || result.resolvedIntent?.type === "advertiser")) {
         const queryToSave = result.resolvedIntent?.type === "advertiser" ? result.resolvedIntent.advertiserName : nextFilters.query!.trim();
@@ -184,7 +273,6 @@ export function DiscoverExperience({ brandId, hideHeader = false }: { brandId?: 
         if (!append) {
           setAds([]);
           setCursor(null);
-          setTotal(null);
         }
         return;
       }
@@ -193,7 +281,6 @@ export function DiscoverExperience({ brandId, hideHeader = false }: { brandId?: 
       if (!append) {
         setAds([]);
         setCursor(null);
-        setTotal(null);
       }
     } finally {
       window.clearTimeout(timeoutId);
@@ -405,25 +492,13 @@ export function DiscoverExperience({ brandId, hideHeader = false }: { brandId?: 
   return (
     <>
       {!hideHeader && (
-        <div className="mb-6 mt-1 flex flex-col md:flex-row md:items-end justify-between gap-4">
-          <div>
-            <h1 className="flex flex-wrap items-center gap-x-3 gap-y-2 text-3xl font-extrabold tracking-tight text-zinc-900 md:text-[32px]">
-              Discover {isBrandsView ? "Brands" : "Ads"}
-              <span className="inline-flex items-center justify-center rounded-full bg-zinc-100 px-2.5 py-0.5 text-[13px] font-semibold text-zinc-600 tabular-nums shadow-sm border border-zinc-200/50">
-                {loading || brandsLoading ? (
-                  <span className="flex items-center gap-1.5"><Loader2 className="h-3 w-3 animate-spin" /> Searching</span>
-                ) : isBrandsView ? (
-                  `${brands.length} brand${brands.length === 1 ? "" : "s"}`
-                ) : total != null ? (
-                  `${total.toLocaleString()} ads`
-                ) : (
-                  `${ads.length.toLocaleString()} ads`
-                )}
-              </span>
-            </h1>
-            <p className="mt-2 text-[15px] text-zinc-500">
-              {isBrandsView ? "Discover top brands and advertisers." : "Research competitor creatives and winning ad patterns."}
-            </p>
+        <div className="mb-5 mt-1 flex items-center justify-between gap-4">
+          <h1 className="text-2xl font-extrabold tracking-tight text-zinc-900 sm:text-[28px] md:text-[32px]">
+            Discover {isBrandsView ? "Brands" : "Ads"}
+          </h1>
+
+          <div className="flex items-center gap-3">
+            <NotificationBell />
           </div>
         </div>
       )}
@@ -499,7 +574,7 @@ export function DiscoverExperience({ brandId, hideHeader = false }: { brandId?: 
                 <button type="button" onClick={() => setLayout("grid")} aria-label="Grid view" aria-pressed={layout === "grid"} className={cn("flex h-8 items-center gap-2 rounded-full px-3 text-xs font-semibold transition", layout === "grid" ? "bg-emerald-100 text-emerald-800" : "text-zinc-400 hover:text-zinc-700")}><Grid2X2 size={14} /> Grid</button>
                 <button type="button" onClick={() => setLayout("list")} aria-label="List view" aria-pressed={layout === "list"} className={cn("flex h-8 items-center gap-2 rounded-full px-3 text-xs font-semibold transition", layout === "list" ? "bg-emerald-100 text-emerald-800" : "text-zinc-400 hover:text-zinc-700")}><List size={14} /> List</button>
               </div>
-              <div className="flex items-center gap-2 lg:hidden">
+              <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2 lg:hidden">
                 <SavedFiltersPopover filters={filters} updateFilters={setFilters} />
                 <AdvancedFilters filters={filters} updateFilters={setFilters} clearFilters={clearAllFilters} />
               </div>
@@ -625,6 +700,16 @@ export function DiscoverExperience({ brandId, hideHeader = false }: { brandId?: 
           saved={savedAdIds.has(details.externalId ?? details.id)}
           onClose={() => setDetails(null)}
           onSave={() => saveAd(details)}
+          onPrevious={() => {
+            const index = displayedAds.findIndex((ad) => ad.id === details.id);
+            if (index > 0) setDetails(displayedAds[index - 1]);
+          }}
+          onNext={() => {
+            const index = displayedAds.findIndex((ad) => ad.id === details.id);
+            if (index >= 0 && index < displayedAds.length - 1) setDetails(displayedAds[index + 1]);
+          }}
+          hasPrevious={displayedAds.findIndex((ad) => ad.id === details.id) > 0}
+          hasNext={displayedAds.findIndex((ad) => ad.id === details.id) < displayedAds.length - 1}
         />
       )}
       {shareAdId && (
@@ -680,11 +765,11 @@ function AdGridSkeleton() {
 }
 
 function gridClass() {
-  return "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5";
+  return "grid grid-cols-[repeat(auto-fit,minmax(min(100%,250px),1fr))] gap-5";
 }
 
 function brandGridClass() {
-  return "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5";
+  return "grid grid-cols-[repeat(auto-fit,minmax(min(100%,260px),1fr))] gap-5";
 }
 
 function BrandGridSkeleton() {
