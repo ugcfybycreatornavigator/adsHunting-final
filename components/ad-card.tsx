@@ -55,16 +55,19 @@ function AdCardComponent({
   const saveBtnRef = useRef<HTMLDivElement>(null);
   const [showPicker, setShowPicker] = useState(false);
   const [avatarFailed, setAvatarFailed] = useState(false);
+  const [mediaFailed, setMediaFailed] = useState(false);
   
   // Reset failure states if the ad changes
   useEffect(() => {
     setAvatarFailed(false);
+    setMediaFailed(false);
   }, [ad.id]);
   
   const mediaInfo = useMemo(() => resolveAdMedia(ad), [ad]);
   const landingPage = useMemo(() => safeExternalUrl(ad.destination.url), [ad.destination.url]);
   const advertiserName = ad.advertiser.displayName || ad.advertiser.name || "Advertiser";
   const initial = advertiserName.slice(0, 1).toUpperCase() || "A";
+  const ctaLabel = normalizeCtaLabel(ad.copy.cta);
 
   const displayCopy = useMemo(() => (
     sanitizeAdCopy(ad.copy.headline) ||
@@ -197,22 +200,26 @@ function AdCardComponent({
         </div>
       </div>
 
-      {(ad.copy.cta || landingPage) && (
+      {(ctaLabel || landingPage) && (
         <div className={cn("relative z-20 flex min-h-11 items-center gap-3 border-b border-line bg-white px-3", layout === "list" && "md:col-start-2 md:row-start-3 md:border-b-0 md:border-t")}>
           <div className="min-w-0 flex-1">
             <p className="truncate text-[11px] font-medium text-muted">{ad.destination.domain || (landingPage ? new URL(landingPage).hostname.replace(/^www\./, "") : "Advertisement")}</p>
           </div>
           {landingPage ? (
             <a href={landingPage} target="_blank" rel="noreferrer noopener" onClick={(event) => event.stopPropagation()} className="inline-flex min-h-8 shrink-0 items-center rounded-md border border-line px-2.5 text-[11px] font-semibold text-ink transition hover:bg-zinc-50">
-              {ad.copy.cta || "Visit website"}
+              {ctaLabel || "Visit website"}
             </a>
-          ) : <span className="text-[11px] font-semibold text-ink">{ad.copy.cta}</span>}
+          ) : <span className="text-[11px] font-semibold text-ink">{ctaLabel}</span>}
         </div>
       )}
 
-      {/* Media 4:5 - clicking video requests full screen or plays directly, clicking card overview opens ad details */}
+      {/* Media container: preserves 1:1, 16:9, and 9:16 media proportions via object-contain with responsive layout */}
       <div 
-        className={cn("relative z-10 aspect-[4/5] w-full overflow-hidden border-y border-line bg-[#F5F5F5] transition-colors group-hover:border-zinc-300 cursor-pointer", layout === "list" && "md:col-start-1 md:row-span-3 md:row-start-1 md:h-full md:aspect-auto md:border-y-0 md:border-r")}
+        className={cn(
+          "relative z-10 w-full overflow-hidden border-y border-line bg-[#F5F5F5] transition-colors group-hover:border-zinc-300 cursor-pointer",
+          (mediaInfo.kind === "unknown" || mediaFailed) ? "min-h-[160px] h-[180px]" : "aspect-[4/5]",
+          layout === "list" && "md:col-start-1 md:row-span-3 md:row-start-1 md:h-full md:aspect-auto md:border-y-0 md:border-r"
+        )}
         onClick={(e) => {
           // If video element is clicked, trigger native fullscreen or play
           const videoEl = e.currentTarget.querySelector("video");
@@ -237,7 +244,7 @@ function AdCardComponent({
         }}
       >
         <div className="absolute inset-0">
-          <AdMedia ad={ad} variant="card" priority={priority} />
+          <AdMedia ad={ad} variant="card" priority={priority} onMediaError={() => setMediaFailed(true)} />
         </div>
       </div>
 
@@ -373,6 +380,38 @@ function AdCardComponent({
       )}
     </article>
   );
+}
+
+function normalizeCtaLabel(value?: string | null) {
+  if (!value) return null;
+  const normalized = value.trim().replace(/[_-]+/g, " ").replace(/\s+/g, " ").toLocaleLowerCase();
+  if (!normalized) return null;
+  const known: Record<string, string> = {
+    "learn more": "Learn more",
+    "shop now": "Shop now",
+    "sign up": "Sign up",
+    "get offer": "Get offer",
+    "download": "Download",
+    "contact us": "Contact us",
+    "book now": "Book now",
+    "apply now": "Apply now",
+    "watch more": "Watch more",
+    "order now": "Order now",
+    "buy now": "Buy now",
+    "install now": "Install now",
+    "play game": "Play game",
+    "subscribe": "Subscribe",
+    "listen now": "Listen now",
+    "get quote": "Get quote",
+    "send message": "Send message",
+    "see more": "See more",
+    "open link": "Open link",
+    "claim offer": "Claim offer",
+    "visit profile": "Visit profile",
+    "use app": "Use app",
+    "watch video": "Watch video",
+  };
+  return known[normalized] || normalized.replace(/\b\p{L}/u, character => character.toLocaleUpperCase());
 }
 
 export const AdCard = memo(AdCardComponent);

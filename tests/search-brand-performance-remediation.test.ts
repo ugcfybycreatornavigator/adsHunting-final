@@ -18,6 +18,25 @@ test("Discover bounds initial catalog sampling and stale responses", () => {
   assert.doesNotMatch(route, /rangeEnd = rangeStart \+ 999/);
   assert.match(component, /requestController\.current !== controller/);
   assert.match(component, /Search took too long\. Please retry\./);
+  assert.match(component, /setLoading\(!cachedDefaultFeed\)/);
+  assert.match(component, /nextCursor: result\.nextCursor/);
+});
+
+test("search resolves authentication once and parallelizes independent billing and rate checks", () => {
+  const route = read("app/api/search/route.ts");
+  assert.match(route, /const accessError = await requirePaidWorkspaceAccessForUser\(authRes\.user\.id\)/);
+  assert.match(route, /const \[balance, limit\] = await Promise\.all/);
+  assert.match(route, /requirePaidWorkspaceAccessForUser\(authRes\.user\.id\)/);
+  assert.doesNotMatch(route, /requirePaidWorkspaceAccess\(\)/);
+});
+
+test("category enrichment is bounded, deterministic, and dry-run by default", () => {
+  const script = read("scripts/enrich-categories-batch.ts");
+  assert.match(script, /process\.argv\.includes\("--apply"\)/);
+  assert.match(script, /Math\.min\(Math\.max\(.+500.+5_000\)/);
+  assert.match(script, /\.order\("id", \{ ascending: true \}\)/);
+  assert.match(script, /if \(applyChanges && updates\.length > 0\)/);
+  assert.match(script, /isValidCuratedCategory\(existingCat\)/);
 });
 
 test("competitor actions use the owned competitor UUID, not provider advertiser ID", () => {

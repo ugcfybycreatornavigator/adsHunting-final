@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { AdSearchFilters } from "@/lib/types";
 import { normalizeDiscoverFilters } from "@/lib/filter-utils";
@@ -13,46 +13,62 @@ function safeParseJSON<T>(str: string | null, fallback: T): T {
   }
 }
 
+function parseFiltersFromSearchParams(params: URLSearchParams, defaultFilters: AdSearchFilters): AdSearchFilters {
+  const parsed: Partial<AdSearchFilters> = {};
+  params.forEach((value, key) => {
+    if (key === "q" || key === "query") parsed.query = value;
+    else if (key === "view") parsed.view = value as "ads" | "brands";
+    else if (key === "brand") parsed.brand = value;
+    else if (key === "selectedBrand") parsed.selectedBrand = safeParseJSON(value, undefined);
+    else if (key === "sort") parsed.sort = value;
+    else if (key === "platforms") parsed.platforms = value.split(",");
+    else if (key === "formats") parsed.formats = value.split(",") as AdSearchFilters["formats"];
+    else if (key === "statuses") parsed.statuses = value.split(",") as AdSearchFilters["statuses"];
+    else if (key === "markets") parsed.markets = value.split(",");
+    else if (key === "languages") parsed.languages = value.split(",");
+    else if (key === "niches") parsed.niches = value.split(",");
+    else if (key === "contentStyles") parsed.contentStyles = value.split(",");
+    else if (key === "runtime") parsed.runtime = safeParseJSON(value, undefined);
+    else if (key === "videoLength") parsed.videoLength = safeParseJSON(value, undefined);
+    else if (key === "startDate") parsed.startDate = value;
+    else if (key === "endDate") parsed.endDate = value;
+    else if (key === "cta") parsed.cta = value;
+    // Legacy
+    else if (key === "status") parsed.status = value as AdSearchFilters["status"];
+    else if (key === "country") parsed.country = value;
+    else if (key === "mediaType") parsed.mediaType = value as AdSearchFilters["mediaType"];
+    else if (key === "language") parsed.language = value;
+    else if (key === "duration") parsed.duration = value;
+  });
+  return { ...defaultFilters, ...parsed };
+}
+
 export function useUrlFilters(defaultFilters: AdSearchFilters, options: { syncUrl?: boolean; readUrl?: boolean } = {}) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const syncUrlEnabled = options.syncUrl !== false;
   const readUrlEnabled = options.readUrl !== false;
+  const lastSyncedSearchRef = useRef<string | null>(null);
 
   // Parse initial filters from URL
   const initialFilters = useMemo(() => {
-    const parsed: Partial<AdSearchFilters> = {};
     if (!readUrlEnabled) return { ...defaultFilters };
-    searchParams.forEach((value, key) => {
-      if (key === "q" || key === "query") parsed.query = value;
-      else if (key === "view") parsed.view = value as "ads" | "brands";
-      else if (key === "brand") parsed.brand = value;
-      else if (key === "selectedBrand") parsed.selectedBrand = safeParseJSON(value, undefined);
-      else if (key === "sort") parsed.sort = value;
-      else if (key === "platforms") parsed.platforms = value.split(",");
-      else if (key === "formats") parsed.formats = value.split(",") as AdSearchFilters["formats"];
-      else if (key === "statuses") parsed.statuses = value.split(",") as AdSearchFilters["statuses"];
-      else if (key === "markets") parsed.markets = value.split(",");
-      else if (key === "languages") parsed.languages = value.split(",");
-      else if (key === "niches") parsed.niches = value.split(",");
-      else if (key === "contentStyles") parsed.contentStyles = value.split(",");
-      else if (key === "runtime") parsed.runtime = safeParseJSON(value, undefined);
-      else if (key === "videoLength") parsed.videoLength = safeParseJSON(value, undefined);
-      else if (key === "startDate") parsed.startDate = value;
-      else if (key === "endDate") parsed.endDate = value;
-      else if (key === "cta") parsed.cta = value;
-      // Legacy
-      else if (key === "status") parsed.status = value as AdSearchFilters["status"];
-      else if (key === "country") parsed.country = value;
-      else if (key === "mediaType") parsed.mediaType = value as AdSearchFilters["mediaType"];
-      else if (key === "language") parsed.language = value;
-      else if (key === "duration") parsed.duration = value;
-    });
-
-    return { ...defaultFilters, ...parsed };
+    return parseFiltersFromSearchParams(searchParams, defaultFilters);
   }, [searchParams, defaultFilters, readUrlEnabled]);
 
   const [filters, setFilters] = useState<AdSearchFilters>(initialFilters);
+
+  // Sync state when external navigation changes the URL search params (e.g. Next.js router, Link, Back/Forward)
+  const currentSearchStr = searchParams.toString();
+  useEffect(() => {
+    if (!readUrlEnabled) return;
+    if (lastSyncedSearchRef.current === currentSearchStr) {
+      // Change originated from local updateFilters call, skip redundant state update
+      return;
+    }
+    lastSyncedSearchRef.current = currentSearchStr;
+    setFilters(parseFiltersFromSearchParams(searchParams, defaultFilters));
+  }, [currentSearchStr, defaultFilters, readUrlEnabled, searchParams]);
 
   // Sync back to URL when filters change (using replaceState for speed)
   const syncToUrl = useCallback((newFilters: AdSearchFilters, replace = true) => {
@@ -89,10 +105,11 @@ export function useUrlFilters(defaultFilters: AdSearchFilters, options: { syncUr
     const queryStr = params.toString();
     const newUrl = queryStr ? `${pathname}?${queryStr}` : pathname;
 
-    const currentSearch = window.location.search;
+    const currentSearch = typeof window !== "undefined" ? window.location.search : "";
     const currentUrl = pathname + (currentSearch ? currentSearch : "");
     if (newUrl === currentUrl) return; // Prevent unnecessary history state updates
 
+    lastSyncedSearchRef.current = queryStr;
     if (replace) {
       window.history.replaceState({ ...window.history.state, as: newUrl, url: newUrl }, "", newUrl);
     } else {
@@ -100,35 +117,13 @@ export function useUrlFilters(defaultFilters: AdSearchFilters, options: { syncUr
     }
   }, [pathname, defaultFilters, syncUrlEnabled]);
 
-  // Handle popstate so browser back/forward works
+  // Handle popstate so browser back/forward works reliably across all browsers
   useEffect(() => {
+    if (!readUrlEnabled) return;
     const handlePopState = () => {
-      // When back button is pressed, the URL changes but React state needs to sync
-      if (!readUrlEnabled) return;
       const params = new URLSearchParams(window.location.search);
-      const parsed: Partial<AdSearchFilters> = {};
-      
-      params.forEach((value, key) => {
-        if (key === "q" || key === "query") parsed.query = value;
-        else if (key === "view") parsed.view = value as "ads" | "brands";
-        else if (key === "brand") parsed.brand = value;
-      else if (key === "selectedBrand") parsed.selectedBrand = safeParseJSON(value, undefined);
-        else if (key === "sort") parsed.sort = value;
-        else if (key === "platforms") parsed.platforms = value.split(",");
-        else if (key === "formats") parsed.formats = value.split(",") as AdSearchFilters["formats"];
-        else if (key === "statuses") parsed.statuses = value.split(",") as AdSearchFilters["statuses"];
-        else if (key === "markets") parsed.markets = value.split(",");
-        else if (key === "languages") parsed.languages = value.split(",");
-        else if (key === "niches") parsed.niches = value.split(",");
-        else if (key === "contentStyles") parsed.contentStyles = value.split(",");
-        else if (key === "runtime") parsed.runtime = safeParseJSON(value, undefined);
-        else if (key === "videoLength") parsed.videoLength = safeParseJSON(value, undefined);
-        else if (key === "startDate") parsed.startDate = value;
-        else if (key === "endDate") parsed.endDate = value;
-        else if (key === "cta") parsed.cta = value;
-      });
-
-      setFilters({ ...defaultFilters, ...parsed });
+      lastSyncedSearchRef.current = params.toString();
+      setFilters(parseFiltersFromSearchParams(params, defaultFilters));
     };
 
     window.addEventListener("popstate", handlePopState);

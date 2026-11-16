@@ -94,7 +94,17 @@ export function SearchAutocomplete({ value, onChange, onSubmit, onSelectBrand, o
   }, [query, open, retry]);
   useEffect(() => { if (active >= 0) document.getElementById(id + "-" + active)?.scrollIntoView({ block: "nearest" }); }, [active, id]);
   const choose = (item: SearchSuggestion) => {
-    onChange(item.label); setPending(item.type === "recent" ? null : item); setOpen(false); setActive(-1); input.current?.focus();
+    onChange(item.label);
+    setPending(null);
+    setOpen(false);
+    setActive(-1);
+    if (item.type === "category") {
+      onSelectCategory(item.id, item.subtitle || "");
+    } else if (item.type === "brand" && item.brand) {
+      onSelectBrand(item);
+    } else {
+      onSubmit(item.label.trim());
+    }
   };
   const submit = () => {
     setOpen(false);

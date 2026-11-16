@@ -2,6 +2,7 @@ import { realAdvertiserName, resolveAdvertiser } from "../supabase/functions/_sh
 import type { AdStatus, MediaType, NormalizedAd } from "@/lib/types";
 import { computeAdFingerprints } from "@/lib/fingerprint";
 import { normalizeAdDetail, normalizeBusinessContact, normalizeCreativeAnalysis, normalizeTranscript } from "@/lib/ad-detail-metadata";
+import { classifyAdCategory, isValidCuratedCategory } from "@/lib/category-classifier";
 
 export interface DatabaseAdRow {
   id: string;
@@ -67,7 +68,49 @@ export function dbAdToNormalized(row: DatabaseAdRow): NormalizedAd {
       : [];
     const advertiser = refinedAd.advertiser || { id: row.advertiser_id, name: null, logoUrl: null,
       pageUrl: null, domain: null, normalizedName: null, social: { facebook: null, instagram: null, linkedin: null } };
+
+    const classified = classifyAdCategory({
+      advertiserName: row.advertiser_name,
+      headline: row.headline,
+      body: row.body,
+      landingPageUrl: row.landing_page_url,
+      existingCategory: refinedAd.intelligence?.category,
+    });
+
+    const category = classified.category === "Unknown"
+      ? (isValidCuratedCategory(refinedAd.intelligence?.category) ? refinedAd.intelligence.category : null)
+      : classified.category;
+
+    const provider = refinedAd.provider || {
+      discoveryProvider: (row.source as NormalizedAd["provider"]["discoveryProvider"]) || "catalog",
+      fetchedAt: row.first_seen_at || new Date().toISOString(),
+    };
+    const copy = refinedAd.copy || {
+      primaryText: row.body,
+      headline: row.headline,
+      description: row.description,
+      cta: row.cta,
+    };
+    const destination = refinedAd.destination || {
+      url: row.landing_page_url,
+      resolvedUrl: null,
+      domain: null,
+      title: null,
+      productName: null,
+    };
+    const delivery = {
+      status: refinedAd.delivery?.status || row.status,
+      startedAt: refinedAd.delivery?.startedAt || row.start_date,
+      endedAt: refinedAd.delivery?.endedAt || row.stop_date,
+      daysRunning: derivedRunningDays,
+      platforms: refinedAd.delivery?.platforms || (row.platforms ?? []),
+      countries: refinedAd.delivery?.countries || (row.country ? [row.country] : []),
+    };
+
     return { ...refinedAd, id: row.canonical_ad_id || row.id,
+      provider,
+      copy,
+      destination,
       creative: {
         ...refinedAd.creative,
         type: row.media_type || refinedAd.creative?.type || "unknown",
@@ -80,7 +123,21 @@ export function dbAdToNormalized(row: DatabaseAdRow): NormalizedAd {
         name: realAdvertiserName(row.advertiser_name, row.advertiser_id),
         logoUrl: row.advertiser_avatar_url, pageUrl: row.advertiser_profile_url,
       }),
-      delivery: { ...refinedAd.delivery, daysRunning: derivedRunningDays },
+      delivery,
+      intelligence: {
+        ...refinedAd.intelligence,
+        category,
+        nicheId: classified.nicheId !== "unknown" ? classified.nicheId : (refinedAd.intelligence?.nicheId || null),
+        categoryProvenance: classified.provenance,
+        categoryConfidence: classified.confidence,
+        creativeFormat: refinedAd.intelligence?.creativeFormat || null,
+        hookType: refinedAd.intelligence?.hookType || null,
+        offerType: refinedAd.intelligence?.offerType || null,
+        winnerScore: refinedAd.intelligence?.winnerScore ?? (row.quality_score != null ? Number(row.quality_score) : 0),
+        labels: category && !refinedAd.intelligence?.labels?.includes(category)
+          ? [...(refinedAd.intelligence?.labels || []), category]
+          : (refinedAd.intelligence?.labels || []),
+      },
       detail: normalizeAdDetail({
         ...refinedAd.detail,
         businessContact: normalizeBusinessContact(row.business_contact_email, row.business_contact_provenance, row.business_contact_verified_at) || refinedAd.detail?.businessContact,
@@ -137,14 +194,26 @@ export function dbAdToNormalized(row: DatabaseAdRow): NormalizedAd {
       title: null,
       productName: null,
     },
-    intelligence: {
-      category: null,
-      creativeFormat: null,
-      hookType: null,
-      offerType: null,
-      winnerScore: row.quality_score != null ? Number(row.quality_score) : 0,
-      labels: [],
-    },
+    intelligence: (() => {
+      const classified = classifyAdCategory({
+        advertiserName: row.advertiser_name,
+        headline: row.headline,
+        body: row.body,
+        landingPageUrl: row.landing_page_url,
+      });
+      const category = classified.category === "Unknown" ? null : classified.category;
+      return {
+        category,
+        nicheId: classified.nicheId !== "unknown" ? classified.nicheId : null,
+        categoryProvenance: classified.provenance,
+        categoryConfidence: classified.confidence,
+        creativeFormat: null,
+        hookType: null,
+        offerType: null,
+        winnerScore: row.quality_score != null ? Number(row.quality_score) : 0,
+        labels: category ? [category] : [],
+      };
+    })(),
     enrichment: {
       archiveStatus: (row.archive_status as NormalizedAd["enrichment"]["archiveStatus"]) || "not_requested",
       status: "pending",

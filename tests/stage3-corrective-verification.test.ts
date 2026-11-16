@@ -369,12 +369,12 @@ test("ISSUE-015: Search routes enforce 'fail-closed' policy and use authenticate
   const searchRoute = fs.readFileSync(path.join(process.cwd(), "app/api/search/route.ts"), "utf-8");
   assert.match(
     searchRoute,
-    /const rateLimitKey = authRes\.user \? `search:\$\{authRes\.user\.id\}` : `search:ip:\$\{ip\}`;/,
+    /const rateLimitKey = `search:\$\{authRes\.user\.id \|\| `ip:\$\{ip\}`\}`;/,
     "Search API must rate limit by authenticated user ID"
   );
   assert.match(
     searchRoute,
-    /await rateLimit\(rateLimitKey,\s*40,\s*60_000,\s*\{\s*policy:\s*"fail-closed"\s*\}\)/,
+    /rateLimit\(rateLimitKey,\s*40,\s*60_000,\s*\{\s*policy:\s*"fail-closed"\s*\}\)/,
     "Search API must enforce fail-closed policy"
   );
   assert.match(

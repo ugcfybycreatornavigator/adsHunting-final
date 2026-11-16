@@ -18,21 +18,21 @@ export function brandFromRow(row: Pick<DatabaseAdRow, "advertiser_id" | "adverti
 export function resolveAdIdentities(ads: NormalizedAd[], canonical: BrandIdentity[], selected?: BrandIdentity, requestedId?: string): NormalizedAd[] {
   const byId = new Map(canonical.map(brand => [`${brand.provider}:${brand.providerAdvertiserId}`, brand]));
   return ads.filter(ad => !requestedId || (selected
-    ? Boolean(matchingBrand(selected, ad.provider.discoveryProvider, requestedId, ad.advertiser.id))
+    ? Boolean(matchingBrand(selected, ad.provider?.discoveryProvider || "catalog", requestedId, ad.advertiser.id))
     : ad.advertiser.id === requestedId))
     .map(ad => {
-      const provider = identityProvider(ad.provider.discoveryProvider);
+      const provider = identityProvider(ad.provider?.discoveryProvider || "catalog");
       const raw = ad.rawData;
       // Re-establish provider precedence when a normalizer already filled selected context.
       const providerName = raw ? realAdvertiserName(provider === "foreplay" ? raw.name : raw.page_name, ad.advertiser.id) : ad.advertiser.name;
       const advertiser = { ...ad.advertiser, name: providerName };
-      if (raw && ad.provider.discoveryProvider === "meta_official") {
+      if (raw && (ad.provider?.discoveryProvider || "catalog") === "meta_official") {
         advertiser.logoUrl = null;
         advertiser.pageUrl = null;
         advertiser.domain = null;
       }
       return { ...ad, advertiser: resolveAdvertiser(advertiser,
         byId.get(`${provider}:${ad.advertiser.id}`),
-        matchingBrand(selected, ad.provider.discoveryProvider, requestedId, ad.advertiser.id), ad.advertiser) };
+        matchingBrand(selected, ad.provider?.discoveryProvider || "catalog", requestedId, ad.advertiser.id), ad.advertiser) };
     });
 }

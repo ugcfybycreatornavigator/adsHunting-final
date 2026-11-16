@@ -4,7 +4,7 @@ import { isSupabaseConfigured } from "@/lib/env";
 import { rateLimit } from "@/lib/rate-limit";
 import { dbAdToNormalized, type DatabaseAdRow } from "@/lib/catalog";
 import { requireUser } from "@/lib/auth";
-import { requirePaidWorkspaceAccess } from "@/lib/billing/entitlement";
+import { requirePaidWorkspaceAccessForUser } from "@/lib/billing/entitlement";
 import { getWorkspaceCreditBalance, consumeUsage, CREDIT_COSTS } from "@/lib/billing/usage";
 import crypto from "crypto";
 import { ProviderError } from "@/lib/providers/errors";
@@ -16,9 +16,9 @@ import { auth } from "@clerk/nextjs/server";
 import { getServerEnv } from "@/lib/env/server";
 import { brandFromRow, realAdvertiserName, resolveAdIdentities } from "@/lib/advertiser-identity";
 import { getAdProviders } from "@/lib/providers";
-import { resolveAdMedia } from "@/lib/media";
 import { calculateWinnerScore } from "@/lib/intelligence";
 import { signArchivedAdMedia } from "@/lib/media-access";
+import { rankRelevantAds, searchTokens } from "@/lib/search-relevance";
 
 const schema = z.object({
   query: z.string().trim().max(160).optional(),
@@ -122,9 +122,6 @@ export async function POST(request: NextRequest) {
   const requestId = crypto.randomUUID();
   const startedAt = performance.now();
   try {
-    const accessError = await requirePaidWorkspaceAccess();
-    if (accessError) return accessError;
-
     let catalogClient: Awaited<ReturnType<typeof requireUser>>["supabase"] = null;
     const authRes = await requireUser();
     if (authRes.error || !authRes.user) return authRes.error || NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -137,9 +134,18 @@ export async function POST(request: NextRequest) {
       )
     );
 
-    const balance = await getWorkspaceCreditBalance(authRes.user.id);
     const isNewSearch = !rawBody?.cursor;
     const baseCost = isNewSearch ? CREDIT_COSTS.AD_SEARCH : 0;
+
+    const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "local";
+    const rateLimitKey = `search:${authRes.user.id || `ip:${ip}`}`;
+    const accessError = await requirePaidWorkspaceAccessForUser(authRes.user.id);
+    if (accessError) return accessError;
+
+    const [balance, limit] = await Promise.all([
+      getWorkspaceCreditBalance(authRes.user.id),
+      rateLimit(rateLimitKey, 40, 60_000, { policy: "fail-closed" }),
+    ]);
 
     if (balance && !balance.unlimited && baseCost > 0 && balance.creditsRemaining !== null && balance.creditsRemaining < baseCost) {
       return NextResponse.json(
@@ -153,9 +159,6 @@ export async function POST(request: NextRequest) {
   } else if (isSupabaseConfigured && isPreviewMode) {
     // Already authenticated above
   }
-  const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "local";
-  const rateLimitKey = authRes.user ? `search:${authRes.user.id}` : `search:ip:${ip}`;
-  const limit = await rateLimit(rateLimitKey, 40, 60_000, { policy: "fail-closed" });
   if (!limit.allowed) {
     if (limit.source === "fail-closed") {
       return NextResponse.json(
@@ -231,7 +234,7 @@ export async function POST(request: NextRequest) {
   ).digest("hex");
 
   const providerRequestKey = JSON.stringify(normalizedFilters);
-  const cacheKey = `${searchFingerprint}:${filters.cursor || "0"}:${sessionId}`;
+  const cacheKey = `${searchFingerprint}:${filters.cursor || "0"}:${filters.query || filters.brand ? "shared" : sessionId}`;
   let payload: AdSearchResult | null = null;
   let isCacheHit = false;
 
@@ -258,8 +261,14 @@ export async function POST(request: NextRequest) {
         const defaultFeed = !filters.query && !filters.brand;
         if (filters.brand) query = query.eq("advertiser_id", filters.selectedBrand?.providerAdvertiserId || filters.brand);
         else if (filters.query) {
-          const q = filters.query.replace(/[%_,().]/g, " ").trim();
-          query = query.or(`headline.ilike.%${q}%,body.ilike.%${q}%,description.ilike.%${q}%,advertiser_name.ilike.%${q}%,cta.ilike.%${q}%`);
+          const tokens = searchTokens(filters.query).slice(0, 4);
+          if (tokens.length > 1) {
+            for (const token of tokens) {
+              query = query.or(buildTokenSearchOr(token));
+            }
+          } else {
+            query = query.or(buildCatalogSearchOr(filters.query));
+          }
         } else {
           query = query.not("advertiser_name", "is", null).neq("advertiser_name", "");
         }
@@ -313,7 +322,7 @@ export async function POST(request: NextRequest) {
 
         let rangeStart: number;
         let rangeEnd: number;
-        const candidateBatchSize = Math.min(limit * 2, DEFAULT_FEED_SAMPLE_SIZE);
+        const candidateBatchSize = defaultFeed ? Math.min(limit * 2, DEFAULT_FEED_SAMPLE_SIZE) : (filters.query ? DEFAULT_FEED_SAMPLE_SIZE : limit);
 
         if (defaultFeed) {
           // Diverse discover feed: deterministic session base window with candidate batch size
@@ -322,7 +331,7 @@ export async function POST(request: NextRequest) {
           rangeEnd = rangeStart + candidateBatchSize - 1;
         } else {
           rangeStart = offset;
-          rangeEnd = offset + limit - 1;
+          rangeEnd = offset + candidateBatchSize - 1;
         }
         query = query.range(rangeStart, rangeEnd);
 
@@ -333,17 +342,14 @@ export async function POST(request: NextRequest) {
           const hasMore = sampleRows.length >= (defaultFeed ? limit : limit);
           const sourceData = defaultFeed
             ? takeDefaultFeed(sampleRows, limit, filters, seed + offset)
-            : (sampleRows.length > limit ? sampleRows.slice(0, limit) : sampleRows).map(dbAdToNormalized);
-          const renderableSourceData = sourceData.filter(hasRenderableMedia);
+            : sampleRows.map(dbAdToNormalized).filter(ad => matchesClientFilters(ad, filters));
 
           const canonical = sampleRows.map(brandFromRow).filter((brand): brand is NonNullable<typeof brand> => Boolean(brand));
-          let ads = ensureWinnerScores(resolveAdIdentities(renderableSourceData, canonical, filters.selectedBrand, filters.brand));
+          let ads = ensureWinnerScores(resolveAdIdentities(sourceData, canonical, filters.selectedBrand, filters.brand));
 
-          if (filters.query) {
-            ads = rankBySearchRelevance(ads, filters.query);
-          }
+          ads = rankRelevantAds(ads, filters.query).slice(0, limit);
 
-          const nextCursor = hasMore ? (offset + (defaultFeed ? candidateBatchSize : limit)).toString() : null;
+          const nextCursor = hasMore ? (offset + candidateBatchSize).toString() : null;
 
           if (ads.length || filters.source === "competitor" || filters.cursor) payload = {
             ads: adsForClient(ads),
@@ -455,7 +461,7 @@ export async function POST(request: NextRequest) {
               uiDedupMap.set(groupId, ad);
             }
           }
-          const uiAds = Array.from(uiDedupMap.values());
+          const uiAds = rankRelevantAds(Array.from(uiDedupMap.values()), filters.query);
           payload = { ...executedResult, ads: adsForClient(uiAds), requestId };
         } else {
           payload = { ...executedResult, ads: [], requestId };
@@ -472,8 +478,14 @@ export async function POST(request: NextRequest) {
           if (filters.brand) {
             query = query.eq("advertiser_id", filters.selectedBrand?.providerAdvertiserId || filters.brand);
           } else if (filters.query) {
-            const q = filters.query.trim().replace(/%/g, '\\%');
-            query = query.or(`headline.ilike.%${q}%,body.ilike.%${q}%,description.ilike.%${q}%,advertiser_name.ilike.%${q}%,cta.ilike.%${q}%`);
+            const tokens = searchTokens(filters.query).slice(0, 4);
+            if (tokens.length > 1) {
+              for (const token of tokens) {
+                query = query.or(buildTokenSearchOr(token));
+              }
+            } else {
+              query = query.or(buildCatalogSearchOr(filters.query));
+            }
           }
 
           if (filters.formats?.length) query = query.in("media_type", filters.formats);
@@ -497,10 +509,10 @@ export async function POST(request: NextRequest) {
           if (data && data.length > 0) {
             const rows = data as unknown as DatabaseAdRow[];
             const canonical = rows.map(brandFromRow).filter((brand): brand is NonNullable<typeof brand> => Boolean(brand));
-            const resolved = ensureWinnerScores(resolveAdIdentities(rows.map(dbAdToNormalized).filter(hasRenderableMedia), canonical, filters.selectedBrand, filters.brand));
+            const resolved = ensureWinnerScores(resolveAdIdentities(rows.map(dbAdToNormalized), canonical, filters.selectedBrand, filters.brand));
             let deduplicated = Array.from(new Map(resolved.map(ad => [ad.id, ad])).values());
             if (filters.query) {
-              deduplicated = rankBySearchRelevance(deduplicated, filters.query);
+              deduplicated = rankRelevantAds(deduplicated, filters.query);
             }
             if (deduplicated.length) {
               payload = {
@@ -525,7 +537,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (payload) {
-      payload.ads = ensureWinnerScores(resolveAdIdentities(payload.ads, [], filters.selectedBrand, filters.brand));
+      payload.ads = rankRelevantAds(ensureWinnerScores(resolveAdIdentities(payload.ads, [], filters.selectedBrand, filters.brand)), filters.query);
       payload.ads = await signArchivedAdMedia(payload.ads);
       payload.brand = filters.selectedBrand;
       payload.resolvedIntent = resolvedIntent;
@@ -702,56 +714,20 @@ function interleaveDiverseAds(
   return interleaved;
 }
 
-function rankBySearchRelevance(ads: NormalizedAd[], query?: string): NormalizedAd[] {
-  if (!query || !query.trim()) return ads;
-  const q = query.trim().toLowerCase();
-  const qTokens = q.split(/\s+/).filter(t => t.length > 1);
-
-  return [...ads].sort((a, b) => {
-    const scoreA = calculateRelevanceScore(a, q, qTokens);
-    const scoreB = calculateRelevanceScore(b, q, qTokens);
-    if (scoreB !== scoreA) return scoreB - scoreA;
-    const winnerA = a.intelligence?.winnerScore || 0;
-    const winnerB = b.intelligence?.winnerScore || 0;
-    if (winnerB !== winnerA) return winnerB - winnerA;
-    return (b.delivery?.daysRunning || 0) - (a.delivery?.daysRunning || 0);
-  });
+function buildTokenSearchOr(token: string) {
+  const escaped = token.replace(/[%_,().]/g, " ").trim();
+  return ["headline", "body", "description", "advertiser_name", "cta"]
+    .map(field => `${field}.ilike.%${escaped}%`)
+    .join(",");
 }
 
-function calculateRelevanceScore(ad: NormalizedAd, fullQuery: string, tokens: string[]): number {
-  let score = 0;
-  const brandName = (ad.advertiser.displayName || ad.advertiser.name || "").toLowerCase();
-  const headline = (ad.copy.headline || "").toLowerCase();
-  const body = (ad.copy.primaryText || "").toLowerCase();
-  const description = (ad.copy.description || "").toLowerCase();
-  const cta = (ad.copy.cta || "").toLowerCase();
-
-  // 1. Exact advertiser/brand match
-  if (brandName === fullQuery) score += 200;
-  else if (brandName.startsWith(fullQuery)) score += 120;
-  else if (brandName.includes(fullQuery)) score += 80;
-
-  // 2. Exact phrase in copy
-  if (headline.includes(fullQuery)) score += 60;
-  if (body.includes(fullQuery)) score += 30;
-  if (description.includes(fullQuery)) score += 20;
-  if (cta.includes(fullQuery)) score += 15;
-
-  // 3. Multi-token matches
-  for (const token of tokens) {
-    if (brandName.includes(token)) score += 25;
-    if (headline.includes(token)) score += 15;
-    if (body.includes(token)) score += 8;
-    if (description.includes(token)) score += 5;
-  }
-
-  // 4. Active status boost
-  if (ad.delivery?.status === "active") score += 10;
-
-  // 5. Rich format boost
-  if (ad.creative.type === "video" || ad.creative.type === "carousel") score += 5;
-
-  return score;
+function buildCatalogSearchOr(query: string) {
+  const tokens = searchTokens(query).slice(0, 8);
+  return tokens.flatMap(token => {
+    const escaped = token.replace(/[%_,().]/g, " ").trim();
+    return ["headline", "body", "description", "advertiser_name", "cta"]
+      .map(field => `${field}.ilike.%${escaped}%`);
+  }).join(",");
 }
 
 function takeDefaultFeed(
@@ -764,39 +740,45 @@ function takeDefaultFeed(
   const normalized = rows
     .map(row => resolveAdIdentities([dbAdToNormalized(row)], brandFromRow(row) ? [brandFromRow(row)!] : [])[0])
     .filter(ad => realAdvertiserName(ad.advertiser?.name, ad.advertiser?.id))
-    .filter(hasRenderableMedia)
     .filter(ad => matchesClientFilters(ad, filters));
 
   const interleaved = interleaveDiverseAds(normalized, prng, 2);
   return interleaved.slice(0, limit);
 }
 
-function hasRenderableMedia(ad: NormalizedAd) {
-  const media = resolveAdMedia(ad);
-  return Boolean(
-    media.imageUrl ||
-    media.videoUrl ||
-    media.thumbnailUrl ||
-    (media.carouselAssets && media.carouselAssets.length > 0) ||
-    ad.destination?.url ||
-    ad.rawData?.ad_snapshot_url
-  );
-}
-
 function matchesClientFilters(ad: NormalizedAd, filters: AdSearchFilters) {
   if (filters.languages?.length && !filters.languages.some(value => ad.delivery.countries.includes(value.toUpperCase()))) return false;
-  const haystack = [
-    ad.intelligence?.category,
-    ad.intelligence?.creativeFormat,
-    ad.intelligence?.hookType,
-    ad.intelligence?.offerType,
-    ...(ad.intelligence?.labels || []),
-    ad.copy?.headline,
-    ad.copy?.primaryText,
-    ad.copy?.description,
-  ].filter(Boolean).join(" ").toLowerCase();
-  if (filters.niches?.length && !filters.niches.some(value => haystack.includes(value.toLowerCase()))) return false;
-  if (filters.contentStyles?.length && !filters.contentStyles.some(value => haystack.includes(value.toLowerCase()))) return false;
+
+  if (filters.niches?.length) {
+    const nicheMatches = filters.niches.some(niche => {
+      const target = niche.toLowerCase().trim();
+      const nicheId = ad.intelligence?.nicheId?.toLowerCase();
+      if (nicheId && nicheId === target) return true;
+      const cat = ad.intelligence?.category?.toLowerCase();
+      if (cat) {
+        if (cat === target) return true;
+        if (cat.replace(/[^a-z0-9]+/g, "-") === target) return true;
+        if (target.replace(/-/g, " ") === cat) return true;
+      }
+      const copyText = `${ad.copy?.headline || ""} ${ad.copy?.primaryText || ""} ${ad.copy?.description || ""}`.toLowerCase();
+      return copyText.includes(target.replace(/-/g, " "));
+    });
+    if (!nicheMatches) return false;
+  }
+
+  if (filters.contentStyles?.length) {
+    const haystack = [
+      ad.intelligence?.creativeFormat,
+      ad.intelligence?.hookType,
+      ad.intelligence?.offerType,
+      ...(ad.intelligence?.labels || []),
+      ad.copy?.headline,
+      ad.copy?.primaryText,
+      ad.copy?.description,
+    ].filter(Boolean).join(" ").toLowerCase();
+    if (!filters.contentStyles.some(value => haystack.includes(value.toLowerCase()))) return false;
+  }
+
   return true;
 }
 

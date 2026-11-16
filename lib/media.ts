@@ -15,13 +15,19 @@ export type ResolvedMedia = {
   }>;
 };
 
+export function isPermanentStorageUrl(value?: string | null): boolean {
+  if (!value) return false;
+  return value.includes("supabase.co/storage/v1/object/public/ad-creatives/") || value.includes("/storage/v1/object/public/ad-creatives/");
+}
+
 export function isUsableAdMediaUrl(value?: string | null) {
   const url = safeExternalUrl(value);
   if (!url) return null;
+  if (isPermanentStorageUrl(url)) return url;
   try {
     const parsed = new URL(url);
     const host = parsed.hostname.toLowerCase();
-    if (host.endsWith("fbcdn.net")) {
+    if (host.endsWith("fbcdn.net") || host.endsWith("facebook.com")) {
       const expiry = parsed.searchParams.get("oe");
       if (expiry && /^[0-9a-f]+$/i.test(expiry)) {
         const expiresAt = Number.parseInt(expiry, 16) * 1_000;

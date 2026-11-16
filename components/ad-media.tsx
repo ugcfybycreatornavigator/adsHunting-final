@@ -1,6 +1,5 @@
 "use client";
 
-import { ImageIcon } from "lucide-react";
 import type { NormalizedAd } from "@/lib/types";
 import { resolveAdMedia } from "@/lib/media";
 import { VideoPreview } from "@/components/video-preview";
@@ -12,11 +11,13 @@ export function AdMedia({
   variant = "card",
   className = "",
   priority = false,
+  onMediaError,
 }: {
   ad: NormalizedAd;
   variant?: "card" | "detail";
   className?: string;
   priority?: boolean;
+  onMediaError?: () => void;
 }) {
   const [imageFailed, setImageFailed] = useState(false);
   const media = useMemo(() => resolveAdMedia(ad), [ad]);
@@ -25,10 +26,17 @@ export function AdMedia({
   const imageUrl = media.imageUrl;
   const thumbnailUrl = media.thumbnailUrl;
   const advertiserName = ad.advertiser.displayName || ad.advertiser.name || "Advertiser";
+  const fallbackCopy = ad.copy.headline || ad.copy.primaryText || ad.copy.description;
 
   useEffect(() => {
     setImageFailed(false);
   }, [ad.id]);
+
+  useEffect(() => {
+    if (type === "unknown") {
+      onMediaError?.();
+    }
+  }, [type, onMediaError]);
   
   const objectFit = "contain";
   
@@ -81,6 +89,7 @@ export function AdMedia({
           decoding="async"
           onError={() => {
             setImageFailed(true);
+            onMediaError?.();
           }}
         />
       </div>
@@ -88,11 +97,24 @@ export function AdMedia({
   }
 
   return (
-    <div className={`flex h-full w-full flex-col items-center justify-center gap-3 bg-zinc-50/80 text-muted border-y border-line/50 ${className}`}>
-      <div className="grid size-12 place-items-center rounded-full bg-white shadow-sm border border-line">
-        <ImageIcon size={20} className="text-zinc-400" />
+    <div className={`flex h-full w-full flex-col justify-between border-y border-line/60 bg-gradient-to-br from-zinc-50 via-white to-zinc-50 p-4 ${className}`}>
+      <div className="flex items-center justify-between">
+        <span className="inline-flex items-center rounded-full border border-zinc-200 bg-white px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-zinc-500 shadow-sm">
+          Text ad
+        </span>
+        {ad.destination?.domain && (
+          <span className="truncate text-[10px] font-medium text-zinc-400">
+            {ad.destination.domain}
+          </span>
+        )}
       </div>
-      <p className="text-xs font-medium">Creative unavailable</p>
+      <p className="line-clamp-4 text-xs font-medium leading-relaxed text-zinc-700">
+        &ldquo;{fallbackCopy || `Advertisement from ${advertiserName}`}&rdquo;
+      </p>
+      <div className="flex items-center justify-between border-t border-zinc-100 pt-2 text-[10px] text-zinc-400">
+        <span className="truncate font-medium">{advertiserName}</span>
+        <span className="shrink-0 text-zinc-400">Verified copy</span>
+      </div>
     </div>
   );
 }

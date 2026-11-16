@@ -24,6 +24,11 @@ import { cn } from "@/lib/utils";
 const countries = [["ALL", "All countries"], ["IN", "India"], ["US", "United States"], ["GB", "United Kingdom"], ["CA", "Canada"], ["AU", "Australia"], ["DE", "Germany"], ["FR", "France"], ["BR", "Brazil"]];
 const defaults: AdSearchFilters = { query: "", status: "all", country: "ALL", platforms: [], mediaType: "all", cta: "", duration: "", startDate: "", endDate: "" };
 
+interface DefaultFeedSnapshot {
+  ads: NormalizedAd[];
+  nextCursor: string | null;
+}
+
 function NotificationBell() {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -144,6 +149,8 @@ export function DiscoverExperience({ brandId, hideHeader = false }: { brandId?: 
   const [deepLinkedAdId, setDeepLinkedAdId] = useState<string | null>(null);
   const requestController = useRef<AbortController | null>(null);
   const searchSessionIdRef = useRef<string | null>(null);
+  const searchSequenceRef = useRef(0);
+  const defaultFeedCacheRef = useRef<DefaultFeedSnapshot | null>(null);
 
   useEffect(() => {
     if (!searchSessionIdRef.current) {
@@ -197,6 +204,7 @@ export function DiscoverExperience({ brandId, hideHeader = false }: { brandId?: 
 
   const search = useCallback(async (nextFilters: AdSearchFilters, append = false) => {
     const searchAccount = accountRef.current;
+    const seq = ++searchSequenceRef.current;
     if (!append) {
       requestController.current?.abort();
     }
@@ -213,8 +221,19 @@ export function DiscoverExperience({ brandId, hideHeader = false }: { brandId?: 
       controller.abort();
     }, 35_000);
 
-    if (append) setLoadingMore(true);
-    else setLoading(true);
+    const cachedDefaultFeed = !append && !nextFilters.query && !nextFilters.brand && !nextFilters.cursor
+      ? defaultFeedCacheRef.current
+      : null;
+
+    if (append) {
+      setLoadingMore(true);
+    } else {
+      setLoading(!cachedDefaultFeed);
+      if (cachedDefaultFeed) {
+        setAds(cachedDefaultFeed.ads);
+        setCursor(cachedDefaultFeed.nextCursor);
+      }
+    }
     setError(null);
 
     try {
@@ -243,7 +262,8 @@ export function DiscoverExperience({ brandId, hideHeader = false }: { brandId?: 
       }
       const result = data as AdSearchResult;
 
-      if (requestController.current !== controller) return;
+      // Drop stale responses if a newer search has superseded this request
+      if (requestController.current !== controller || searchSequenceRef.current !== seq) return;
 
       if (result.sessionId) {
         searchSessionIdRef.current = result.sessionId;
@@ -255,6 +275,11 @@ export function DiscoverExperience({ brandId, hideHeader = false }: { brandId?: 
 
       if (result.resolvedIntent?.type === "advertiser" && nextFilters.brand !== result.resolvedIntent.advertiserId) {
         setFilters({ brand: result.resolvedIntent.advertiserId, query: result.resolvedIntent.advertiserName });
+      }
+
+      // Cache default feed for instant recovery when clearing search or navigating back
+      if (!nextFilters.query && !nextFilters.brand && !nextFilters.cursor && result.ads.length > 0) {
+        defaultFeedCacheRef.current = { ads: result.ads, nextCursor: result.nextCursor };
       }
 
       setAds(current => {
@@ -277,25 +302,17 @@ export function DiscoverExperience({ brandId, hideHeader = false }: { brandId?: 
         });
       }
     } catch (err: unknown) {
-      if (requestController.current !== controller) return;
+      if (requestController.current !== controller || searchSequenceRef.current !== seq) return;
       if (err instanceof DOMException && err.name === "AbortError" && !timedOut) return;
       if (timedOut) {
         setError({ message: "Search took too long. Please retry.", code: "SEARCH_TIMEOUT" });
-        if (!append) {
-          setAds([]);
-          setCursor(null);
-        }
         return;
       }
       const errorObj = typeof err === "object" && err !== null && "message" in err ? (err as { message: string; code?: string }) : { message: "Search is temporarily unavailable." };
       setError(errorObj);
-      if (!append) {
-        setAds([]);
-        setCursor(null);
-      }
     } finally {
       window.clearTimeout(timeoutId);
-      if (requestController.current === controller) {
+      if (requestController.current === controller && searchSequenceRef.current === seq) {
         setLoading(false);
         setLoadingMore(false);
       }
@@ -551,8 +568,8 @@ export function DiscoverExperience({ brandId, hideHeader = false }: { brandId?: 
                 }}
                 onClear={() => {
                   setDraftQuery("");
-                  if (filters.query) {
-                    setFilters({ query: undefined }, false);
+                  if (filters.query || filters.brand) {
+                    setFilters({ query: undefined, brand: undefined, selectedBrand: undefined }, false);
                   }
                 }}
                 embedded
@@ -607,7 +624,7 @@ export function DiscoverExperience({ brandId, hideHeader = false }: { brandId?: 
 
         {filters.query && <div className="mt-3 flex items-center gap-2 text-xs text-zinc-500">
           <span>{filters.brand ? "Applied brand" : "Current search"}: {filters.query}</span>
-          <button type="button" className="min-h-11 px-2 underline" onClick={() => { setDraftQuery(""); setFilters({ query: "", brand: undefined, selectedBrand: undefined }); }}>Clear search</button>
+          <button type="button" className="min-h-11 px-2 underline" onClick={() => { setDraftQuery(""); setFilters({ query: undefined, brand: undefined, selectedBrand: undefined }); }}>Clear search</button>
         </div>}
 
         {activeChips.length > 0 && (
@@ -641,7 +658,7 @@ export function DiscoverExperience({ brandId, hideHeader = false }: { brandId?: 
         ) : (
           loading && ads.length === 0 ? (
             <AdGridSkeleton />
-          ) : error ? (
+          ) : error && ads.length === 0 ? (
             <EmptyState
               icon={<Filter className="text-signal" />}
               title={error.code === "PROVIDER_NOT_CONFIGURED" ? "No Ads Provider Configured" : error.code === "PROVIDER_UNAVAILABLE" ? "All Ad Providers Unavailable" : "Search Temporarily Unavailable"}

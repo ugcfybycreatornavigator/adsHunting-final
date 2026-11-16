@@ -134,6 +134,11 @@ export async function requirePaidWorkspaceAccess() {
   if (!userId) {
     return NextResponse.json({ error: "Authentication required." }, { status: 401 });
   }
+  return requirePaidWorkspaceAccessForUser(userId);
+}
+
+export async function requirePaidWorkspaceAccessForUser(userId: string) {
+  if (isPreviewMode) return null;
   const entitlement = await getWorkspaceEntitlement(userId);
   if (!entitlement.hasAccess) {
     return NextResponse.json(

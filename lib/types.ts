@@ -105,6 +105,9 @@ export type RefinedAd = {
 
   intelligence: {
     category: string | null;
+    nicheId?: string | null;
+    categoryProvenance?: string | null;
+    categoryConfidence?: number | null;
     creativeFormat: string | null;
     hookType: string | null;
     offerType: string | null;

@@ -1,6 +1,7 @@
 import type { NormalizedAd } from "./types";
 import { computeAdFingerprints } from "./fingerprint";
 import { normalizeAdDetail } from "./ad-detail-metadata";
+import { classifyAdCategory, isValidCuratedCategory } from "./category-classifier";
 
 export function refineAd(ad: Partial<NormalizedAd>): NormalizedAd {
   const now = new Date().toISOString();
@@ -51,14 +52,31 @@ export function refineAd(ad: Partial<NormalizedAd>): NormalizedAd {
       title: ad.destination?.title || null,
       productName: ad.destination?.productName || null,
     },
-    intelligence: {
-      category: ad.intelligence?.category || null,
-      creativeFormat: ad.intelligence?.creativeFormat || null,
-      hookType: ad.intelligence?.hookType || null,
-      offerType: ad.intelligence?.offerType || null,
-      winnerScore: typeof ad.intelligence?.winnerScore === "number" ? ad.intelligence.winnerScore : null,
-      labels: Array.isArray(ad.intelligence?.labels) ? ad.intelligence!.labels : [],
-    },
+    intelligence: (() => {
+      const classified = classifyAdCategory({
+        advertiserName: ad.advertiser?.name,
+        headline: ad.copy?.headline,
+        body: ad.copy?.primaryText,
+        landingPageUrl: ad.destination?.url,
+        existingCategory: ad.intelligence?.category,
+      });
+      const category = classified.category === "Unknown"
+        ? (isValidCuratedCategory(ad.intelligence?.category) ? ad.intelligence!.category : null)
+        : classified.category;
+      return {
+        category,
+        nicheId: classified.nicheId !== "unknown" ? classified.nicheId : (ad.intelligence?.nicheId || null),
+        categoryProvenance: classified.provenance,
+        categoryConfidence: classified.confidence,
+        creativeFormat: ad.intelligence?.creativeFormat || null,
+        hookType: ad.intelligence?.hookType || null,
+        offerType: ad.intelligence?.offerType || null,
+        winnerScore: typeof ad.intelligence?.winnerScore === "number" ? ad.intelligence.winnerScore : null,
+        labels: category && !ad.intelligence?.labels?.includes(category)
+          ? [...(Array.isArray(ad.intelligence?.labels) ? ad.intelligence!.labels : []), category]
+          : (Array.isArray(ad.intelligence?.labels) ? ad.intelligence!.labels : []),
+      };
+    })(),
     enrichment: {
       archiveStatus: ad.enrichment?.archiveStatus || "not_requested",
       status: ad.enrichment?.status || "pending",
