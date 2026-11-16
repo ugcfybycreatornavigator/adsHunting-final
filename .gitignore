@@ -64,3 +64,6 @@ supabase/functions/_shared/ads/providers/*
 
 # Test screenshots
 tests/screenshots/
+
+# Supabase temporary CLI cache
+supabase/.temp/
