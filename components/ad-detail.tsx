@@ -5,7 +5,7 @@ import Link from "next/link";
 import {
   Bookmark, Check, ExternalLink, ImageIcon, Info, Loader2,
   Copy, ArrowRight, Globe, Share, LayoutTemplate, X, Download,
-  MoreHorizontal
+  MoreHorizontal, ChevronLeft, ChevronRight, Mail
 } from "lucide-react";
 import { AdMedia } from "@/components/ad-media";
 import { SwipeFilePicker } from "@/components/swipe-file-picker";
@@ -136,6 +136,10 @@ export function AdDetailDrawer({
   allowSharedDownload = false,
   onClose,
   onSave,
+  onPrevious,
+  onNext,
+  hasPrevious = false,
+  hasNext = false,
 }: {
   ad: NormalizedAd;
   saved?: boolean;
@@ -144,6 +148,10 @@ export function AdDetailDrawer({
   allowSharedDownload?: boolean;
   onClose: () => void;
   onSave?: () => Promise<void> | void;
+  onPrevious?: () => void;
+  onNext?: () => void;
+  hasPrevious?: boolean;
+  hasNext?: boolean;
 }) {
   const [optimisticSaved, setOptimisticSaved] = useState(saved);
   const [saving, setSaving] = useState(false);
@@ -153,6 +161,9 @@ export function AdDetailDrawer({
   const [showShare, setShowShare] = useState(false);
   const [showSwipePicker, setShowSwipePicker] = useState(false);
   const swipeBtnRef = useRef<HTMLButtonElement>(null);
+  const mediaPanelRef = useRef<HTMLDivElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
 
   // Download
   const [downloading, setDownloading] = useState(false);
@@ -212,12 +223,23 @@ export function AdDetailDrawer({
     document.body.style.overflow = "hidden";
 
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Tab" && dialogRef.current && !showShare && !showSwipePicker) {
+        const focusable = Array.from(dialogRef.current.querySelectorAll<HTMLElement>('button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), video[controls], [tabindex]:not([tabindex="-1"])')).filter((element) => element.offsetParent !== null);
+        if (focusable.length) {
+          const first = focusable[0];
+          const last = focusable[focusable.length - 1];
+          if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+          else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+        }
+      }
       // Don't close if a nested modal is open
       if (e.key === "Escape" && !showShare && !showSwipePicker) {
          // Note: If a MetadataPopover is open, its capture-phase listener will stopPropagation,
          // so this won't trigger.
          onClose();
       }
+      if (!showShare && !showSwipePicker && e.key === "ArrowLeft" && hasPrevious) onPrevious?.();
+      if (!showShare && !showSwipePicker && e.key === "ArrowRight" && hasNext) onNext?.();
     };
     window.addEventListener("keydown", handleKeyDown);
 
@@ -225,7 +247,13 @@ export function AdDetailDrawer({
       document.body.style.overflow = originalOverflow;
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [onClose, showShare, showSwipePicker]);
+  }, [hasNext, hasPrevious, onClose, onNext, onPrevious, showShare, showSwipePicker]);
+
+  useEffect(() => {
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    closeButtonRef.current?.focus();
+    return () => previousFocus?.focus();
+  }, []);
 
   const media = resolveAdMedia(ad);
   const TABS = ["Overview", "Creative", "Copy", "Delivery", "Landing Page", "Advertiser"];
@@ -251,6 +279,7 @@ export function AdDetailDrawer({
       }}
     >
       <div
+        ref={dialogRef}
         className="relative flex flex-col bg-white overflow-hidden shadow-2xl w-full h-[85vh] sm:h-auto sm:max-h-[calc(100vh-48px)] sm:w-[min(1280px,calc(100vw-64px))] sm:rounded-[16px] border border-line/60 animate-in fade-in zoom-in-95 duration-200"
         onMouseDown={event => event.stopPropagation()}
       >
@@ -298,6 +327,10 @@ export function AdDetailDrawer({
 
           {/* Right: Actions */}
           <div className="flex items-center justify-end gap-1.5 sm:gap-2 shrink-0">
+            <div className="hidden items-center sm:flex" role="group" aria-label="Navigate ads">
+              <button type="button" onClick={onPrevious} disabled={!hasPrevious} className="grid size-8 place-items-center rounded-l-md border border-line text-muted transition hover:bg-zinc-50 hover:text-ink disabled:cursor-not-allowed disabled:opacity-35" aria-label="Previous ad"><ChevronLeft size={16} /></button>
+              <button type="button" onClick={onNext} disabled={!hasNext} className="grid size-8 place-items-center rounded-r-md border border-l-0 border-line text-muted transition hover:bg-zinc-50 hover:text-ink disabled:cursor-not-allowed disabled:opacity-35" aria-label="Next ad"><ChevronRight size={16} /></button>
+            </div>
             <div className="hidden sm:flex items-center gap-1.5">
               <HeaderButton
                 icon={downloading ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}
@@ -355,7 +388,7 @@ export function AdDetailDrawer({
               </button>
             )}
             <div className="w-px h-5 bg-line/60 mx-1 sm:mx-2" />
-            <button onClick={onClose} className="grid size-8 place-items-center rounded-md text-muted hover:bg-zinc-100 transition-colors" aria-label="Close">
+            <button ref={closeButtonRef} onClick={onClose} className="grid size-8 place-items-center rounded-md text-muted hover:bg-zinc-100 transition-colors" aria-label="Close">
               <X size={18} />
             </button>
           </div>
@@ -367,7 +400,7 @@ export function AdDetailDrawer({
           <div className="grid lg:grid-cols-[minmax(0,1.25fr)_minmax(320px,0.95fr)] max-w-[1440px] mx-auto p-4 sm:p-6 md:p-8 gap-8 lg:gap-12 lg:items-start min-w-0">
 
             {/* Left: Creative Container (55-58%) */}
-            <div className="flex flex-col gap-4 min-w-0">
+            <div ref={mediaPanelRef} className="flex flex-col gap-4 min-w-0">
               <AdCreativeViewer ad={ad} />
 
               {/* Carousel Thumbnail Strip */}
@@ -442,7 +475,12 @@ export function AdDetailDrawer({
 
           {/* Tab Content */}
           <div className="max-w-[1440px] mx-auto p-4 sm:p-6 md:p-8">
-            {activeTab === "Overview" && <OverviewTab ad={ad} />}
+            {activeTab === "Overview" && <OverviewTab ad={ad} onSeek={(seconds) => {
+              const video = mediaPanelRef.current?.querySelector("video");
+              if (!video) return;
+              video.currentTime = seconds;
+              void video.play().catch(() => undefined);
+            }} />}
             {activeTab === "Creative" && <CreativeTab ad={ad} />}
             {activeTab === "Copy" && <CopyTab ad={ad} />}
             {activeTab === "Delivery" && <DeliveryTab ad={ad} />}
@@ -798,7 +836,7 @@ function AdCreativeViewer({
 // Tab Layouts (Deep Details)
 // --------------------------------------------------------------------------------
 
-function OverviewTab({ ad }: { ad: NormalizedAd }) {
+function OverviewTab({ ad, onSeek }: { ad: NormalizedAd; onSeek: (seconds: number) => void }) {
   return (
     <div className="grid lg:grid-cols-2 gap-x-10 gap-y-12">
       <div className="space-y-10">
@@ -812,12 +850,16 @@ function OverviewTab({ ad }: { ad: NormalizedAd }) {
             </div>
           </div>
         </section>
+        <TranscriptSection ad={ad} onSeek={onSeek} />
+        <CreativeAnalysis ad={ad} />
       </div>
       <div className="space-y-10">
         <section>
           <h3 className="text-[14px] font-[650] text-ink mb-4">Advertiser Profile</h3>
           <AdvertiserCard ad={ad} />
         </section>
+        <BusinessContact ad={ad} />
+        <OverviewMetadata ad={ad} />
         <section>
           <h3 className="text-[14px] font-[650] text-ink mb-4">Landing Page Details</h3>
           <WebsitePreviewCard url={ad.destination.url} title={ad.destination.title || ad.copy.headline} />
@@ -884,6 +926,111 @@ function AdvertiserTab({ ad }: { ad: NormalizedAd }) {
 // --------------------------------------------------------------------------------
 // Sub-components
 // --------------------------------------------------------------------------------
+
+function formatTimestamp(seconds: number) {
+  const safe = Math.max(0, Math.floor(seconds));
+  return `${Math.floor(safe / 60)}:${String(safe % 60).padStart(2, "0")}`;
+}
+
+function TranscriptSection({ ad, onSeek }: { ad: NormalizedAd; onSeek: (seconds: number) => void }) {
+  const transcript = ad.detail?.transcript;
+  const segments = transcript?.segments?.filter((segment) => segment.text.trim()) ?? [];
+  const transcriptText = segments.map((segment) => `[${formatTimestamp(segment.startSeconds)}] ${segment.text}`).join("\n");
+  if (ad.creative.type !== "video" && !segments.length) return null;
+
+  return (
+    <section>
+      <div className="mb-3 flex items-center justify-between">
+        <div>
+          <h3 className="text-[14px] font-[650] text-ink">Transcript</h3>
+          {transcript?.language && <p className="mt-0.5 text-[11px] text-muted">Language: {transcript.language}</p>}
+        </div>
+        {transcriptText && <CopyButton text={transcriptText} />}
+      </div>
+      {segments.length ? (
+        <div className="max-h-72 space-y-1 overflow-y-auto rounded-[12px] border border-line bg-zinc-50/50 p-2 custom-scrollbar">
+          {segments.map((segment, index) => (
+            <button key={`${segment.startSeconds}-${index}`} type="button" onClick={() => onSeek(segment.startSeconds)} className="flex w-full gap-3 rounded-lg px-2.5 py-2 text-left transition hover:bg-white focus-visible:ring-2 focus-visible:ring-brand">
+              <span className="shrink-0 pt-0.5 text-[11px] font-semibold tabular-nums text-brand">{formatTimestamp(segment.startSeconds)}</span>
+              <span className="text-[13px] leading-relaxed text-ink">{segment.text}</span>
+            </button>
+          ))}
+        </div>
+      ) : (
+        <div className="rounded-[12px] border border-line bg-zinc-50/50 p-4 text-[13px] text-muted">
+          {transcript?.status === "processing" ? "Transcript processing." : transcript?.status === "failed" ? "Transcript unavailable due to a processing error." : "Transcript not available for this video."}
+        </div>
+      )}
+      {transcript?.provenance && <p className="mt-2 text-[10px] text-muted">Source: {transcript.provenance}</p>}
+    </section>
+  );
+}
+
+function CreativeAnalysis({ ad }: { ad: NormalizedAd }) {
+  const analysis = ad.detail?.analysis;
+  const tags = Array.from(new Set([
+    ...(analysis?.tags ?? []),
+    ...(ad.intelligence.labels ?? []),
+    ad.intelligence.category,
+    ad.intelligence.creativeFormat,
+    ad.intelligence.offerType,
+  ].filter((value): value is string => Boolean(value?.trim()))));
+  const analyzed = analysis?.status === "complete" || analysis?.status === "partial";
+
+  return (
+    <section className="space-y-5">
+      <div>
+        <div className="mb-2 flex items-center justify-between">
+          <h3 className="text-[14px] font-[650] text-ink">Creative analysis</h3>
+          {analysis?.provenance && <span className="text-[10px] text-muted">Source: {analysis.provenance}</span>}
+        </div>
+        {tags.length ? <div className="flex flex-wrap gap-2">{tags.map((tag) => <span key={tag} className="rounded-full border border-line bg-zinc-50 px-2.5 py-1 text-[11px] font-medium text-ink">{titleCase(tag)}</span>)}</div> : <p className="text-[13px] text-muted">No classification tags available.</p>}
+      </div>
+      <AnalysisBlock title="Target persona" value={analyzed ? analysis?.persona : null} />
+      <AnalysisList title="Pain points" values={analyzed ? analysis?.painPoints : undefined} />
+      <AnalysisList title="Selling points" values={analyzed ? analysis?.sellingPoints : undefined} />
+    </section>
+  );
+}
+
+function AnalysisBlock({ title, value }: { title: string; value?: string | null }) {
+  return <div><h4 className="mb-1.5 text-[10px] font-semibold uppercase tracking-widest text-muted">{title}</h4><p className="text-[13px] leading-relaxed text-ink">{value || "Not analyzed"}</p></div>;
+}
+
+function AnalysisList({ title, values }: { title: string; values?: string[] }) {
+  const clean = Array.from(new Set((values ?? []).map((value) => value.trim()).filter(Boolean)));
+  return <div><h4 className="mb-1.5 text-[10px] font-semibold uppercase tracking-widest text-muted">{title}</h4>{clean.length ? <ul className="space-y-1.5 text-[13px] text-ink">{clean.map((value) => <li key={value} className="flex gap-2"><span className="text-brand">•</span><span>{value}</span></li>)}</ul> : <p className="text-[13px] text-muted">Not analyzed</p>}</div>;
+}
+
+function BusinessContact({ ad }: { ad: NormalizedAd }) {
+  const contact = ad.detail?.businessContact;
+  const email = contact?.email?.trim().toLowerCase();
+  const validEmail = email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : null;
+  return (
+    <section>
+      <h3 className="mb-3 text-[14px] font-[650] text-ink">Business contact</h3>
+      <div className="rounded-[12px] border border-line bg-zinc-50/50 p-4">
+        {validEmail ? <div className="flex flex-wrap items-center justify-between gap-3"><div className="min-w-0"><p className="truncate text-[13px] font-semibold text-ink">{validEmail}</p><p className="mt-0.5 text-[10px] text-muted">Verified business contact · {contact?.provenance}</p></div><div className="flex items-center gap-1"><CopyButton text={validEmail} /><a href={`mailto:${validEmail}`} className="grid size-8 place-items-center rounded-md text-muted transition hover:bg-brand/10 hover:text-brand" aria-label="Email business contact" title="Email business contact"><Mail size={14} /></a></div></div> : <p className="text-[13px] text-muted">Not available</p>}
+      </div>
+    </section>
+  );
+}
+
+function OverviewMetadata({ ad }: { ad: NormalizedAd }) {
+  const media = resolveAdMedia(ad);
+  const rows = [
+    ["Ad ID", ad.externalId || ad.id],
+    ["Provider", ad.provider.discoveryProvider],
+    ["Format", media.kind],
+    ["Status", ad.delivery.status],
+    ["First seen", ad.delivery.startedAt ? formatDate(ad.delivery.startedAt) : null],
+    ["Last seen", ad.delivery.endedAt || ad.provider.fetchedAt ? formatDate(ad.delivery.endedAt || ad.provider.fetchedAt) : null],
+    ["Run duration", ad.delivery.daysRunning != null ? `${ad.delivery.daysRunning} days` : null],
+    ["CTA", ad.copy.cta],
+    ["Destination", ad.destination.domain || (ad.destination.url ? cleanUrl(ad.destination.url) : null)],
+  ].filter((row): row is [string, string] => Boolean(row[1]));
+  return <section><h3 className="mb-3 text-[14px] font-[650] text-ink">Ad overview</h3><dl className="divide-y divide-line rounded-[12px] border border-line">{rows.map(([label, value]) => <div key={label} className="flex items-start justify-between gap-5 px-4 py-2.5"><dt className="text-[11px] font-medium text-muted">{label}</dt><dd className="max-w-[65%] break-words text-right text-[12px] font-medium text-ink">{value}</dd></div>)}</dl></section>;
+}
 
 function CopyBlock({ text, label }: { text?: string | null, label: string }) {
   const [expanded, setExpanded] = useState(false);

@@ -43,6 +43,14 @@ const fields = [
   "languages",
 ].join(",");
 
+export const DEFAULT_GLOBAL_MARKETS = [
+  "US", "CA", "GB", "AU", "NZ", "IN", "DE", "FR", "IT", "ES",
+  "NL", "SE", "NO", "DK", "FI", "BR", "MX", "SG", "AE", "SA",
+  "JP", "KR", "ZA", "IE", "CH", "AT", "BE", "PL", "PT", "GR",
+  "CZ", "RO", "HU", "IL", "MY", "TH", "ID", "VN", "PH", "CL",
+  "CO", "PE", "AR", "TR", "EG", "NG", "KE", "HK", "TW", "PK"
+];
+
 export class MetaProvider implements AdProvider {
   readonly capabilities: ProviderCapabilities = {
     keywordSearch: true, advertiserSearch: true, commercialAds: true,
@@ -58,14 +66,17 @@ export class MetaProvider implements AdProvider {
   };
   constructor(private config: { accessToken: string; apiVersion: string; defaultCountry?: string }) {
     if (!/^v\d+\.\d+$/.test(config.apiVersion)) {
-      throw new ProviderError("PROVIDER_NOT_CONFIGURED", "META_API_VERSION must look like v25.0.", 503);
+      throw new ProviderError("PROVIDER_NOT_CONFIGURED", "META_API_VERSION must look like v27.0.", 503);
     }
   }
 
   async healthCheck(): Promise<void> {
+    const checkCountry = this.config.defaultCountry && this.config.defaultCountry !== "ALL"
+      ? this.config.defaultCountry
+      : "US";
     const params = new URLSearchParams({
       access_token: this.config.accessToken,
-      ad_reached_countries: JSON.stringify([this.config.defaultCountry || "US"]),
+      ad_reached_countries: JSON.stringify([checkCountry]),
       search_terms: "a",
       ad_active_status: "ALL",
       limit: "1",
@@ -106,6 +117,9 @@ export class MetaProvider implements AdProvider {
         : [this.config.defaultCountry || "ALL"];
     
     markets = markets.map(c => c.toUpperCase());
+    if (markets.includes("ALL") || markets.length === 0) {
+      markets = DEFAULT_GLOBAL_MARKETS;
+    }
     
     const params = new URLSearchParams({
       access_token: this.config.accessToken,

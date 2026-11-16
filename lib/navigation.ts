@@ -1,4 +1,4 @@
-import { House, Compass, Radar, FolderHeart, Share2, HelpCircle, BookOpen, Settings } from "lucide-react";
+import { House, Compass, Radar, FolderHeart, Share2, HelpCircle, BookOpen, Settings, ChartNoAxesCombined } from "lucide-react";
 
 export const navigationConfig = {
   primary: [
@@ -7,6 +7,7 @@ export const navigationConfig = {
   ],
   research: [
     { label: "Competitors", href: "/competitors", icon: Radar },
+    { label: "Ads Analytics", href: "/analytics", icon: ChartNoAxesCombined },
   ],
   swipeFiles: [
     { label: "Swipe Files", href: "/swipe-files", icon: FolderHeart },

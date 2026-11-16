@@ -5,12 +5,17 @@ import { rankSuggestions, type SearchSuggestion } from "@/lib/search-suggestions
 import { NICHES, CONTENT_STYLES, LANGUAGES, MARKETS } from "@/lib/taxonomy";
 export type { SearchSuggestion } from "@/lib/search-suggestions";
 
+const suggestionsCache = new Map<string, { expiresAt: number; body: unknown }>();
+const MAX_SUGGESTION_CACHE = 500;
+const SUGGESTION_TTL_MS = 60_000;
+
 // Read-only catalogue metadata. No provider or usage RPC belongs in autocomplete.
 export async function GET(request: NextRequest) {
   const started = performance.now(), requestId = crypto.randomUUID();
-  const respond = (body: unknown, status = 200, dbMs = 0) => NextResponse.json(body, {
+  const respond = (body: unknown, status = 200, dbMs = 0, cacheHit = false) => NextResponse.json(body, {
     status, headers: {
       "Cache-Control": "private, no-store", "X-Request-Id": requestId,
+      "X-Cache": cacheHit ? "HIT" : "MISS",
       "Server-Timing": `db;dur=${dbMs.toFixed(1)}, total;dur=${(performance.now() - started).toFixed(1)}`,
     },
   });
@@ -21,6 +26,13 @@ export async function GET(request: NextRequest) {
   const query = (request.nextUrl.searchParams.get("q") || "").trim();
   if (query.length > 160) return respond({ error: "Search is too long." }, 400);
   if (query.length === 1) return respond({ suggestions: [] });
+
+  const cacheKey = query.toLowerCase();
+  const cached = suggestionsCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) {
+    return respond({ ...(cached.body as object), requestId }, 200, 0, true);
+  }
+
   const dbStart = performance.now();
   const escaped = query.replace(/[\\%_]/g, "\\$&");
   const { data, error } = await auth.supabase!.rpc("get_search_suggestions", {
@@ -44,5 +56,13 @@ export async function GET(request: NextRequest) {
       }
     }
   }
-  return respond({ suggestions: query ? [...rankSuggestions(suggestions, query, [], ""), ...categories.slice(0, 3)] : suggestions, requestId }, 200, dbMs);
+  const resultBody = { suggestions: query ? [...rankSuggestions(suggestions, query, [], ""), ...categories.slice(0, 3)] : suggestions, requestId };
+
+  if (suggestionsCache.size >= MAX_SUGGESTION_CACHE) {
+    const oldest = suggestionsCache.keys().next().value;
+    if (oldest) suggestionsCache.delete(oldest);
+  }
+  suggestionsCache.set(cacheKey, { expiresAt: Date.now() + SUGGESTION_TTL_MS, body: resultBody });
+
+  return respond(resultBody, 200, dbMs);
 }

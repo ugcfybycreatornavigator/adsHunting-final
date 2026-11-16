@@ -1,5 +1,6 @@
 import type { NormalizedAd } from "./types";
 import { computeAdFingerprints } from "./fingerprint";
+import { normalizeAdDetail } from "./ad-detail-metadata";
 
 export function refineAd(ad: Partial<NormalizedAd>): NormalizedAd {
   const now = new Date().toISOString();
@@ -64,6 +65,7 @@ export function refineAd(ad: Partial<NormalizedAd>): NormalizedAd {
       qualityScore: typeof ad.enrichment?.qualityScore === "number" ? ad.enrichment.qualityScore : 0,
       lastEnrichedAt: ad.enrichment?.lastEnrichedAt || null,
     },
+    detail: normalizeAdDetail(ad.detail),
     variants: typeof ad.variants === "number" ? ad.variants : 1,
     creativeRepetition: typeof ad.creativeRepetition === "number" ? ad.creativeRepetition : 0,
     brandActiveAds: typeof ad.brandActiveAds === "number" ? ad.brandActiveAds : null,

@@ -142,7 +142,7 @@ export function getAdProviders(filters: AdSearchFilters = {}): NamedAdProvider[]
 }
 
 export const providerCapabilities = {
-  meta: new MetaProvider({ accessToken: "capability-only", apiVersion: "v25.0" }).capabilities,
+  meta: new MetaProvider({ accessToken: "capability-only", apiVersion: "v27.0" }).capabilities,
   searchapi: new SearchApiProvider("capability-only").capabilities,
   foreplay: new ForeplayProvider("capability-only").capabilities,
   spyglass: new SpyglassProvider().capabilities,

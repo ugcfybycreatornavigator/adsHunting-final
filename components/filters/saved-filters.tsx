@@ -24,7 +24,7 @@ export function SavedFiltersPopover({ filters, updateFilters }: { filters: AdSea
         </Button>
       }
     >
-      <div className="w-[280px]">
+      <div className="w-full min-w-0 sm:w-[280px]">
         <SavedFilters currentFilters={filters} onApply={(f) => { updateFilters(f); setOpen(false); }} />
       </div>
     </Popover>

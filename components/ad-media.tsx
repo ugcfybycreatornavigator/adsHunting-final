@@ -5,19 +5,21 @@ import type { NormalizedAd } from "@/lib/types";
 import { resolveAdMedia } from "@/lib/media";
 import { VideoPreview } from "@/components/video-preview";
 import { CarouselPreview } from "@/components/carousel-preview";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 export function AdMedia({
   ad,
   variant = "card",
   className = "",
+  priority = false,
 }: {
   ad: NormalizedAd;
   variant?: "card" | "detail";
   className?: string;
+  priority?: boolean;
 }) {
   const [imageFailed, setImageFailed] = useState(false);
-  const media = resolveAdMedia(ad);
+  const media = useMemo(() => resolveAdMedia(ad), [ad]);
   const type = media.kind;
   const videoUrl = media.videoUrl;
   const imageUrl = media.imageUrl;
@@ -73,8 +75,10 @@ export function AdMedia({
         <img
           src={fallbackImage}
           alt={`Creative from ${advertiserName}`}
-          className={`h-full w-full text-transparent object-contain`}
-          loading="lazy"
+          className="h-full w-full text-transparent object-contain"
+          loading={priority ? "eager" : "lazy"}
+          fetchPriority={priority ? "high" : "auto"}
+          decoding="async"
           onError={() => {
             setImageFailed(true);
           }}

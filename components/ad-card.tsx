@@ -1,32 +1,17 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import React, { memo, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { Check, Copy, ExternalLink, FolderPlus, ImageIcon, Images, MoreHorizontal, PlaySquare, Share2, Loader2, Trash2, FileText, Tag } from "lucide-react";
 import { AdMedia } from "@/components/ad-media";
 import type { NormalizedAd } from "@/lib/types";
 import { resolveAdMedia } from "@/lib/media";
-import { safeExternalUrl, sanitizeAdCopy, cn } from "@/lib/utils";
+import { safeExternalUrl, sanitizeAdCopy, cn, formatDate } from "@/lib/utils";
 
 // Extracted from original swipe file picker logic for inline use
 import { SwipeFilePicker, type SwipeFileResult } from "@/components/swipe-file-picker";
 
-export function AdCard({
-  ad,
-  saved,
-  swipeFileCount = 0,
-  onOpen,
-  onSave,
-  initialCollectionIds = [],
-  onSwipeFileAdded,
-  onShare,
-  hasNote,
-  tags,
-  onNoteClick,
-  onTagsClick,
-  onRemoveClick,
-  layout = "grid",
-}: {
+export interface AdCardProps {
   ad: NormalizedAd;
   saved?: boolean;
   swipeFileCount?: number;
@@ -41,7 +26,26 @@ export function AdCard({
   onTagsClick?: () => void;
   onRemoveClick?: () => void;
   layout?: "grid" | "list";
-}) {
+  priority?: boolean;
+}
+
+function AdCardComponent({
+  ad,
+  saved,
+  swipeFileCount = 0,
+  onOpen,
+  onSave,
+  initialCollectionIds = [],
+  onSwipeFileAdded,
+  onShare,
+  hasNote,
+  tags,
+  onNoteClick,
+  onTagsClick,
+  onRemoveClick,
+  layout = "grid",
+  priority = false,
+}: AdCardProps) {
   const [saving, setSaving] = useState(false);
   const [sharing] = useState(false);
   const [optimisticSaved, setOptimisticSaved] = useState(false);
@@ -57,15 +61,16 @@ export function AdCard({
     setAvatarFailed(false);
   }, [ad.id]);
   
-  const mediaInfo = resolveAdMedia(ad);
-  const landingPage = safeExternalUrl(ad.destination.url);
+  const mediaInfo = useMemo(() => resolveAdMedia(ad), [ad]);
+  const landingPage = useMemo(() => safeExternalUrl(ad.destination.url), [ad.destination.url]);
   const advertiserName = ad.advertiser.displayName || ad.advertiser.name || "Advertiser";
   const initial = advertiserName.slice(0, 1).toUpperCase() || "A";
 
-  const displayCopy =
+  const displayCopy = useMemo(() => (
     sanitizeAdCopy(ad.copy.headline) ||
     sanitizeAdCopy(ad.copy.primaryText) ||
-    sanitizeAdCopy(ad.copy.description);
+    sanitizeAdCopy(ad.copy.description)
+  ), [ad.copy.headline, ad.copy.primaryText, ad.copy.description]);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -86,7 +91,7 @@ export function AdCard({
   return (
     <article className={cn(
       "group relative flex w-full flex-col rounded-[12px] border border-line bg-white shadow-sm transition-all duration-200 hover:border-zinc-300 hover:shadow-md",
-      layout === "list" && "md:grid md:min-h-[180px] md:grid-cols-[180px_minmax(0,1fr)_150px] md:grid-rows-[52px_1fr]",
+      layout === "list" && "md:grid md:min-h-[200px] md:grid-cols-[180px_minmax(0,1fr)_150px] md:grid-rows-[52px_1fr_44px]",
       menuOpen ? "z-50 overflow-visible" : "overflow-hidden z-10"
     )}>
       {/* Full-card accessible clickable overlay */}
@@ -107,6 +112,7 @@ export function AdCard({
             alt={`${advertiserName} logo`}
             className="size-7 shrink-0 rounded-full border border-line object-cover bg-zinc-50" 
             loading="lazy"
+            decoding="async"
             onError={() => setAvatarFailed(true)}
           />
         ) : (
@@ -124,6 +130,9 @@ export function AdCard({
             <span className="truncate text-[11px] text-muted font-medium">
               {ad.delivery.platforms.slice(0, 2).map(titleCase).join(" + ")}
             </span>
+          )}
+          {ad.delivery.startedAt && (
+            <span className="truncate text-[10px] font-medium text-muted">Since {formatDate(ad.delivery.startedAt)}</span>
           )}
         </div>
         <div className="relative shrink-0" ref={menuRef}>
@@ -188,9 +197,22 @@ export function AdCard({
         </div>
       </div>
 
+      {(ad.copy.cta || landingPage) && (
+        <div className={cn("relative z-20 flex min-h-11 items-center gap-3 border-b border-line bg-white px-3", layout === "list" && "md:col-start-2 md:row-start-3 md:border-b-0 md:border-t")}>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-[11px] font-medium text-muted">{ad.destination.domain || (landingPage ? new URL(landingPage).hostname.replace(/^www\./, "") : "Advertisement")}</p>
+          </div>
+          {landingPage ? (
+            <a href={landingPage} target="_blank" rel="noreferrer noopener" onClick={(event) => event.stopPropagation()} className="inline-flex min-h-8 shrink-0 items-center rounded-md border border-line px-2.5 text-[11px] font-semibold text-ink transition hover:bg-zinc-50">
+              {ad.copy.cta || "Visit website"}
+            </a>
+          ) : <span className="text-[11px] font-semibold text-ink">{ad.copy.cta}</span>}
+        </div>
+      )}
+
       {/* Media 4:5 - clicking video requests full screen or plays directly, clicking card overview opens ad details */}
       <div 
-        className={cn("relative z-10 aspect-[4/5] w-full overflow-hidden border-y border-line bg-[#F5F5F5] transition-colors group-hover:border-zinc-300 cursor-pointer", layout === "list" && "md:col-start-1 md:row-span-2 md:row-start-1 md:h-full md:aspect-auto md:border-y-0 md:border-r")}
+        className={cn("relative z-10 aspect-[4/5] w-full overflow-hidden border-y border-line bg-[#F5F5F5] transition-colors group-hover:border-zinc-300 cursor-pointer", layout === "list" && "md:col-start-1 md:row-span-3 md:row-start-1 md:h-full md:aspect-auto md:border-y-0 md:border-r")}
         onClick={(e) => {
           // If video element is clicked, trigger native fullscreen or play
           const videoEl = e.currentTarget.querySelector("video");
@@ -215,12 +237,12 @@ export function AdCard({
         }}
       >
         <div className="absolute inset-0">
-          <AdMedia ad={ad} variant="card" />
+          <AdMedia ad={ad} variant="card" priority={priority} />
         </div>
       </div>
 
       {/* Metadata Section */}
-      <div className={cn("relative z-0 flex flex-col gap-2.5 p-3 pb-4 pointer-events-none", layout === "list" && "md:col-start-2 md:row-start-2 md:justify-center md:pt-1")}>
+      <div className={cn("relative z-0 flex flex-col gap-2.5 p-3 pb-4 pointer-events-none", layout === "list" && "md:col-start-2 md:row-start-2 md:justify-center md:py-1")}>
         
         {/* Status + Score */}
         <div className="flex items-center justify-between">
@@ -253,7 +275,7 @@ export function AdCard({
       </div>
       
       {/* Footer Actions */}
-      <div className={cn("relative z-10 flex h-[38px] w-full border-t border-line", layout === "list" && "md:col-start-3 md:row-span-2 md:row-start-1 md:h-full md:flex-col md:border-l md:border-t-0")} ref={saveBtnRef}>
+      <div className={cn("relative z-10 flex h-[38px] w-full border-t border-line", layout === "list" && "md:col-start-3 md:row-span-3 md:row-start-1 md:h-full md:flex-col md:border-l md:border-t-0")} ref={saveBtnRef}>
         <button 
           type="button"
           disabled={saving}
@@ -352,6 +374,8 @@ export function AdCard({
     </article>
   );
 }
+
+export const AdCard = memo(AdCardComponent);
 
 function titleCase(value: string) {
   return value.replaceAll("_", " ").replace(/\b\w/g, (char) => char.toUpperCase());

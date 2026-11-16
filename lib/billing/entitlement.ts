@@ -129,6 +129,7 @@ export async function getWorkspaceEntitlement(workspaceId: string): Promise<Work
 }
 
 export async function requirePaidWorkspaceAccess() {
+  if (isPreviewMode) return null;
   const { userId } = await auth();
   if (!userId) {
     return NextResponse.json({ error: "Authentication required." }, { status: 401 });

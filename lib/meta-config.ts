@@ -11,16 +11,16 @@ export type MetaTokenDebugResult = {
 
 export const metaConfig = {
   get appId() {
-    return process.env.META_APP_ID || "2120262955577311";
+    return process.env.META_APP_ID || "2121527305462889";
   },
   get appSecret() {
     return process.env.META_APP_SECRET;
   },
   get accessToken() {
-    return process.env.META_ACCESS_TOKEN;
+    return process.env.META_AD_LIBRARY_ACCESS_TOKEN || process.env.META_ACCESS_TOKEN;
   },
   get apiVersion() {
-    return process.env.META_API_VERSION || "v26.0";
+    return process.env.META_API_VERSION || process.env.META_GRAPH_API_VERSION || "v27.0";
   },
   get defaultCountry() {
     return process.env.META_DEFAULT_COUNTRY || "ALL";

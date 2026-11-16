@@ -6,6 +6,7 @@ const optionalSecret = z.preprocess(emptyToUndefined, z.string().trim().min(1).o
 const optionalUrl = z.preprocess(emptyToUndefined, z.string().url().optional());
 const optionalVersion = z.preprocess(emptyToUndefined, z.string().regex(/^v\d+\.\d+$/).optional());
 const optionalCountry = z.preprocess(emptyToUndefined, z.string().regex(/^[A-Za-z ]{2,56}$|^ALL$/).optional());
+const optionalHexKey = z.preprocess(emptyToUndefined, z.string().regex(/^[a-fA-F0-9]{64}$/).optional());
 const schema = z.object({
   NEXT_PUBLIC_SUPABASE_URL: optionalUrl,
   NEXT_PUBLIC_SUPABASE_ANON_KEY: optionalSecret,
@@ -26,10 +27,14 @@ const schema = z.object({
   META_APP_ID: optionalSecret,
   META_APP_SECRET: optionalSecret,
   META_AD_LIBRARY_ACCESS_TOKEN: optionalSecret,
+  META_ACCESS_TOKEN: optionalSecret,
   META_AD_LIBRARY_ENABLED: z.enum(["true", "false"]).default("false"),
   META_API_VERSION: optionalVersion,
+  META_GRAPH_API_VERSION: optionalVersion,
   META_DEFAULT_COUNTRY: optionalCountry,
   META_API_TIMEOUT_MS: z.string().optional(),
+  META_ANALYTICS_REDIRECT_URI: optionalUrl,
+  META_ANALYTICS_ENCRYPTION_KEY: optionalHexKey,
   GOOGLE_API_KEY: optionalSecret,
   GOOGLE_SEARCH_ENGINE_ID: optionalSecret,
   ALLOW_MEDIA_ARCHIVAL: z.enum(["true", "false"]).default("false"),
@@ -56,6 +61,8 @@ export type ServerEnv = {
   metaApiVersion?: string;
   metaDefaultCountry?: string;
   metaTimeoutMs?: string;
+  metaAnalyticsRedirectUri?: string;
+  metaAnalyticsEncryptionKey?: string;
   googleApiKey?: string;
   googleSearchEngineId?: string;
   allowMediaArchival: boolean;
@@ -88,16 +95,21 @@ export function getServerEnv(): ServerEnv {
     foreplayApiKey: env.FOREPLAY_API_KEY,
     spyglassApiKey: env.SPYGLASS_API_KEY,
     spyglassEnabled: env.SPYGLASS_ENABLED === "true",
-    adsProviderOrder: (env.ADS_PROVIDER_PRIORITY || env.ADS_PROVIDER_ORDER || "meta,foreplay,searchapi")
-      .split(",").map((s) => s.trim().toLowerCase()).filter(Boolean),
+    adsProviderOrder: (
+      (env.ADS_PROVIDER && env.ADS_PROVIDER !== "auto")
+        ? env.ADS_PROVIDER
+        : (env.ADS_PROVIDER_PRIORITY || env.ADS_PROVIDER_ORDER || "meta,foreplay,searchapi")
+    ).split(",").map((s) => s.trim().toLowerCase()).filter(Boolean),
     adsProvider: env.ADS_PROVIDER,
     metaAppId: env.META_APP_ID,
     metaAppSecret: env.META_APP_SECRET,
-    metaAccessToken: env.META_AD_LIBRARY_ACCESS_TOKEN,
+    metaAccessToken: env.META_AD_LIBRARY_ACCESS_TOKEN || env.META_ACCESS_TOKEN,
     metaEnabled: env.META_AD_LIBRARY_ENABLED === "true",
-    metaApiVersion: env.META_API_VERSION,
+    metaApiVersion: env.META_API_VERSION || env.META_GRAPH_API_VERSION || "v27.0",
     metaDefaultCountry: normalizeCountry(env.META_DEFAULT_COUNTRY),
     metaTimeoutMs: env.META_API_TIMEOUT_MS,
+    metaAnalyticsRedirectUri: env.META_ANALYTICS_REDIRECT_URI,
+    metaAnalyticsEncryptionKey: env.META_ANALYTICS_ENCRYPTION_KEY,
     googleApiKey: env.GOOGLE_API_KEY,
     googleSearchEngineId: env.GOOGLE_SEARCH_ENGINE_ID,
     allowMediaArchival: env.ALLOW_MEDIA_ARCHIVAL === "true",
@@ -131,7 +143,10 @@ export const isSearchConfigured = parseSearchApiKeys([
 ]).length > 0;
 export const isForeplayConfigured = Boolean(process.env.FOREPLAY_API_KEY);
 export const isSpyglassConfigured = Boolean(process.env.SPYGLASS_API_KEY && process.env.SPYGLASS_ENABLED === "true");
-export const isMetaConfigured = Boolean(process.env.META_AD_LIBRARY_ACCESS_TOKEN && process.env.META_API_VERSION);
+export const isMetaConfigured = Boolean(
+  (process.env.META_AD_LIBRARY_ACCESS_TOKEN || process.env.META_ACCESS_TOKEN) &&
+  (process.env.META_API_VERSION || process.env.META_GRAPH_API_VERSION)
+);
 export const isGoogleSearchConfigured = Boolean(process.env.GOOGLE_API_KEY && process.env.GOOGLE_SEARCH_ENGINE_ID);
 export const isDeftformConfigured = Boolean(process.env.DEFTFORM_API_TOKEN);
 export const isAnyAdsProviderConfigured = isSearchConfigured || isMetaConfigured || isForeplayConfigured || isSpyglassConfigured;

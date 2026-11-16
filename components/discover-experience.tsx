@@ -1,7 +1,7 @@
 "use client";
 import { apiFetch } from "@/lib/api-client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { Bell, ChevronDown, Filter, Grid2X2, List, Loader2, RefreshCw, Search, X } from "lucide-react";
 import { useUser } from "@clerk/nextjs";
@@ -134,7 +134,8 @@ export function DiscoverExperience({ brandId, hideHeader = false }: { brandId?: 
   const [details, setDetails] = useState<NormalizedAd | null>(null);
   const [shareAdId, setShareAdId] = useState<string | null>(null);
   const [draftQuery, setDraftQuery] = useState(filters.query || "");
-  const [sort, setSort] = useState("relevant");
+  const currentSort = filters.sort || "relevant";
+  const [, startTransition] = useTransition();
   const [layout, setLayout] = useState<"grid" | "list">("grid");
   const [history, setHistory] = useState<string[]>([]);
   const [savedAdIds, setSavedAdIds] = useState<Set<string>>(new Set());
@@ -143,6 +144,14 @@ export function DiscoverExperience({ brandId, hideHeader = false }: { brandId?: 
   const [deepLinkedAdId, setDeepLinkedAdId] = useState<string | null>(null);
   const requestController = useRef<AbortController | null>(null);
   const searchSessionIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!searchSessionIdRef.current) {
+      searchSessionIdRef.current = typeof crypto !== "undefined" && crypto.randomUUID
+        ? crypto.randomUUID()
+        : `sess_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    }
+  }, []);
 
   useEffect(() => {
     accountRef.current = accountId;
@@ -190,6 +199,8 @@ export function DiscoverExperience({ brandId, hideHeader = false }: { brandId?: 
     const searchAccount = accountRef.current;
     if (!append) {
       requestController.current?.abort();
+    }
+    if (!searchSessionIdRef.current) {
       searchSessionIdRef.current = typeof crypto !== "undefined" && crypto.randomUUID
         ? crypto.randomUUID()
         : `sess_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -335,7 +346,7 @@ export function DiscoverExperience({ brandId, hideHeader = false }: { brandId?: 
     setDraftQuery(filters.query || "");
   }, [filters.query]);
 
-  const displayedAds = useMemo(() => sortAds(ads, sort), [ads, sort]);
+  const displayedAds = useMemo(() => sortAds(ads, currentSort), [ads, currentSort]);
 
   useEffect(() => {
     if (!deepLinkedAdId || details) return;
@@ -414,34 +425,38 @@ export function DiscoverExperience({ brandId, hideHeader = false }: { brandId?: 
   }, [filters]);
 
   function removeChip(key: string, value: string) {
-    if (key === "platforms") {
-      setFilters({ platforms: (filters.platforms || []).filter(item => item !== value) });
-    } else if (key === "formats") {
-      setFilters({ formats: (filters.formats || []).filter(item => item !== value) });
-    } else if (key === "statuses") {
-      setFilters({ statuses: (filters.statuses || []).filter(item => item !== value) });
-    } else if (key === "markets") {
-      setFilters({ markets: (filters.markets || []).filter(item => item !== value) });
-    } else if (key === "languages") {
-      setFilters({ languages: (filters.languages || []).filter(item => item !== value) });
-    } else if (key === "niches") {
-      setFilters({ niches: (filters.niches || []).filter(item => item !== value) });
-    } else if (key === "contentStyles") {
-      setFilters({ contentStyles: (filters.contentStyles || []).filter(item => item !== value) });
-    } else if (key === "runtime") {
-      setFilters({ runtime: undefined });
-    } else if (key === "videoLength") {
-      setFilters({ videoLength: undefined });
-    } else {
-      setFilters({ [key]: defaults[key as keyof AdSearchFilters] });
-    }
+    startTransition(() => {
+      if (key === "platforms") {
+        setFilters({ platforms: (filters.platforms || []).filter(item => item !== value) });
+      } else if (key === "formats") {
+        setFilters({ formats: (filters.formats || []).filter(item => item !== value) });
+      } else if (key === "statuses") {
+        setFilters({ statuses: (filters.statuses || []).filter(item => item !== value) });
+      } else if (key === "markets") {
+        setFilters({ markets: (filters.markets || []).filter(item => item !== value) });
+      } else if (key === "languages") {
+        setFilters({ languages: (filters.languages || []).filter(item => item !== value) });
+      } else if (key === "niches") {
+        setFilters({ niches: (filters.niches || []).filter(item => item !== value) });
+      } else if (key === "contentStyles") {
+        setFilters({ contentStyles: (filters.contentStyles || []).filter(item => item !== value) });
+      } else if (key === "runtime") {
+        setFilters({ runtime: undefined });
+      } else if (key === "videoLength") {
+        setFilters({ videoLength: undefined });
+      } else {
+        setFilters({ [key]: defaults[key as keyof AdSearchFilters] });
+      }
+    });
   }
 
   function clearAllFilters() {
-    setFilters({ ...defaults, query: filters.query, brand: filters.brand, selectedBrand: filters.selectedBrand, view: filters.view, formats: [], statuses: [], markets: [], languages: [], niches: [], contentStyles: [], runtime: undefined, videoLength: undefined });
+    startTransition(() => {
+      setFilters({ ...defaults, query: filters.query, brand: filters.brand, selectedBrand: filters.selectedBrand, view: filters.view, formats: [], statuses: [], markets: [], languages: [], niches: [], contentStyles: [], runtime: undefined, videoLength: undefined });
+    });
   }
 
-  async function saveAd(ad: NormalizedAd) {
+  const saveAd = useCallback(async (ad: NormalizedAd) => {
     try {
       const response = await apiFetch("/api/swipe-files/items", {
         method: "POST",
@@ -462,13 +477,13 @@ export function DiscoverExperience({ brandId, hideHeader = false }: { brandId?: 
       setToast({ message: "Couldn't save ad. Try again.", tone: "error" });
       throw error;
     }
-  }
+  }, []);
 
-  async function shareAd(ad: NormalizedAd) {
+  const shareAd = useCallback(async (ad: NormalizedAd) => {
     setShareAdId(ad.id);
-  }
+  }, []);
 
-  function handleSwipeFileAdded(ad: NormalizedAd, result: SwipeFileResult) {
+  const handleSwipeFileAdded = useCallback((ad: NormalizedAd, result: SwipeFileResult) => {
     setSavedAdIds((current) => {
       const updated = new Set(current);
       if (result.collectionIds.length) updated.add(ad.externalId || ad.id);
@@ -484,7 +499,7 @@ export function DiscoverExperience({ brandId, hideHeader = false }: { brandId?: 
         ? result.collectionNames.length > 1 ? `Added to ${result.collectionNames.length} Swipe Files` : `Added to ${result.collectionNames[0] || "Swipe File"}`
         : `Removed from ${result.collectionNames[0] || "Swipe File"}`
     });
-  }
+  }, []);
 
   const isBrandsView = filters.view === "brands";
   const hasActiveFilters = activeChips.length > 0;
@@ -536,6 +551,9 @@ export function DiscoverExperience({ brandId, hideHeader = false }: { brandId?: 
                 }}
                 onClear={() => {
                   setDraftQuery("");
+                  if (filters.query) {
+                    setFilters({ query: undefined }, false);
+                  }
                 }}
                 embedded
                 className="min-w-0 flex-1"
@@ -580,7 +598,7 @@ export function DiscoverExperience({ brandId, hideHeader = false }: { brandId?: 
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-3">
-              <CompactSelect ariaLabel="Sort" value={sort} onChange={setSort} options={[["relevant", "Most relevant"], ["newest", "Most recent"], ["oldest", "Oldest"], ["longest", "Longest running"], ["variations", "Most variations"]]} />
+              <CompactSelect ariaLabel="Sort" value={currentSort} onChange={(val) => setFilters({ sort: val })} options={[["relevant", "Most relevant"], ["newest", "Most recent"], ["oldest", "Oldest"], ["longest", "Longest running"], ["variations", "Most variations"]]} />
             </div>
           </div>
         </div>
@@ -631,7 +649,12 @@ export function DiscoverExperience({ brandId, hideHeader = false }: { brandId?: 
               action={
                 <Button
                   variant="secondary"
-                  onClick={() => search({ ...filters, sessionId: searchSessionIdRef.current || undefined })}
+                  onClick={() => {
+                    searchSessionIdRef.current = typeof crypto !== "undefined" && crypto.randomUUID
+                      ? crypto.randomUUID()
+                      : `sess_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+                    search({ ...filters, sessionId: searchSessionIdRef.current });
+                  }}
                 >
                   <RefreshCw size={15} /> Retry search
                 </Button>
@@ -666,10 +689,11 @@ export function DiscoverExperience({ brandId, hideHeader = false }: { brandId?: 
             />
           ) : (
             <div className={cn(layout === "grid" ? gridClass() : "grid grid-cols-1 gap-3", loading && !loadingMore && "opacity-60 transition-opacity")}>
-              {displayedAds.map(ad => (
+              {displayedAds.map((ad, index) => (
                 <AdCard
                   key={ad.id}
                   ad={ad}
+                  priority={index < 4}
                   saved={savedAdIds.has((ad.externalId || ad.id))}
                   swipeFileCount={adCollectionIds[(ad.externalId || ad.id)]?.length ?? 0}
                   initialCollectionIds={adCollectionIds[(ad.externalId || ad.id)] ?? []}

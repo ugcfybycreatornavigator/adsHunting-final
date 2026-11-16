@@ -96,6 +96,7 @@ function NavItem({
     <Link
       onClick={onNavigate}
       href={href}
+      prefetch={true}
       aria-current={active ? "page" : undefined}
       className={cn(
         "group relative flex h-[36px] items-center gap-[11px] rounded-[10px] px-3 transition-all duration-150 ease-out outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-1 focus-visible:ring-offset-white",

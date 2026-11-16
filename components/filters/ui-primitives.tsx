@@ -31,29 +31,38 @@ export function Popover({
   const triggerRef = useRef<HTMLDivElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
   const portalNode = usePortal();
-  const [coords, setCoords] = useState({ top: 0, left: 0, maxHeight: 720 });
+  const [coords, setCoords] = useState({ top: 0, left: 12, width: 420, maxHeight: 720 });
 
   const updatePosition = useCallback(() => {
     if (!triggerRef.current || !open) return;
     const rect = triggerRef.current.getBoundingClientRect();
-    const spaceBelow = window.innerHeight - rect.bottom - 16;
-    const spaceAbove = rect.top - 16;
+    const edge = window.innerWidth < 640 ? 8 : 16;
+    const width = Math.min(420, Math.max(280, window.innerWidth - edge * 2));
+    const spaceBelow = window.innerHeight - rect.bottom - edge;
+    const spaceAbove = rect.top - edge;
     
     // Ideal: below the trigger
     let top = rect.bottom + 8;
-    let maxH = Math.min(720, window.innerHeight - 140);
+    let maxH = Math.max(120, Math.min(720, window.innerHeight - edge * 2));
 
     // If not enough space below, and more space above, flip it
     if (spaceBelow < 400 && spaceAbove > spaceBelow) {
-      top = Math.max(16, rect.top - maxH - 8);
-      maxH = Math.min(maxH, spaceAbove - 8);
+      maxH = Math.max(120, Math.min(maxH, spaceAbove - 8));
+      top = Math.max(edge, rect.top - maxH - 8);
     } else {
-      maxH = Math.min(maxH, spaceBelow - 8);
+      maxH = Math.max(120, Math.min(maxH, spaceBelow - 8));
     }
+
+    const preferredLeft = rect.right - width;
+    const left = Math.min(
+      window.innerWidth - width - edge,
+      Math.max(edge, preferredLeft)
+    );
 
     setCoords({
       top,
-      left: Math.max(16, rect.left), // Align left, but at least 16px from edge
+      left,
+      width,
       maxHeight: maxH,
     });
   }, [open]);
@@ -104,7 +113,7 @@ export function Popover({
             top: coords.top, 
             left: coords.left, 
             maxHeight: coords.maxHeight,
-            width: "420px"
+            width: coords.width
           }}
           className="fixed z-[100] flex flex-col rounded-[16px] border border-line bg-white shadow-xl animate-in fade-in zoom-in-95 duration-200"
         >
@@ -114,9 +123,7 @@ export function Popover({
           <div className="min-h-0 flex-1 overflow-y-auto px-5 py-2 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-zinc-300">
             {children}
           </div>
-          <div className="flex-none rounded-b-[16px] border-t border-line bg-white/95 px-5 py-4 backdrop-blur">
-            {footer}
-          </div>
+          {footer && <div className="flex-none rounded-b-[16px] border-t border-line bg-white/95 px-5 py-4 backdrop-blur">{footer}</div>}
         </div>,
         portalNode
       )}

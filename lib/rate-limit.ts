@@ -51,7 +51,7 @@ export async function rateLimit(
   windowMs = 60_000,
   options?: RateLimitOptions
 ): Promise<RateLimitResult> {
-  const timeoutMs = options?.timeoutMs ?? 250;
+  const timeoutMs = options?.timeoutMs ?? 1000;
   const policy = options?.policy ?? "fail-open";
 
   // 1. Attempt authoritative distributed rate limiting via Supabase RPC

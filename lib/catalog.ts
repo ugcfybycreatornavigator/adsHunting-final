@@ -1,6 +1,7 @@
 import { realAdvertiserName, resolveAdvertiser } from "../supabase/functions/_shared/ads/advertiser-identity";
 import type { AdStatus, MediaType, NormalizedAd } from "@/lib/types";
 import { computeAdFingerprints } from "@/lib/fingerprint";
+import { normalizeAdDetail, normalizeBusinessContact, normalizeCreativeAnalysis, normalizeTranscript } from "@/lib/ad-detail-metadata";
 
 export interface DatabaseAdRow {
   id: string;
@@ -43,6 +44,11 @@ export interface DatabaseAdRow {
   raw_data: Record<string, unknown> | null;
   refined_data: Record<string, unknown> | null;
   quality_score: number | null;
+  business_contact_email?: string | null;
+  business_contact_provenance?: string | null;
+  business_contact_verified_at?: string | null;
+  transcript_data?: NonNullable<NormalizedAd["detail"]>["transcript"] | null;
+  creative_analysis?: NonNullable<NormalizedAd["detail"]>["analysis"] | null;
 }
 
 export function dbAdToNormalized(row: DatabaseAdRow): NormalizedAd {
@@ -75,6 +81,12 @@ export function dbAdToNormalized(row: DatabaseAdRow): NormalizedAd {
         logoUrl: row.advertiser_avatar_url, pageUrl: row.advertiser_profile_url,
       }),
       delivery: { ...refinedAd.delivery, daysRunning: derivedRunningDays },
+      detail: normalizeAdDetail({
+        ...refinedAd.detail,
+        businessContact: normalizeBusinessContact(row.business_contact_email, row.business_contact_provenance, row.business_contact_verified_at) || refinedAd.detail?.businessContact,
+        transcript: normalizeTranscript(row.transcript_data) || refinedAd.detail?.transcript,
+        analysis: normalizeCreativeAnalysis(row.creative_analysis) || refinedAd.detail?.analysis,
+      }),
     };
   }
 
@@ -139,6 +151,11 @@ export function dbAdToNormalized(row: DatabaseAdRow): NormalizedAd {
       qualityScore: Number(row.quality_score) || 0,
       lastEnrichedAt: null,
     },
+    detail: normalizeAdDetail({
+      businessContact: normalizeBusinessContact(row.business_contact_email, row.business_contact_provenance, row.business_contact_verified_at),
+      transcript: normalizeTranscript(row.transcript_data),
+      analysis: normalizeCreativeAnalysis(row.creative_analysis),
+    }),
     variants: 1,
     creativeRepetition: 0,
     brandActiveAds: null,

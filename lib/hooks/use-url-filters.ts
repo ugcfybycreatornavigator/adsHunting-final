@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { AdSearchFilters } from "@/lib/types";
 import { normalizeDiscoverFilters } from "@/lib/filter-utils";
 
@@ -14,7 +14,6 @@ function safeParseJSON<T>(str: string | null, fallback: T): T {
 }
 
 export function useUrlFilters(defaultFilters: AdSearchFilters, options: { syncUrl?: boolean; readUrl?: boolean } = {}) {
-  const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const syncUrlEnabled = options.syncUrl !== false;
@@ -97,9 +96,9 @@ export function useUrlFilters(defaultFilters: AdSearchFilters, options: { syncUr
     if (replace) {
       window.history.replaceState({ ...window.history.state, as: newUrl, url: newUrl }, "", newUrl);
     } else {
-      router.push(newUrl);
+      window.history.pushState({ ...window.history.state, as: newUrl, url: newUrl }, "", newUrl);
     }
-  }, [pathname, router, defaultFilters, syncUrlEnabled]);
+  }, [pathname, defaultFilters, syncUrlEnabled]);
 
   // Handle popstate so browser back/forward works
   useEffect(() => {
@@ -138,17 +137,23 @@ export function useUrlFilters(defaultFilters: AdSearchFilters, options: { syncUr
 
   const updateFilters = useCallback((updates: Partial<AdSearchFilters>, replace = true) => {
     setFilters(prev => {
-      const next = { ...prev, ...updates };
-      // Always reset cursor/pagination when filters change
-      next.cursor = undefined;
-      syncToUrl(next, replace);
+      const next = { ...prev, ...updates, cursor: undefined };
+      if (typeof window !== "undefined") {
+        queueMicrotask(() => {
+          syncToUrl(next, replace);
+        });
+      }
       return next;
     });
   }, [syncToUrl]);
 
   const clearFilters = useCallback((replace = true) => {
     setFilters({ ...defaultFilters });
-    syncToUrl({ ...defaultFilters }, replace);
+    if (typeof window !== "undefined") {
+      queueMicrotask(() => {
+        syncToUrl({ ...defaultFilters }, replace);
+      });
+    }
   }, [defaultFilters, syncToUrl]);
 
   return {

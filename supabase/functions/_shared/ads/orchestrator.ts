@@ -41,7 +41,10 @@ export class AdsProviderOrchestrator {
     const envVars = Deno.env.toObject();
     
     // Parse order configuration
-    const orderStr = Deno.env.get("ADS_PROVIDER_PRIORITY") || Deno.env.get("ADS_PROVIDER_ORDER") || "meta,foreplay,searchapi";
+    const singleProvider = Deno.env.get("ADS_PROVIDER");
+    const orderStr = (singleProvider && singleProvider !== "auto")
+      ? singleProvider
+      : (Deno.env.get("ADS_PROVIDER_PRIORITY") || Deno.env.get("ADS_PROVIDER_ORDER") || "meta,foreplay,searchapi");
     const order = orderStr.split(",").map(s => s.trim().toLowerCase()).filter(Boolean);
     
     const registry = new Map<string, () => AdProvider | null>();
@@ -55,14 +58,14 @@ export class AdsProviderOrchestrator {
     
     registry.set("meta", () => {
       const metaEnabled = Deno.env.get("META_AD_LIBRARY_ENABLED") === "true";
-      const metaToken = Deno.env.get("META_AD_LIBRARY_ACCESS_TOKEN");
-      const metaVersion = Deno.env.get("META_GRAPH_API_VERSION") || "v26.0";
+      const metaToken = Deno.env.get("META_AD_LIBRARY_ACCESS_TOKEN") || Deno.env.get("META_ACCESS_TOKEN");
+      const metaVersion = Deno.env.get("META_API_VERSION") || Deno.env.get("META_GRAPH_API_VERSION") || "v27.0";
       if (metaEnabled && metaToken) {
         return new MetaProvider({
           accessToken: metaToken,
           apiVersion: metaVersion,
-          defaultCountry: Deno.env.get("META_DEFAULT_COUNTRY") || "US",
-          timeoutMs: parseInt(Deno.env.get("META_API_TIMEOUT_MS") || "5000", 10),
+          defaultCountry: Deno.env.get("META_DEFAULT_COUNTRY") || "ALL",
+          timeoutMs: parseInt(Deno.env.get("META_API_TIMEOUT_MS") || "20000", 10),
         });
       }
       return null;

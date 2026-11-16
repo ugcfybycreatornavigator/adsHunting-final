@@ -118,6 +118,29 @@ export type RefinedAd = {
     qualityScore: number;
     lastEnrichedAt: string | null;
   };
+
+  detail?: {
+    businessContact?: {
+      email: string;
+      provenance: string;
+      verifiedAt?: string | null;
+    } | null;
+    transcript?: {
+      status: "available" | "processing" | "unavailable" | "failed";
+      language?: string | null;
+      segments: Array<{ startSeconds: number; endSeconds?: number | null; text: string }>;
+      provenance?: string | null;
+    } | null;
+    analysis?: {
+      status: "complete" | "partial" | "not_analyzed" | "failed";
+      provenance?: string | null;
+      persona?: string | null;
+      painPoints?: string[];
+      sellingPoints?: string[];
+      tags?: string[];
+      language?: string | null;
+    } | null;
+  };
   
   variants?: number;
   creativeRepetition?: number;
